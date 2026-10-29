@@ -1,9 +1,13 @@
-# OP-XY Macro
+# OP-XY ModFX
 
-Aux modules for the Teenage Engineering OP-XY, built with the
-[Open-XY SDK](https://github.com/etcetc000/open-xy). An aux module sits on one
-of the OP-XY's aux tracks instead of an instrument track. It takes no
-instrument slot, and its controls steer every instrument track at once.
+Mods and effects for the Teenage Engineering OP-XY, built with the
+[Open-XY SDK](https://github.com/etcetc000/open-xy):
+
+- **Omnifilter**, an aux module: a global mod that sits on one of the OP-XY's
+  aux tracks instead of an instrument track. It takes no instrument slot, and
+  its controls steer every instrument track at once.
+- **Lint**, a send effect: a 1970s box of effects on FX I or II, with its own
+  page on the send.
 
 ![Omnifilter's screen at four settings: the iris wide open; half open; closed to a sharp star with both rings turned; and almost shut](docs/screens/omnifilter.png)
 
@@ -43,29 +47,8 @@ An aux track takes Omnifilter the way an instrument track takes an engine:
 To put the track's own module back, choose it from the same Shift and M1 list
 (`brain`, `punch-in`, `midi`, `cv`, `audio` or `tape`).
 
-## Status: experimental
+### How a module shares its track
 
-Aux modules need the SDK's aux module support, which is in review as
-[etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221).
-Until it merges, build against that branch:
-
-```bash
-git clone -b sdk/aux-modules https://github.com/mmockett/open-xy
-```
-
-```bash
-python open-xy/sdk.py test --machine OP-XY-Macro/omnifilter
-```
-
-```bash
-python open-xy/sdk.py build --machine OP-XY-Macro/omnifilter --stock-os <stock-1.2.1>/os.ldr --out <builds>/omnifilter-001
-```
-
-The firmware needs an OP-XY on **OS 1.2.1**; installing it is described in the
-SDK's [building firmware](https://github.com/mmockett/open-xy/blob/sdk/aux-modules/docs/build.md#5-install)
-guide.
-
-How a module shares its track:
 - **Saved with the project.** The aux track keeps Omnifilter the way an
   instrument track keeps its engine, so it's still there after a restart.
 - **MIDI and CV play on.** On aux 3 (MIDI) or aux 4 (CV), the track's own
@@ -79,6 +62,55 @@ How a module shares its track:
 The screen's artwork and the iris's tables come from
 [`omnifilter/tools/make_panel.py`](omnifilter/tools/make_panel.py); rerun it
 after changing a shape.
+
+## Lint
+
+![Lint's screen in six settings: the four bays in order on one cable; everything turned up; the spring patched into the echo's loop; tape 2 in the loop; the phaser in the loop; everything at zero](docs/screens/lint.png)
+
+A 1970s effects box for a send, after Finegear's Dust Collector: two tape
+saturations, an optical phaser, a gritty PT2399-style echo and a three-spring
+tank. They run in any of six orders, one of them can be patched into the
+echo's feedback loop, and two LFOs move them.
+
+**Controls:** dust, spring, echo, phase; press for time, tone, rate, tape 2;
+hold Shift for order, loop, wobble, shape
+
+**Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed
+
+**The screen** is the box seen from above: its four sections as bays in the
+chosen order, joined by one patch cable from in to out. Each control moves its
+own bay. [`lint/README.md`](lint/README.md) says how.
+
+Put Lint on a send with **Shift** and **M1** on FX I or II. At full send a
+track goes wholly through the box, as it would through the hardware inline;
+less send blends the clean track with it.
+
+## Status: experimental
+
+Omnifilter needs the SDK's aux module support, in review as
+[etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221). Lint
+also needs effect pages, shift rows and effect screens, on the branch
+`sdk/effect-screens`, which builds on it. Until they merge, build against that
+branch:
+
+```bash
+git clone -b sdk/effect-screens https://github.com/mmockett/open-xy
+```
+
+```bash
+python open-xy/sdk.py test --machine OP-XY-ModFX/omnifilter --machine OP-XY-ModFX/lint
+```
+
+```bash
+python open-xy/sdk.py build --machine OP-XY-ModFX/omnifilter --machine OP-XY-ModFX/lint --stock-os <stock-1.2.1>/os.ldr --out <builds>/modfx-001
+```
+
+The firmware needs an OP-XY on **OS 1.2.1**; installing it is described in the
+SDK's [building firmware](https://github.com/mmockett/open-xy/blob/sdk/effect-screens/docs/build.md#5-install)
+guide.
+
+Measured on the device (`sdk.py profile benchmark`, three runs), Omnifilter
+costs 0.8% of the audio block budget and Lint 7.4%.
 
 ## Licence
 

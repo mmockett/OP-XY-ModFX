@@ -1,0 +1,229 @@
+{
+  "schema": 1,
+  "id": "lint",
+  "name": "Lint",
+  "press": "page",
+  "parameters": [
+    {
+      "id": "dust",
+      "label": "Dust",
+      "default": 0.25,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "spring",
+      "label": "Spring",
+      "default": 0.35,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "echo",
+      "label": "Echo",
+      "default": 0.3,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "phase",
+      "label": "Phase",
+      "default": 0.0,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "time",
+      "label": "Time",
+      "default": 0.82,
+      "mapping": {
+        "kind": "exponential",
+        "minimum": 3,
+        "maximum": 650
+      },
+      "display": "duration",
+      "control": 0
+    },
+    {
+      "id": "tone",
+      "label": "Tone",
+      "default": 0.5,
+      "mapping": {
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
+      },
+      "display": "bipolar",
+      "control": 1
+    },
+    {
+      "id": "rate",
+      "label": "Rate",
+      "default": 0.35,
+      "mapping": {
+        "kind": "exponential",
+        "minimum": 0.17,
+        "maximum": 7.5
+      },
+      "display": "ratio",
+      "control": 2
+    },
+    {
+      "id": "tape2",
+      "label": "Tape 2",
+      "default": 0.0,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent",
+      "control": 3
+    }
+  ],
+  "shift": [
+    {
+      "id": "order",
+      "label": "Order",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "DPES",
+          "DEPS",
+          "PDES",
+          "DSPE",
+          "SDEP",
+          "EDPS"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "loop",
+      "label": "Loop",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "off",
+          "tape",
+          "phase",
+          "tank"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "wobble",
+      "label": "Wobble",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "off",
+          "time",
+          "tank",
+          "phase"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "shape",
+      "label": "Shape",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "sine",
+          "tri",
+          "sqr"
+        ]
+      },
+      "display": "enum"
+    }
+  ],
+  "presets": {
+    "Dusty": {
+      "dust": 0.25,
+      "spring": 0.35,
+      "echo": 0.3,
+      "phase": 0.0,
+      "time": 0.82,
+      "tone": 0.5,
+      "rate": 0.35,
+      "tape2": 0.0
+    },
+    "Tank": {
+      "dust": 0.1,
+      "spring": 0.85,
+      "echo": 0.0,
+      "phase": 0.0,
+      "time": 0.82,
+      "tone": 0.6,
+      "rate": 0.35,
+      "tape2": 0.0
+    },
+    "Slapback": {
+      "dust": 0.4,
+      "spring": 0.15,
+      "echo": 0.35,
+      "phase": 0.0,
+      "time": 0.5,
+      "tone": 0.5,
+      "rate": 0.35,
+      "tape2": 0.2
+    },
+    "Swoosh": {
+      "dust": 0.15,
+      "spring": 0.3,
+      "echo": 0.25,
+      "phase": 0.75,
+      "time": 0.75,
+      "tone": 0.5,
+      "rate": 0.25,
+      "tape2": 0.0
+    },
+    "Runaway": {
+      "dust": 0.3,
+      "spring": 0.4,
+      "echo": 0.92,
+      "phase": 0.2,
+      "time": 0.9,
+      "tone": 0.4,
+      "rate": 0.2,
+      "tape2": 0.3
+    },
+    "Crushed": {
+      "dust": 0.85,
+      "spring": 0.2,
+      "echo": 0.2,
+      "phase": 0.0,
+      "time": 0.7,
+      "tone": 0.3,
+      "rate": 0.35,
+      "tape2": 0.6
+    }
+  },
+  "resources": {
+    "bufferBytes": 121584,
+    "display": {"stateBytes": 44, "stateAlignment": 4, "paths": 4, "points": 64, "nodes": 57, "texts": 11, "palette": 12}
+  }
+}

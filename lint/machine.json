@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "sdk": "1.5",
+  "kind": "effect",
+  "description": "A 1970s effects box on a send, after Finegear's Dust Collector: two tape saturations, a phaser, a gritty echo and a spring tank, in any order, with two LFOs",
+  "dryLevel": 0,
+  "identity": {
+    "effect": 23,
+    "page": 95
+  }
+}
