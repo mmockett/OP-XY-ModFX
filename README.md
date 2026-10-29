@@ -115,8 +115,9 @@ it is described in the SDK's
 [building firmware](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
 guide.
 
-Measured on the device (`sdk.py profile benchmark`, three runs), Omnifilter
-costs 0.8% of the audio block budget and Lint 7.4%.
+Each release's CPU cost, measured on an OP-XY with `sdk.py profile benchmark`
+over three runs, is recorded with its entry in the
+[Open-XY catalog](https://github.com/etcetc000/open-xy/blob/staging/catalog/machines.json).
 
 ## Licence
 

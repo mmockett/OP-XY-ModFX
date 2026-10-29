@@ -33,6 +33,13 @@ The order's letters are page 1's names: D dust, P phase, E echo, S spring.
 Lint mixes its own dry, as the hardware does, and declares `dryLevel` 0: at
 full send a track goes wholly through it.
 
+It works at one level whatever the send's: it lifts its input so the loudest
+so far sits near -12 dBFS, and lowers its output as much. Its saturations,
+the echo's hiss and converter, and its slow filters then behave alike at any
+send level. The lift only ever falls, as louder input arrives, and Lint's
+memory falls with it, so nothing it holds jumps in level. Dust and tape 2
+fade in from clean over the first quarter of their controls.
+
 ## The screen
 
 ![Lint's screen in six settings](screens.png)
