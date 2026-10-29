@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "omnifilter",
+  "name": "Omnifilter",
+  "aux": {"macro": ["cutoff", "resonance", "attack", "release"]},
+  "parameters": [
+    {"id":"cutoff","label":"Cutoff","default":1,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
+    {"id":"resonance","label":"Reso","default":0,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
+    {"id":"attack","label":"Attack","default":0,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
+    {"id":"release","label":"Release","default":0.3,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"}
+  ],
+  "presets": {},
+  "resources": {
+    "voiceBytes":4,"voiceAlignment":4,"voiceCapacity":1,"sharedBytes":0,
+    "outputPeakQ31":1073741824,
+    "display":{"stateBytes":20,"stateAlignment":4,"paths":3,"points":64,"nodes":5,"texts":0,"palette":2}
+  }
+}

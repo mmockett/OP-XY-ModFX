@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "sdk": "1.5",
+  "kind": "synth",
+  "description": "An aux module: one filter and envelope for every instrument track, set from an aux track",
+  "identity": {
+    "engine": 36,
+    "page": 84
+  }
+}
