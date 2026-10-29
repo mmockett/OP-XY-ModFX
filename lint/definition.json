@@ -16,9 +16,9 @@
       "display": "percent"
     },
     {
-      "id": "spring",
-      "label": "Spring",
-      "default": 0.35,
+      "id": "phase",
+      "label": "Phase",
+      "default": 0.0,
       "mapping": {
         "kind": "linear",
         "minimum": 0,
@@ -38,51 +38,15 @@
       "display": "percent"
     },
     {
-      "id": "phase",
-      "label": "Phase",
-      "default": 0.0,
+      "id": "spring",
+      "label": "Spring",
+      "default": 0.35,
       "mapping": {
         "kind": "linear",
         "minimum": 0,
         "maximum": 1
       },
       "display": "percent"
-    },
-    {
-      "id": "time",
-      "label": "Time",
-      "default": 0.82,
-      "mapping": {
-        "kind": "exponential",
-        "minimum": 3,
-        "maximum": 650
-      },
-      "display": "duration",
-      "control": 0
-    },
-    {
-      "id": "tone",
-      "label": "Tone",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": -1,
-        "maximum": 1
-      },
-      "display": "bipolar",
-      "control": 1
-    },
-    {
-      "id": "rate",
-      "label": "Rate",
-      "default": 0.35,
-      "mapping": {
-        "kind": "exponential",
-        "minimum": 0.17,
-        "maximum": 7.5
-      },
-      "display": "ratio",
-      "control": 2
     },
     {
       "id": "tape2",
@@ -94,6 +58,42 @@
         "maximum": 1
       },
       "display": "percent",
+      "control": 0
+    },
+    {
+      "id": "rate",
+      "label": "Rate",
+      "default": 0.35,
+      "mapping": {
+        "kind": "exponential",
+        "minimum": 0.17,
+        "maximum": 7.5
+      },
+      "display": "ratio",
+      "control": 1
+    },
+    {
+      "id": "time",
+      "label": "Time",
+      "default": 0.82,
+      "mapping": {
+        "kind": "exponential",
+        "minimum": 3,
+        "maximum": 650
+      },
+      "display": "duration",
+      "control": 2
+    },
+    {
+      "id": "tone",
+      "label": "Tone",
+      "default": 0.5,
+      "mapping": {
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
+      },
+      "display": "bipolar",
       "control": 3
     }
   ],
@@ -163,63 +163,63 @@
   "presets": {
     "Dusty": {
       "dust": 0.25,
-      "spring": 0.35,
-      "echo": 0.3,
       "phase": 0.0,
-      "time": 0.82,
-      "tone": 0.5,
+      "echo": 0.3,
+      "spring": 0.35,
+      "tape2": 0.0,
       "rate": 0.35,
-      "tape2": 0.0
+      "time": 0.82,
+      "tone": 0.5
     },
     "Tank": {
       "dust": 0.1,
-      "spring": 0.85,
-      "echo": 0.0,
       "phase": 0.0,
-      "time": 0.82,
-      "tone": 0.6,
+      "echo": 0.0,
+      "spring": 0.85,
+      "tape2": 0.0,
       "rate": 0.35,
-      "tape2": 0.0
+      "time": 0.82,
+      "tone": 0.6
     },
     "Slapback": {
       "dust": 0.4,
-      "spring": 0.15,
-      "echo": 0.35,
       "phase": 0.0,
-      "time": 0.5,
-      "tone": 0.5,
+      "echo": 0.35,
+      "spring": 0.15,
+      "tape2": 0.2,
       "rate": 0.35,
-      "tape2": 0.2
+      "time": 0.5,
+      "tone": 0.5
     },
     "Swoosh": {
       "dust": 0.15,
-      "spring": 0.3,
-      "echo": 0.25,
       "phase": 0.75,
-      "time": 0.75,
-      "tone": 0.5,
+      "echo": 0.25,
+      "spring": 0.3,
+      "tape2": 0.0,
       "rate": 0.25,
-      "tape2": 0.0
+      "time": 0.75,
+      "tone": 0.5
     },
     "Runaway": {
       "dust": 0.3,
-      "spring": 0.4,
-      "echo": 0.92,
       "phase": 0.2,
-      "time": 0.9,
-      "tone": 0.4,
+      "echo": 0.92,
+      "spring": 0.4,
+      "tape2": 0.3,
       "rate": 0.2,
-      "tape2": 0.3
+      "time": 0.9,
+      "tone": 0.4
     },
     "Crushed": {
       "dust": 0.85,
-      "spring": 0.2,
-      "echo": 0.2,
       "phase": 0.0,
-      "time": 0.7,
-      "tone": 0.3,
+      "echo": 0.2,
+      "spring": 0.2,
+      "tape2": 0.6,
       "rate": 0.35,
-      "tape2": 0.6
+      "time": 0.7,
+      "tone": 0.3
     }
   },
   "resources": {

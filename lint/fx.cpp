@@ -15,7 +15,7 @@ const i32 kMaximum = opxy::q31::maximum, kMinimum = -kMaximum - 1;
 const i32 kUnit = kMaximum;
 
 // The controls: page 1, page 2, then the shift row's four choices.
-enum { kDust, kSpringAmount, kEcho, kPhase, kTime, kTone, kRate, kTape2 };
+enum { kDust, kPhase, kEcho, kSpringAmount, kTape2, kRate, kTime, kTone };
 enum { kOrder = 8, kLoop, kWobble, kShape };
 enum Section { kTape1, kPhaser, kEchoSection, kSpringSection, kNone };
 // The six orders, by page 1's names: D dust (tape 1), P phase, E echo, S spring

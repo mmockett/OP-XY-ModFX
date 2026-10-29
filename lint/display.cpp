@@ -19,7 +19,7 @@ using namespace panel;
 
 namespace {
 // The controls, as the effect's (fx.cpp), and its shift row's choices.
-enum { kDust, kSpringAmount, kEcho, kPhase, kTime, kTone, kRate, kTape2Level };
+enum { kDust, kPhase, kEcho, kSpringAmount, kTape2Level, kRate, kTime, kTone };
 enum { kLoopOff, kLoopTape, kLoopPhaser, kLoopSpring };
 enum { kWobbleOff, kWobbleTime, kWobbleSpring, kWobblePhaser };
 enum { kSine, kTriangle, kSquare };

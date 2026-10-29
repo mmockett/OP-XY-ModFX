@@ -59,7 +59,7 @@ int main() {
     {
         lint::State state;
         lint::initialize(state);
-        const opxy::i32 words[12] = {0, 0x7fffffff, 0, 0, kHalf, kHalf, kHalf, 0, 0, 0, 0, 0};
+        const opxy::i32 words[12] = {0, 0, 0, 0x7fffffff, 0, kHalf, kHalf, kHalf, 0, 0, 0, 0};
         double tail = 0;
         run(state, memory, words, 20, true, &tail);
         if (tail < 0.0005) { std::printf("FAIL the spring is silent after 30 ms: %f\n", tail); ok = false; }
@@ -71,7 +71,7 @@ int main() {
     {
         lint::State state;
         lint::initialize(state);
-        const opxy::i32 words[12] = {0, 0, 0x7fffffff, 0, enum_word(16, 32), kHalf, kHalf, 0, 0, 0, 0, 0};
+        const opxy::i32 words[12] = {0, 0, 0x7fffffff, 0, 0, kHalf, enum_word(16, 32), kHalf, 0, 0, 0, 0};
         double tail = 0;
         run(state, memory, words, 1378, true, &tail, 375);
         if (tail < 0.01) { std::printf("FAIL Madness does not sustain: %f\n", tail); ok = false; }

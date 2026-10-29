@@ -72,7 +72,7 @@ saturations, an optical phaser, a gritty PT2399-style echo and a three-spring
 tank. They run in any of six orders, one of them can be patched into the
 echo's feedback loop, and two LFOs move them.
 
-**Controls:** dust, spring, echo, phase; press for time, tone, rate, tape 2;
+**Controls:** dust, phase, echo, spring; press for tape 2, rate, time, tone;
 hold Shift for order, loop, wobble, shape
 
 **Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed
