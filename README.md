@@ -17,6 +17,8 @@ locked on steps, so the whole mix opens and closes with the pattern.
 
 **Controls:** cutoff, reso, attack, release
 
+**Presets:** open, warm, dark, acid, pluck, swell
+
 **The screen** is the front of a rangefinder camera, and its lens is the
 filter every track plays through. The iris has eight blades, one per track:
 - **cutoff** opens and closes the iris.
@@ -28,14 +30,18 @@ Nothing moves unless a control does.
 
 ### Using it
 
-![Shift and aux 4 open a list titled "aux" under "4", with cv and omnifilter; on M1, Omnifilter's page](docs/screens/flow.png)
+![Shift and M1 on aux 4 list cv and omnifilter; M1 shows Omnifilter's page; Shift and aux 4 list its presets](docs/screens/flow.png)
 
-1. Hold **Shift** and press an aux track's key (aux 1 to 6).
-2. Choose `omnifilter` from the list that opens, titled "aux" under the track's number.
+An aux track takes Omnifilter the way an instrument track takes an engine:
+
+1. Select an aux track (aux 1 to 6), hold **Shift** and press **M1**.
+2. Choose `omnifilter` from the list, titled "aux" under the track's number.
 3. Press **M1** to see its page, and turn the encoders.
+4. Hold **Shift** and press the track's key for its presets: open, warm,
+   dark, acid, pluck and swell. A preset moves all eight tracks at once.
 
-To put the track's own module back, choose it from the same list (`brain`,
-`punch-in`, `midi`, `cv`, `audio` or `tape`).
+To put the track's own module back, choose it from the same Shift and M1 list
+(`brain`, `punch-in`, `midi`, `cv`, `audio` or `tape`).
 
 ## Status: experimental
 

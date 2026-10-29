@@ -9,7 +9,14 @@
     {"id":"attack","label":"Attack","default":0,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
     {"id":"release","label":"Release","default":0.3,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"}
   ],
-  "presets": {},
+  "presets": {
+    "open":{"cutoff":1.0,"resonance":0.0,"attack":0.0,"release":0.3},
+    "warm":{"cutoff":0.62,"resonance":0.15,"attack":0.05,"release":0.4},
+    "dark":{"cutoff":0.3,"resonance":0.1,"attack":0.1,"release":0.5},
+    "acid":{"cutoff":0.35,"resonance":0.8,"attack":0.0,"release":0.2},
+    "pluck":{"cutoff":0.5,"resonance":0.3,"attack":0.0,"release":0.08},
+    "swell":{"cutoff":0.55,"resonance":0.2,"attack":0.7,"release":0.8}
+  },
   "resources": {
     "voiceBytes":4,"voiceAlignment":4,"voiceCapacity":1,"sharedBytes":0,
     "outputPeakQ31":1073741824,
