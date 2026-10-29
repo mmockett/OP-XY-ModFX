@@ -59,10 +59,16 @@ The firmware needs an OP-XY on **OS 1.2.1**; installing it is described in the
 SDK's [building firmware](https://github.com/mmockett/open-xy/blob/sdk/aux-modules/docs/build.md#5-install)
 guide.
 
-Limits of the draft SDK support:
-- An aux track forgets its module after a restart. The module's control values are kept.
-- The aux track's stock module keeps running underneath. Prefer a track whose
-  stock module is idle, such as CV when nothing is plugged into the multi-out.
+How a module shares its track:
+- **Saved with the project.** The aux track keeps Omnifilter the way an
+  instrument track keeps its engine, so it's still there after a restart.
+- **MIDI and CV play on.** On aux 3 (MIDI) or aux 4 (CV), the track's own
+  notes still go to your external gear, and its M2 and M3 CCs still go out.
+  Turning Omnifilter sends no CC.
+- **The other stock modules go quiet.** On aux 1, 2, 5 and 6 (brain, punch-in,
+  audio, tape), the track's own notes start nothing, and the brain transposes
+  no routed track, since their controls are hidden behind Omnifilter's page.
+- M2 to M4 stay the track's stock pages.
 
 The screen's artwork and the iris's tables come from
 [`omnifilter/tools/make_panel.py`](omnifilter/tools/make_panel.py); rerun it
