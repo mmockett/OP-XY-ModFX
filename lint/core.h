@@ -34,6 +34,7 @@ struct State {
     opxy::u32 tank_phase;
     Tape tape[2];
     opxy::u32 lfo1, lfo2;             // phases, 2^32 a cycle
+    opxy::u32 lift;                   // the input's shift up to the box's working level
     opxy::i32 smooth[8];              // the eight controls, gliding
 };
 void initialize(State& state);

@@ -103,11 +103,12 @@ i32 glide(i32 value, i32 target) { return value + ((target - value) >> 2); }
 // them harder. Before them a head bump lifts the lows, so they saturate first;
 // after them the highs roll off as it darkens, a DC blocker centres the
 // lopsided types' even harmonics, and a makeup gain keeps the level steady,
-// so turning it up adds grit, not loudness.
+// so turning it up adds grit, not loudness. Over the control's first quarter
+// it fades in from the clean signal, so its lowest settings are gentle.
 struct Saturation {
     const i32* lower;
     const i32* upper;
-    i32 blend, loss;
+    i32 blend, loss, wet;
     Gain drive, makeup;
     i32 shape(i32 u) const {
         const i32 a = diode(*reinterpret_cast<const i32(*)[129]>(lower), u);
@@ -132,6 +133,7 @@ struct Saturation {
         if (gain > 8192) gain = 8192;
         makeup.set(gain);
         loss = kLossOpen + mul(control(type), kLossDark - kLossOpen);
+        wet = control(type) >= 536870912 ? kUnit : control(type) << 2;
     }
     i32 run(i32 x, Tape& t) const {
         t.bump += mul(kBump, (x >> 1) - (t.bump >> 1)) * 2;
@@ -140,7 +142,7 @@ struct Saturation {
         const i32 centred = add(add(t.loss, -t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
         t.dc_in = t.loss;
         t.dc_out = centred;
-        return centred;
+        return add(x, mul(wet, add(centred, -x)));
     }
 };
 
@@ -241,7 +243,7 @@ struct Box {
         // and past it Madness runs away from what is played, up to the limit.
         const i32 back = echo_feedback.apply(inserted(add(s.echo_dark, -s.echo_low)));
         // The chip's converter: coarser as its clock slows, which is its grit.
-        echo[s.echo_write] = limit(add(x, back)) & echo_grit;
+        echo[s.echo_write] = add(limit(add(x, back)), ~echo_grit >> 1) & echo_grit;
         s.echo_write = s.echo_write + 1 == kEchoLine ? 0 : s.echo_write + 1;
         if (s.echo_written < kEchoLine) ++s.echo_written;
         // The hiss rides on the wet, outside the loop, so it never builds up.
@@ -259,10 +261,35 @@ struct Box {
 };
 }
 
+namespace {
+// The most the input is lifted, 2^20 (120 dB): enough for the quietest send.
+const u32 kLift = 20;
+
+// Lowers everything the box holds by `by` bits, as its working level falls:
+// the echo's line, the springs' lines and chirps, and every filter's memory.
+void lower(State& s, i32* words, u32 by) {
+    for (u32 i = 0; i < kBufferWords; ++i) words[i] >>= by;
+    i32* held[] = {&s.echo_dark, &s.echo_low, &s.phase_back, &s.tone_low, &s.tank_in, &s.tank_out, &s.tank_last};
+    for (i32* value : held) *value >>= by;
+    for (u32 i = 0; i < 4; ++i) {
+        s.phase[i] >>= by;
+        s.phase_out[i] >>= by;
+    }
+    for (u32 k = 0; k < kSprings; ++k) s.spring[k].damp >>= by;
+    for (u32 t = 0; t < 2; ++t) {
+        s.tape[t].bump >>= by;
+        s.tape[t].loss >>= by;
+        s.tape[t].dc_in >>= by;
+        s.tape[t].dc_out >>= by;
+    }
+}
+}
+
 void initialize(State& state) {
     // An engine reset runs this again: the buffer's old contents are now unwritten.
     state = State();
     state.noise = 22222;
+    state.lift = kLift;
 }
 
 void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channel right,
@@ -328,10 +355,11 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     if (box.echo_target > static_cast<i32>((kEchoLine - 2) << 8)) box.echo_target = static_cast<i32>((kEchoLine - 2) << 8);
     if (!state.echo_delay) state.echo_delay = box.echo_target;
     box.echo_dark = curve(kEchoDark, c[kTime]);
-    // The PT2399's hiss, louder as its clock slows: -78 dB at the shortest time, -60 dB at the longest;
-    // and its converter, 12 bits at the shortest time to 9 at the longest.
-    box.echo_hiss = 13 - static_cast<i32>(static_cast<u32>(c[kTime]) >> 29);
-    box.echo_grit = static_cast<i32>(~((1u << (19 + (static_cast<u32>(c[kTime]) >> 29))) - 1));
+    // The PT2399's hiss, louder as its clock slows: -96 dB at the shortest time, -78 dB at the longest;
+    // and its converter, 15 bits at the shortest time to 12 at the longest, both against the
+    // working level, which puts the loudest input near -12 dBFS.
+    box.echo_hiss = 16 - static_cast<i32>(static_cast<u32>(c[kTime]) >> 29);
+    box.echo_grit = static_cast<i32>(~((1u << (16 + (static_cast<u32>(c[kTime]) >> 29))) - 1));
     // Spring: its input runs hotter (the drive clips at the top) as its wet rises.
     const i32 spring = loop == kLoopSpring && c[kSpringAmount] <= on ? 1073741824 : c[kSpringAmount];
     box.spring_on = spring > on || loop == kLoopSpring;
@@ -343,11 +371,30 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     box.tone_low = kUnit - mul(c[kTone], 1503238553);
     box.tone_high = 644245094 + mul(c[kTone], 1503238553);
 
+    // The box works at one level whatever the send's: the input is lifted so
+    // its loudest so far sits near -12 dBFS, and the output lowered as much.
+    // Its saturations, hiss, converter and slow filters then behave alike at
+    // any send level. The lift only ever falls, as louder input arrives, and
+    // the box's memory falls with it, so nothing it holds jumps in level.
+    i32 input[opxy::block_frames];
+    u32 peak = 0;
     for (unsigned i = 0; i < opxy::block_frames; ++i) {
-        i32 x = add(opxy::q31::half(left[i]), opxy::q31::half(right[i]));
+        input[i] = add(opxy::q31::half(left[i]), opxy::q31::half(right[i]));
+        const u32 size = input[i] < 0 ? 0u - static_cast<u32>(input[i]) : static_cast<u32>(input[i]);
+        if (size > peak) peak = size;
+    }
+    u32 fit = 0;
+    while (fit < state.lift && (peak << (fit + 1)) <= 0x20000000u) ++fit;
+    if (fit < state.lift) {
+        lower(state, buffer.words, state.lift - fit);
+        state.lift = fit;
+    }
+    const u32 lift = state.lift;
+    for (unsigned i = 0; i < opxy::block_frames; ++i) {
+        i32 x = input[i] << lift;
         for (u32 n = 0; n < 4; ++n) x = box.section(kOrders[order][n], x);
         if (box.tape2_on) x = box.tape2.run(x, state.tape[1]);
-        left[i] = right[i] = x;
+        left[i] = right[i] = x >> lift;
     }
 }
 }
