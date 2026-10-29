@@ -48,7 +48,7 @@ int main() {
                 lint::State state;
                 lint::initialize(state);
                 const opxy::i32 words[12] = {kHalf, kHalf, kHalf, kHalf, kHalf, kHalf, kHalf, kHalf,
-                                             enum_word(order, 6), enum_word(loop, 4), enum_word(wobble, 4), enum_word(0, 3)};
+                                             enum_word(order, 6), enum_word(0, 3), enum_word(loop, 4), enum_word(wobble, 4)};
                 const double peak = run(state, memory, words, 200, false);
                 if (peak <= 0.001 || peak > 1.0) {
                     std::printf("FAIL order %u loop %u wobble %u peak %f\n", order, loop, wobble, peak);

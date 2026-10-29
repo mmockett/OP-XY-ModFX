@@ -9,11 +9,11 @@ patched into the echo's feedback loop, and two LFOs move them.
 | --- | --- | --- | --- | --- |
 | Page 1 | dust: tape 1, diode types I..V | phase: depth, wet, feedback | echo: wet and feedback; Madness above 85% | spring: drive and wet |
 | Page 2 (press) | tape 2: after the chain | rate: LFO 1, 0.17..7.5 Hz | time: 3..650 ms | tone: the tank's tilt |
-| Shift | order: DPES, DEPS, PDES, DSPE, SDEP, EDPS | loop: what's in the echo's feedback (off, tape 2, phase, tank) | wobble: LFO 2's target (off, time, tank, phase) | shape: both LFOs (sine, tri, sqr) |
+| Shift | order: DPES, DEPS, PDES, DSPE, SDEP, EDPS | shape: both LFOs (sine, tri, sqr) | loop: what's in the echo's feedback (off, tape 2, phase, tank) | wobble: LFO 2's target (off, time, tank, phase) |
 
-Page 1's encoders follow the default order, DPES, and each page 2 control sits
-under the section it shapes. The order's letters are page 1's names: D dust,
-P phase, E echo, S spring.
+Page 1's encoders follow the default order, DPES, and each control on page 2
+and the shift row sits under the section it shapes. The order's letters are
+page 1's names: D dust, P phase, E echo, S spring.
 
 **Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed.
 

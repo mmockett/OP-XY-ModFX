@@ -95,8 +95,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         state.lfo2 += step / 3 * 10;
     }
     state.ready = 1;
-    const u32 order = input.choices[0] < 6 ? input.choices[0] : 0, loop = input.choices[1] & 3;
-    const u32 wobble = input.choices[2] & 3, shape = input.choices[3] < 3 ? input.choices[3] : 0;
+    const u32 order = input.choices[0] < 6 ? input.choices[0] : 0, shape = input.choices[1] < 3 ? input.choices[1] : 0;
+    const u32 loop = input.choices[2] & 3, wobble = input.choices[3] & 3;
     const i32 lfo1 = wave(state.lfo1, shape), lfo2 = wave(state.lfo2, shape);
     i32 at[4];  // each section's position
     for (i32 p = 0; p < 4; ++p)

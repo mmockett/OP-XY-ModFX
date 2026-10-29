@@ -116,6 +116,20 @@
       "display": "enum"
     },
     {
+      "id": "shape",
+      "label": "Shape",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "sine",
+          "tri",
+          "sqr"
+        ]
+      },
+      "display": "enum"
+    },
+    {
       "id": "loop",
       "label": "Loop",
       "default": 0,
@@ -141,20 +155,6 @@
           "time",
           "tank",
           "phase"
-        ]
-      },
-      "display": "enum"
-    },
-    {
-      "id": "shape",
-      "label": "Shape",
-      "default": 0,
-      "mapping": {
-        "kind": "enum",
-        "labels": [
-          "sine",
-          "tri",
-          "sqr"
         ]
       },
       "display": "enum"

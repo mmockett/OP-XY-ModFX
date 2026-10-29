@@ -73,7 +73,7 @@ tank. They run in any of six orders, one of them can be patched into the
 echo's feedback loop, and two LFOs move them.
 
 **Controls:** dust, phase, echo, spring; press for tape 2, rate, time, tone;
-hold Shift for order, loop, wobble, shape
+hold Shift for order, shape, loop, wobble
 
 **Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed
 
