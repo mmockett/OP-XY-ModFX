@@ -6,13 +6,20 @@ on:
 permissions:
   contents: read
 jobs:
-  # Each machine against the SDK branch with aux modules, effect pages and
-  # effect screens (etcetc000/open-xy#221 and the branch on it) until they
-  # merge: its records, browser preview, drawing checks and host tests. The
-  # native compile needs the pinned Blackfin tools, which this Linux runner
-  # doesn't have.
+  # Each machine against the SDK branch with what it needs until that merges:
+  # Omnifilter against aux modules (etcetc000/open-xy#221), Lint against
+  # effect pages and screens (etcetc000/open-xy#230). Each checks its records,
+  # browser preview, drawing checks and host tests. The native compile needs
+  # the pinned Blackfin tools, which this Linux runner doesn't have.
   machines:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - machine: omnifilter
+            sdk: sdk/aux-modules
+          - machine: lint
+            sdk: sdk/effect-screens
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mmockett/open-xy
-          ref: sdk/effect-screens
+          ref: ${{ matrix.sdk }}
           path: open-xy
       - uses: actions/setup-python@v5
         with:
@@ -31,7 +38,4 @@ jobs:
       - name: Preview and host tools
         run: sudo apt-get update && sudo apt-get install -y clang lld
       - name: Machine source, preview and host checks
-        run: |
-          for machine in omnifilter lint; do
-            python open-xy/sdk.py test --machine "macro/$machine" --cxx clang++ --host-cxx g++ || exit 1
-          done
+        run: python open-xy/sdk.py test --machine "macro/${{ matrix.machine }}" --cxx clang++ --host-cxx g++

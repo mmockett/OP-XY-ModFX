@@ -87,26 +87,32 @@ less send blends the clean track with it.
 
 ## Status: experimental
 
-Omnifilter needs the SDK's aux module support, in review as
-[etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221). Lint
-also needs effect pages, shift rows and effect screens, on the branch
-`sdk/effect-screens`, which builds on it. Until they merge, build against that
-branch:
+Each machine needs SDK changes still in review, and builds against its own
+branch until they merge:
+
+- **Omnifilter** needs aux modules,
+  [etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221):
+  branch `sdk/aux-modules`.
+- **Lint** needs effect pages, shift rows and effect screens (SDK 1.7),
+  [etcetc000/open-xy#230](https://github.com/etcetc000/open-xy/pull/230):
+  branch `sdk/effect-screens`.
 
 ```bash
 git clone -b sdk/effect-screens https://github.com/mmockett/open-xy
 ```
 
 ```bash
-python open-xy/sdk.py test --machine OP-XY-ModFX/omnifilter --machine OP-XY-ModFX/lint
+python open-xy/sdk.py test --machine OP-XY-ModFX/lint
 ```
 
 ```bash
-python open-xy/sdk.py build --machine OP-XY-ModFX/omnifilter --machine OP-XY-ModFX/lint --stock-os <stock-1.2.1>/os.ldr --out <builds>/modfx-001
+python open-xy/sdk.py build --machine OP-XY-ModFX/lint --machine <a synth> --stock-os <stock-1.2.1>/os.ldr --out <builds>/lint-001
 ```
 
-The firmware needs an OP-XY on **OS 1.2.1**; installing it is described in the
-SDK's [building firmware](https://github.com/mmockett/open-xy/blob/sdk/effect-screens/docs/build.md#5-install)
+For Omnifilter, clone `sdk/aux-modules` instead and pass `OP-XY-ModFX/omnifilter`.
+A firmware needs at least one synth. It runs on an OP-XY with **OS 1.2.1**; installing
+it is described in the SDK's
+[building firmware](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
 guide.
 
 Measured on the device (`sdk.py profile benchmark`, three runs), Omnifilter
