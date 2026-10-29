@@ -28,6 +28,8 @@ Nothing moves unless a control does.
 
 ### Using it
 
+![Shift and aux 4 open a list titled "aux" under "4", with cv and omnifilter; on M1, Omnifilter's page](docs/screens/flow.png)
+
 1. Hold **Shift** and press an aux track's key (aux 1 to 6).
 2. Choose `omnifilter` from the list that opens, titled "aux" under the track's number.
 3. Press **M1** to see its page, and turn the encoders.
