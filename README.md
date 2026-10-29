@@ -90,7 +90,7 @@ less send blends the clean track with it.
 Each machine needs SDK changes still in review, and builds against its own
 branch until they merge:
 
-- **Omnifilter** needs aux modules,
+- **Omnifilter** needs aux modules (SDK 1.8),
   [etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221):
   branch `sdk/aux-modules`.
 - **Lint** needs effect pages, shift rows and effect screens (SDK 1.7),
