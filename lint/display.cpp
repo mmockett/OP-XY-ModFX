@@ -54,7 +54,7 @@ i32 curve(const i32 (&table)[33], i32 q15) {
 // One of the three springs: a coil of 31 strokes about its centre, shaking
 // wider with the drive, tilted by tone and bowed by the wobble, as a ribbon.
 void spring(Frame::path_type& path, i32 amount, i32 tilt, i32 bow) {
-    const i32 amplitude = px(1) + share(px(9), amount);
+    const i32 amplitude = px(1) + share(px(10), amount);
     for (u32 j = 0; j < 32; ++j) {
         const i32 t = static_cast<i32>(j) * 1024 / 31;  // Q10 along it
         const i32 x = -px(kSpringHalf) + 2 * kSpringHalf * t;
@@ -217,7 +217,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         hide(frame, (madness ? kNodeLoop0 : kNodeMadness0) + k);
     }
     for (u32 k = 0; k < kEchoParts; ++k) place(frame, kNodeEcho0 + k, px(echo_x), px(kEchoY), unit, 0, keep);
-    const i32 rx = kEchoRx + 6, ry = kEchoRy + 6;
+    const i32 rx = kEchoRx + 5, ry = kEchoRy + 5;
     place(frame, kNodeRecord, px(echo_x) + rx * sine(kRecord + 900), px(kEchoY) + ry * sine(kRecord), unit, 0, keep);
     turn(frame, kNodeRecord, rotation(kRecord));
     const i32 play = kRecord + kTimeStart + share(kTimeSpan, v[kTime]) + (wobble == kWobbleTime ? share(46, lfo2) : 0);
@@ -244,7 +244,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 spring_x = bay(at[kS]);
     for (u32 k = 0; k < kTankParts; ++k) place(frame, kNodeTank0 + k, px(spring_x), 0, unit, 0, keep);
     const i32 drive = patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
-    const i32 tilt = share(px(24), v[kTone] - 16384);
+    const i32 tilt = share(px(26), v[kTone] - 16384);
     const i32 swing = wobble == kWobbleSpring ? share(px(4) + share(px(4), drive), lfo2) : 0;
     static const i32 kSway[3] = {574, 1023, -307};  // each spring's share of the swing, Q10
     for (u32 k = 0; k < 3; ++k) {

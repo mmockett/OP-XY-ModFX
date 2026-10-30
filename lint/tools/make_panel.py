@@ -53,19 +53,23 @@ TAPE2_TRAVEL = 16           # how far below the cable it rests at level 0
 RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 
 # Bay contents, in each bay's own pixels (x from its left edge, y on screen).
-CONTENT_TOP, CONTENT_BOTTOM = TOP + 20, TOP + 108   # the parts fill this; the title sits below
-DUST_CY = TOP + 48          # the tape head's top
-PHASE_CY = TOP + 48         # the lamp's centre
-LAMP_X, CELL_X = 28, 66
-RATE_X, RATE_W, RATE_Y = 16, 60, TOP + 98   # LFO 1's rail in the lamp's box
-WEAR_X, WEAR_W, WEAR_Y = -22, 44, 50   # the dust gauge on the head's plate, about DUST_CY
-ECHO_CY, ECHO_RX, ECHO_RY = TOP + 64, 33, 33
-REC_DEGREES = -147.6        # the record head, upper left of the loop
-TIME_START, TIME_SPAN = 38, 140   # the playback head's arc: degrees past the record head, and across time
-SPRING_Y = (TOP + 38, TOP + 64, TOP + 90)
-SPRING_HALF = 25            # each spring's half length
+# Every module sits on the same screwed plate, so they line up in any order, and
+# the two rails and the echo's motor share one row.
+PLATE = (5, TOP + 16, BAY_W - 5, TOP + 110)   # x0, y0, x1, y1 in the bay
+RAIL_Y = TOP + 98
+DUST_CY = TOP + 46          # the tape head's top
+PHASE_CY = TOP + 50         # the lamp's centre
+LAMP_X, CELL_X = 27, 68
+RATE_X, RATE_W, RATE_Y = 16, 60, RAIL_Y   # LFO 1's rail in the lamp's can
+WEAR_X, WEAR_W, WEAR_Y = -22, 44, RAIL_Y - DUST_CY   # the dust gauge on the head's plate, about DUST_CY
+ECHO_CY, ECHO_RX, ECHO_RY = TOP + 58, 31, 31
+HEAD_R = ECHO_RX + 5        # the heads' centres, flush on the drum
+REC_DEGREES = -165        # the record head, upper left of the loop
+TIME_START, TIME_SPAN = 35, 170   # the playback head's arc: degrees past the record head, and across time
+SPRING_Y = (TOP + 34, TOP + 63, TOP + 92)
+SPRING_HALF = 26            # each spring's half length
 SPRING_POINTS = 32          # along one edge of its ribbon
-SPECKS = ((-30, -22), (-16, -27), (-3, -19), (10, -28), (22, -21), (32, -26), (-23, -30), (4, -24))
+SPECKS = ((-30, -19), (-17, -24), (-4, -18), (9, -25), (21, -19), (32, -24), (-24, -26), (3, -24))
 
 # Header-free labels, measured in Univers Next Pro Light (OP-XY-Dev tools/caption_width.py).
 NAMES = ("dust", "phase", "echo", "spring")
@@ -198,7 +202,7 @@ def circle(r, x=0, y=0, steps=12):
 def tape_head():
     """The head's shield, its crown at the origin under the tape: domed where the
     tape runs over it, on a flat foot."""
-    return [[(-20, 38)] + arc(0, 180, 360, 14, 0, 16, 20, 19) + [(20, 38)]]
+    return [[(-22, 44)] + arc(0, 180, 360, 14, 0, 18, 22, 21) + [(22, 44)]]
 
 
 def tape(dust):
@@ -218,51 +222,49 @@ def speck():
 def dust_kit():
     """What makes the head and carries the tape, about the bay's centre and
     DUST_CY: two flanged guide rollers, the core with its gap at the crown and its
-    coil wound on the back, the neck, and the plate screwed down with the wear
-    gauge the dust's mark reads against."""
+    coil wound on the back, the neck, and a bar with the wear gauge the dust's
+    mark reads against."""
     parts = []
-    for x in (-31, 31):
-        parts += [part(circle(7, x, -7, 16)), part(circle(4.5, x, -7, 12), DIM, ENGRAVED), part(circle(1.5, x, -7, 8), MID, DETAIL)]
-    core = [(-0.8, 2), (-13, 5), (-16, 11), (-16, 26), (-11, 32), (11, 32), (16, 26), (16, 11), (13, 5), (0.8, 2),
-            (0.8, 7), (8, 10), (10, 14), (10, 23), (-10, 23), (-10, 14), (-8, 10), (-0.8, 7)]
+    for x in (-32, 32):
+        parts += [part(circle(7.5, x, -6.5, 16)), part(circle(4.8, x, -6.5, 12), DIM, ENGRAVED), part(circle(1.6, x, -6.5, 8), MID, DETAIL)]
+    core = [(-0.8, 2), (-14, 5), (-18, 12), (-18, 31), (-12, 38), (12, 38), (18, 31), (18, 12), (14, 5), (0.8, 2),
+            (0.8, 8), (9, 11), (11, 16), (11, 27), (-11, 27), (-11, 16), (-9, 11), (-0.8, 8)]
     parts.append(part(core, LIGHT, DETAIL))
-    parts.append(part(rack([((-8 + 2 * i, 24), (-8 + 2 * i, 31)) for i in range(9)], 0.5, 0.6, 4), MID, ENGRAVED))
-    for x in (-10, 10):
-        parts.append(part([(x - 0.5, 38), (x + 0.5, 38), (x + 0.5, 42), (x - 0.5, 42)], MID, DETAIL))
-    parts.append(part(rounded(-33, 42, 33, 58, 2, 2)))
-    parts += [part(circle(1.6, x, 50, 8), MID, DETAIL) for x in (-28, 28)]
-    ticks = [((WEAR_X + WEAR_W * i / 8, WEAR_Y + 4), (WEAR_X + WEAR_W * i / 8, WEAR_Y + 1)) for i in range(9)]
+    parts.append(part(rack([((-9 + 2.25 * i, 28), (-9 + 2.25 * i, 37)) for i in range(9)], 0.5, 0.6, 4), MID, ENGRAVED))
+    y = WEAR_Y - 6
+    parts.append(part(rounded(-31, y, 31, y + 15, 2, 2)))
+    parts.append(part([(WEAR_X, WEAR_Y - 0.4), (WEAR_X + WEAR_W, WEAR_Y - 0.4), (WEAR_X + WEAR_W, WEAR_Y + 0.4), (WEAR_X, WEAR_Y + 0.4)], MID, DETAIL))
+    ticks = [((WEAR_X + WEAR_W * i / 8, WEAR_Y + 2), (WEAR_X + WEAR_W * i / 8, WEAR_Y + 5)) for i in range(9)]
     parts.append(part(rack(ticks, 0.5, 0.8, 3), MID, ENGRAVED))
     return parts
 
 
 def wear_mark():
     """Dust's mark on the wear gauge, about its point."""
-    return [(0, 0), (-2.2, -4), (2.2, -4)]
+    return [(0, 0), (-2.2, -4.5), (2.2, -4.5)]
 
 
 def glow():
-    return arc(13, 0, 360, 24)[:-1]
+    return arc(15, 0, 360, 24)[:-1]
 
 
 def lamp():
-    """An optical phaser's light can, about the bay's left edge: the can screwed
-    down at its corners, the bulb in its holder with its filament and one glint,
-    the photocell with its serpentine track and leads, the rays' engraved arc and
-    LFO 1's rail with its scale."""
+    """An optical phaser's light can, about the bay's left edge: the bulb in its
+    holder with its filament and one glint, the photocell with its serpentine
+    track and leads, both on a terminal strip, the rays' engraved arc and LFO 1's
+    rail with its scale."""
     cy = PHASE_CY
-    parts = [part(rounded(6, CONTENT_TOP, BAY_W - 6, CONTENT_BOTTOM, 6)), part(rounded(8.5, CONTENT_TOP + 2.5, BAY_W - 8.5, CONTENT_BOTTOM - 2.5, 4, 2), FAINT, ENGRAVED)]
-    parts += [part(circle(1.4, x, y, 8), MID, DETAIL) for x in (12, BAY_W - 12) for y in (CONTENT_TOP + 6, CONTENT_BOTTOM - 6)]
-    parts.append(part(arc(15, 0, 360, 24, LAMP_X, cy)[:-1]))
-    parts.append(part(ribbon([(LAMP_X - 7, cy + 15), (LAMP_X - 7, cy + 25), (LAMP_X + 7, cy + 25), (LAMP_X + 7, cy + 15)]), MID, DETAIL))
-    parts.append(part(ribbon([(LAMP_X - 6, cy + 3), (LAMP_X - 3, cy - 4), (LAMP_X, cy + 3), (LAMP_X + 3, cy - 4), (LAMP_X + 6, cy + 3)]), LIGHT, DETAIL))
-    parts.append(part(ribbon(arc(11.5, 205, 250, 5, LAMP_X, cy), 0.5), DIM, ENGRAVED))
-    parts.append(part(arc(12, 0, 360, 24, CELL_X, cy)[:-1]))
-    parts.append(part(ribbon([(CELL_X - 8 + 16 * i / 6, cy + (4 if i % 2 else -4)) for i in range(7)]), LIGHT, DETAIL))
+    parts = [part(arc(17, 0, 360, 24, LAMP_X, cy)[:-1])]
+    parts.append(part(ribbon([(LAMP_X - 8, cy + 15), (LAMP_X - 8, cy + 29), (LAMP_X + 8, cy + 29), (LAMP_X + 8, cy + 15)]), MID, DETAIL))
+    parts.append(part(ribbon([(LAMP_X - 7, cy + 4), (LAMP_X - 3.5, cy - 5), (LAMP_X, cy + 4), (LAMP_X + 3.5, cy - 5), (LAMP_X + 7, cy + 4)]), LIGHT, DETAIL))
+    parts.append(part(ribbon(arc(13, 205, 250, 5, LAMP_X, cy), 0.5), DIM, ENGRAVED))
+    parts.append(part(arc(13, 0, 360, 24, CELL_X, cy)[:-1]))
+    parts.append(part(ribbon([(CELL_X - 9 + 18 * i / 6, cy + (4.5 if i % 2 else -4.5)) for i in range(7)]), LIGHT, DETAIL))
     for x in (CELL_X - 4, CELL_X + 4):
-        parts.append(part([(x - 0.4, cy + 12), (x + 0.4, cy + 12), (x + 0.4, cy + 25), (x - 0.4, cy + 25)], MID, ENGRAVED))
+        parts.append(part([(x - 0.4, cy + 13), (x + 0.4, cy + 13), (x + 0.4, cy + 29), (x - 0.4, cy + 29)], MID, ENGRAVED))
+    parts.append(part(rounded(12, cy + 29, BAY_W - 12, cy + 36, 1.5, 2), MID, DETAIL))
     angles = [math.radians(-40 + 80 * k / 6) for k in range(7)]
-    parts.append(part(rack([((LAMP_X + 23 * math.cos(a), cy + 23 * math.sin(a)), (LAMP_X + 25 * math.cos(a), cy + 25 * math.sin(a))) for a in angles], 0.5, 0.8), MID, ENGRAVED))
+    parts.append(part(rack([((LAMP_X + 25 * math.cos(a), cy + 25 * math.sin(a)), (LAMP_X + 27 * math.cos(a), cy + 27 * math.sin(a))) for a in angles], 0.5, 0.8), MID, ENGRAVED))
     parts.append(part([(RATE_X, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y + 0.4), (RATE_X, RATE_Y + 0.4)], MID, DETAIL))
     parts.append(part(rack([((RATE_X + RATE_W * i / 8, RATE_Y + 2), (RATE_X + RATE_W * i / 8, RATE_Y + 5)) for i in range(9)], 0.5, 0.8, 3), MID, ENGRAVED))
     return parts
@@ -275,7 +277,7 @@ def rate_mark():
 
 def rays():
     """Seven rays toward the cell, about the lamp's centre; they reach further as it glows."""
-    return comb(16, [(-40 + 80 * k / 6, 20) for k in range(7)], 1.0, 6)
+    return comb(19, [(-40 + 80 * k / 6, 23) for k in range(7)], 1.0, 6)
 
 
 def loop(wobble=0.0):
@@ -284,18 +286,26 @@ def loop(wobble=0.0):
 
 def echo_kit():
     """The drum the wire runs round, about its centre: the hub and three lightening
-    holes, the scale of time the playback arm reads against, and the erase head."""
-    parts = [part(circle(6, 0, 0, 16), MID, DETAIL), part(circle(2, 0, 0, 8), MID, DETAIL)]
-    parts += [part(circle(4.5, 14 * math.cos(math.radians(a)), 14 * math.sin(math.radians(a)), 12), DIM, ENGRAVED) for a in (-90, 30, 150)]
+    holes, the scale of time the playback arm reads against, the erase head, and
+    the motor's pulley on the rails' row with its belt up round the drum."""
+    parts = [part(circle(5, 0, 0, 16), MID, DETAIL), part(circle(1.8, 0, 0, 8), MID, DETAIL)]
+    parts += [part(circle(3.6, 12.5 * math.cos(math.radians(a)), 12.5 * math.sin(math.radians(a)), 12), DIM, ENGRAVED) for a in (-90, 30, 150)]
     pairs = []
     for i in range(13):
         a = math.radians(REC_DEGREES + TIME_START + TIME_SPAN * i / 12)
-        tip = 31 if i % 3 == 0 else 29
-        pairs.append(((26 * math.cos(a), 26 * math.sin(a)), (tip * math.cos(a), tip * math.sin(a))))
+        tip = 28.5 if i % 3 == 0 else 26.5
+        pairs.append(((23.5 * math.cos(a), 23.5 * math.sin(a)), (tip * math.cos(a), tip * math.sin(a))))
     parts.append(part(rack(pairs, 0.5, 0.8, 3), MID, ENGRAVED))
-    a = math.radians(REC_DEGREES - 36)
-    block = [(39 * math.cos(a) + x * math.cos(a) - y * math.sin(a), 39 * math.sin(a) + x * math.sin(a) + y * math.cos(a)) for x, y in head_block()[0]]
-    parts.append(part(block, DIM, DETAIL))
+    a = math.radians(REC_DEGREES + 36)
+    a = math.radians(REC_DEGREES - 34)
+    parts.append(part([(HEAD_R * math.cos(a) + x * math.cos(a) - y * math.sin(a), HEAD_R * math.sin(a) + x * math.sin(a) + y * math.cos(a)) for x, y in head_block()[0]], DIM, DETAIL))
+    d = RAIL_Y - ECHO_CY + 1
+    parts += [part(circle(6, 0, d, 16)), part(circle(1.8, 0, d, 8), MID, DETAIL)]
+    angle = math.acos((ECHO_RX - 6) / d)
+    for side in (-1, 1):
+        drum = (side * ECHO_RX * math.sin(angle), ECHO_RX * math.cos(angle))
+        pulley = (side * 6 * math.sin(angle), d + 6 * math.cos(angle))
+        parts.append(part(ribbon([drum, pulley], 0.6), DIM, DETAIL))
     return parts
 
 
@@ -307,7 +317,7 @@ def head_block():
 
 def arm():
     """The playback head's arm, out from the hub along x."""
-    return [(7, -0.8), (35, -0.5), (35, 0.5), (7, 0.8)]
+    return [(5, -0.8), (ECHO_RX, -0.5), (ECHO_RX, 0.5), (5, 0.8)]
 
 
 def repeat_mark():
@@ -316,18 +326,14 @@ def repeat_mark():
 
 
 def tank():
-    """A spring reverb's pan, about the bay's left edge: the pan and its lip, four
-    ears screwed to the bay, and at each end a transducer with the scale the
-    springs' ends read against as tone tilts them."""
-    top, bottom = CONTENT_TOP, CONTENT_BOTTOM
-    parts = [part(rounded(7, top, BAY_W - 7, bottom, 3)), part(rounded(9, top + 2, BAY_W - 9, bottom - 2, 2, 2), FAINT, ENGRAVED)]
-    for x0, x1 in ((2, 7), (BAY_W - 7, BAY_W - 2)):
-        for y in (top + 8, bottom - 16):
-            parts += [part(rounded(x0, y, x1, y + 8, 1, 2), MID, DETAIL), part(circle(1.1, (x0 + x1) / 2, y + 4, 8), DIM, ENGRAVED)]
-    for x0, x1 in ((11, 21), (BAY_W - 21, BAY_W - 11)):
-        parts.append(part(rounded(x0, top + 6, x1, bottom - 6, 1.5, 2)))
-    for x0, x1 in ((17, 21), (BAY_W - 17, BAY_W - 21)):
-        parts.append(part(rack([((x0, top + 9 + 70 * i / 13), (x1, top + 9 + 70 * i / 13)) for i in range(14)], 0.5, 0.8, 3), MID, ENGRAVED))
+    """A spring reverb, its pan the plate, about the bay's left edge: at each end a
+    transducer with the scale the springs' ends read against as tone tilts them."""
+    top, bottom = PLATE[1] + 10, PLATE[3] - 10
+    parts = []
+    for x0, x1 in ((12, 20), (BAY_W - 20, BAY_W - 12)):
+        parts.append(part(rounded(x0, top, x1, bottom, 1.5, 2)))
+    for x0, x1 in ((16, 20), (BAY_W - 16, BAY_W - 20)):
+        parts.append(part(rack([((x0, top + 3 + (bottom - top - 6) * i / 13), (x1, top + 3 + (bottom - top - 6) * i / 13)) for i in range(14)], 0.5, 0.8, 3), MID, ENGRAVED))
     return parts
 
 
@@ -336,7 +342,7 @@ def spring(amount, tilt=0.0, bow=0.0):
     top = []
     for j in range(SPRING_POINTS):
         t = j / (SPRING_POINTS - 1)
-        amp = 0 if j in (0, SPRING_POINTS - 1) else (1 + 9 * amount) * (1 if j % 2 else -1)
+        amp = 0 if j in (0, SPRING_POINTS - 1) else (1 + 10 * amount) * (1 if j % 2 else -1)
         top.append((-SPRING_HALF + 2 * SPRING_HALF * t, bow * math.sin(math.pi * t) + tilt * (t - 0.5) + amp))
     return top + [(x, y + 1) for x, y in reversed(top)]
 
@@ -427,7 +433,7 @@ NODES = (["spring_0", "spring_1", "spring_2", "tape", "head"] + [f"speck_{i}" fo
 def chassis():
     """The fixed tray, back to front: (points, fill, stroke, weight). The tray
     with its corner screws, IN and OUT's bushes and the louvres along its foot;
-    the bays sunk into it, each with its lip; the jacks on their
+    the bays sunk into it, each with its module's plate and screws; the jacks on their
     edges with their holes; and tape 2's rods, foot and scale."""
     x0, x1 = LEFT - GAP, TAPE2_X + 13 + GAP
     shapes = [(rounded(x0, BOX_TOP, x1, BOX_BOTTOM, 7), BODY, DIM, STRUCTURE)]
@@ -442,7 +448,12 @@ def chassis():
     for i in range(4):
         x = bay_x(i)
         shapes.append((rounded(x, TOP, x + BAY_W, BOTTOM, 5), FLOOR, MID, STRUCTURE))
-        shapes.append((rounded(x + 2, TOP + 2, x + BAY_W - 2, BOTTOM - 2, 3.5, 2), "none", FAINT, ENGRAVED))
+        x0, y0, x1, y1 = PLATE
+        shapes.append((rounded(x + x0, y0, x + x1, y1, 5), "none", LIGHT, STRUCTURE))
+        shapes.append((rounded(x + x0 + 2.5, y0 + 2.5, x + x1 - 2.5, y1 - 2.5, 3, 2), "none", FAINT, ENGRAVED))
+        for sx in (x + x0 + 6, x + x1 - 6):
+            for sy in (y0 + 6, y1 - 6):
+                shapes.append((circle(1.4, sx, sy, 8), "none", MID, DETAIL))
     for i in range(4):
         x = bay_x(i)
         for jx in (x, x + BAY_W):
