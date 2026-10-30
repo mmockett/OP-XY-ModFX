@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "sdk": "1.7",
+  "kind": "effect",
+  "description": "An ethereal stereo effects console on a send: four modules of five effects each, after Hologram's Chroma Console, spreading mono voices wide",
+  "dryLevel": 0
+}

@@ -20,6 +20,8 @@ jobs:
             sdk: sdk/aux-modules
           - machine: lint
             sdk: sdk/effect-screens
+          - machine: chroma
+            sdk: sdk/effect-screens
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,0 +1,257 @@
+{
+  "schema": 1,
+  "id": "chroma",
+  "name": "Chroma",
+  "press": "page",
+  "parameters": [
+    {
+      "id": "character",
+      "label": "Charactr",
+      "default": 0.3,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "movement",
+      "label": "Movement",
+      "default": 0.35,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "diffuse",
+      "label": "Diffuse",
+      "default": 0.5,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "texture",
+      "label": "Texture",
+      "default": 0.5,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "tilt",
+      "label": "Tilt",
+      "default": 0.5,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent",
+      "control": 0
+    },
+    {
+      "id": "rate",
+      "label": "Rate",
+      "default": 0.3,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent",
+      "control": 1
+    },
+    {
+      "id": "time",
+      "label": "Time",
+      "default": 0.7,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent",
+      "control": 2
+    },
+    {
+      "id": "drift",
+      "label": "Drift",
+      "default": 0.0,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent",
+      "control": 3
+    }
+  ],
+  "shift": [
+    {
+      "id": "character_fx",
+      "label": "Charactr",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "warm",
+          "drive",
+          "fuzz",
+          "howl",
+          "swell",
+          "off"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "movement_fx",
+      "label": "Movement",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "vibe",
+          "twin",
+          "swirl",
+          "trem",
+          "pitch",
+          "off"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "diffuse_fx",
+      "label": "Diffuse",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "cloud",
+          "dusk",
+          "tape",
+          "slice",
+          "back",
+          "off"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "texture_fx",
+      "label": "Texture",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "tilt",
+          "low",
+          "high",
+          "press",
+          "cass",
+          "worn",
+          "radio",
+          "off"
+        ]
+      },
+      "display": "enum"
+    }
+  ],
+  "presets": {
+    "Halo": {
+      "character": 0.3,
+      "movement": 0.25,
+      "diffuse": 0.6,
+      "texture": 0.5,
+      "tilt": 0.55,
+      "rate": 0.25,
+      "time": 0.8,
+      "drift": 0.1
+    },
+    "Aurora": {
+      "character": 0.2,
+      "movement": 0.35,
+      "diffuse": 0.7,
+      "texture": 0.62,
+      "tilt": 0.6,
+      "rate": 1.0,
+      "time": 0.9,
+      "drift": 0.15
+    },
+    "Mirage": {
+      "character": 0.35,
+      "movement": 0.6,
+      "diffuse": 0.6,
+      "texture": 0.5,
+      "tilt": 0.5,
+      "rate": 0.4,
+      "time": 0.5,
+      "drift": 0.2
+    },
+    "Tide": {
+      "character": 0.25,
+      "movement": 0.65,
+      "diffuse": 0.5,
+      "texture": 0.5,
+      "tilt": 0.5,
+      "rate": 0.25,
+      "time": 0.62,
+      "drift": 0.25
+    },
+    "Postcard": {
+      "character": 0.25,
+      "movement": 0.3,
+      "diffuse": 0.5,
+      "texture": 0.45,
+      "tilt": 0.42,
+      "rate": 0.2,
+      "time": 0.7,
+      "drift": 0.4
+    },
+    "Mosaic": {
+      "character": 0.2,
+      "movement": 0.4,
+      "diffuse": 0.6,
+      "texture": 0.45,
+      "tilt": 0.5,
+      "rate": 0.5,
+      "time": 0.55,
+      "drift": 0.45
+    },
+    "Static": {
+      "character": 0.2,
+      "movement": 0.4,
+      "diffuse": 0.45,
+      "texture": 0.3,
+      "tilt": 0.45,
+      "rate": 0.45,
+      "time": 0.7,
+      "drift": 0.2
+    }
+  },
+  "resources": {
+    "bufferBytes": 328280,
+    "transport": 1,
+    "display": {
+      "stateBytes": 68,
+      "stateAlignment": 4,
+      "paths": 4,
+      "points": 64,
+      "nodes": 67,
+      "texts": 18,
+      "palette": 6
+    }
+  }
+}
