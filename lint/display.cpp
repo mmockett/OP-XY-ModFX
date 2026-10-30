@@ -2,8 +2,9 @@
 #include "panel.h"
 
 namespace lint {
-// The box seen from above (tools/make_panel.py draws it): its four sections as
-// bays in the order the shift row picks, on one patch cable from IN to OUT.
+// A 1970s effects chassis seen from above with its lid off (tools/make_panel.py
+// draws it): its four sections as bays in the order the shift row picks, on one
+// patch cable from IN to OUT. The tray is fixed; each bay's parts follow the order.
 // Dust wrinkles the tape across its head and gathers on it; the lamp lights
 // with phase and pulses with its LFO; the playback head slides round the echo's
 // loop with time, repeats trail it with feedback, and Madness buckles the loop;
@@ -178,6 +179,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 dust_x = bay(at[kD]) + kBayW / 2;
     place(frame, kNodeHead, px(dust_x), px(kDustY), unit, 0, keep);
     place(frame, kNodeTape, px(dust_x), px(kDustY), unit, 0, keep);
+    for (u32 k = 0; k < kDustParts; ++k) place(frame, kNodeDust0 + k, px(dust_x), px(kDustY), unit, 0, keep);
+    place(frame, kNodeWearMark, px(dust_x + kWearX) + share(px(kWearW), v[kDust]), px(kDustY + kWearY), unit, 0, keep);
     const u32 scuff = 1 + static_cast<u32>(v[kDust] >> 9);
     if (frame.paths[kNodeTape].key != scuff) {
         frame.paths[kNodeTape].key = scuff;
@@ -194,7 +197,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 depth = patched == kP && v[kPhase] < 328 ? 16384 : v[kPhase];
     const i32 light = ((wobble == kWobblePhaser ? lfo2 : lfo1) + 32767) >> 1;  // 0..32767
     const i32 glow = share(depth, 8192 + share(24575, light * light >> 15));
-    for (u32 k = 0; k < 7; ++k) place(frame, kNodeLamp0 + k, px(phase_x), 0, unit, 0, keep);
+    for (u32 k = 0; k < kLampParts; ++k) place(frame, kNodeLamp0 + k, px(phase_x), 0, unit, 0, keep);
     place(frame, kNodeRateMark, px(phase_x + kRateX) + share(px(kRateW), v[kRate]), px(kRateY), unit, 0, keep);
     place(frame, kNodeGlow, px(phase_x + kLampX), px(kPhaseY), unit, kGlows + static_cast<u32>(clamp(glow * 8 >> 15, 0, 7)),
           fill_and_stroke);
@@ -210,8 +213,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     for (u32 k = 0; k < 2; ++k) {
         place(frame, (madness ? kNodeMadness0 : kNodeLoop0) + k, px(echo_x), px(kEchoY), unit, 0, keep);
         hide(frame, (madness ? kNodeLoop0 : kNodeMadness0) + k);
-        place(frame, kNodeHub0 + k, px(echo_x), px(kEchoY), unit, 0, keep);
     }
+    for (u32 k = 0; k < kEchoParts; ++k) place(frame, kNodeEcho0 + k, px(echo_x), px(kEchoY), unit, 0, keep);
     const i32 rx = kEchoRx + 6, ry = kEchoRy + 6;
     place(frame, kNodeRecord, px(echo_x) + rx * sine(kRecord + 900), px(kEchoY) + ry * sine(kRecord), unit, 0, keep);
     const i32 play = kRecord + 380 + share(1260, v[kTime]) + (wobble == kWobbleTime ? share(46, lfo2) : 0);
@@ -233,7 +236,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // Spring: the tank, and its springs shaking with the drive, tilted by tone
     // (bass down on the left, treble on the right) and swung by LFO 2.
     const i32 spring_x = bay(at[kS]);
-    for (u32 k = 0; k < 3; ++k) place(frame, kNodeTank0 + k, px(spring_x), 0, unit, 0, keep);
+    for (u32 k = 0; k < kTankParts; ++k) place(frame, kNodeTank0 + k, px(spring_x), 0, unit, 0, keep);
     const i32 drive = patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
     const i32 tilt = share(px(18), v[kTone] - 16384);
     const i32 swing = wobble == kWobbleSpring ? share(px(4) + share(px(4), drive), lfo2) : 0;
