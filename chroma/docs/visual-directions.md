@@ -50,7 +50,7 @@ rosettes. Counter-rotation stands for left and right.
 
 - **For:** the most on-name and the most beautiful centre. It's the most purely
   ethereal of the three.
-- **Against:** four modules and twenty effects have only one place to go, so most
+- **Against:** four modules and 22 effects have only one place to go, so most
   controls would change the same rosette, and it would be hard to read which did
   what. That breaks "every control must read".
 - **Against:** overlapping rosettes are the "too many overlapping vectors" Ghost

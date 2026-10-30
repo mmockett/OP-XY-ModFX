@@ -3,7 +3,7 @@
 #include <opxy/q31.hpp>
 
 // Chroma: a stereo console of four modules, after Hologram's Chroma Console.
-// Each module runs one of its five effects, or none. The modules run in blocks,
+// Each module runs one of its effects, or none. The modules run in blocks,
 // one after another, and each one that can makes a mono source wider: most voices
 // on the OP-XY reach a send in the centre, so left and right are told apart inside.
 namespace chroma {

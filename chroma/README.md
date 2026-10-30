@@ -1,9 +1,9 @@
 # Chroma
 
 An ethereal stereo effects console for an OP-XY send (FX I or II), after Hologram's
-Chroma Console: four modules in a row, each running one of its five effects or
-none. Most voices reach a send in the centre, so each module that can parts left
-and right, and a mono source leaves wide.
+Chroma Console: four modules in a row, 22 effects between them, each module running
+one of its own or none. Most voices reach a send in the centre, so each module that
+can parts left and right, and a mono source leaves wide.
 
 **Status: experimental.** Played on an OP-XY.
 It's built from the pedal's manual, as no pedal has been measured, so it follows
