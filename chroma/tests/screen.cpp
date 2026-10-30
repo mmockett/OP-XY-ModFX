@@ -71,6 +71,8 @@ int main() {
                     std::memcpy(values, base, sizeof(values));
                     values[control] = value;
                     values[7] = control == 7 ? value : 40;
+                    // As the SDK's adapter does on a reset: nothing carries over from the last frame.
+                    std::memset(&frame, 0, sizeof(frame));
                     chroma::display_reset(state);
                     opxy::draw::Input input = input_for(values, choices, value & 1);
                     for (int k = 0; k < 4; ++k) chroma::display(state, input, frame);

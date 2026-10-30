@@ -362,36 +362,39 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 y = px(kPrismY) + (fan >> 10) * kMoteHeight[k] + (sine(static_cast<i32>(along * 36 >> 8) + k * 700) * 3);
         place(frame, kNodeMotes + k, (x >> 10) * unit, (y >> 10) * unit, unit, k % 3 ? kMoteSoft : kMoteBright, stroke);
     }
-    if (diffusion == kDiffusionOff) {
+    const bool rays_off = diffusion == kDiffusionOff;
+    if (rays_off) {
         for (u32 k = 0; k < 4; ++k) place(frame, k, px(hidden_x), px(hidden_y), 2 * unit, 0, keep);
         place(frame, kNodeStraight, px(kPrismX) + px(27), px(kPrismY), unit * (end - px(kPrismX) - px(27)) / px(240), 0, keep);
     } else {
         hide(frame, kNodeStraight);
-        const i32 inner_reach = px(9) + share(px(18), da);
-        const i32 outer_reach = inner_reach + px(9) + share(px(18), da);
-        const i32 bend = share(px(5), v[kDrift]);
-        // The light follows the glass, a degree at a time: its feet stay on the face, its far end sways.
-        const i32 degrees = angle / 10;
-        const i32 sway = px(degrees) * 6 / 26;
-        // Any change to these reshapes the rays.
-        const u32 parts[6] = {static_cast<u32>(da >> 8), static_cast<u32>(end >> 10), diffusion, static_cast<u32>(bend >> 7), state.waver >> 26, static_cast<u32>(degrees + 64)};
-        u32 key = 0;
-        for (u32 part : parts) key = key * 131 + part;
-        key |= 1;
-        const i32 x = px(kPrismX) + (end - px(kPrismX)) / 2, middle = (end - px(kPrismX)) / 2;
+        const i32 x = px(kPrismX) + (end - px(kPrismX)) / 2;
         place(frame, kNodeRayUp, x, px(kPrismY), 2 * unit, kRayNear, stroke);
         place(frame, kNodeRayDown, x, px(kPrismY), 2 * unit, kRayNear, stroke);
         const bool far_on = da > 3277;
         place(frame, kNodeRayUpFar, far_on ? x : px(hidden_x), far_on ? px(kPrismY) : px(hidden_y), 2 * unit, kRayFar, stroke);
         place(frame, kNodeRayDownFar, far_on ? x : px(hidden_x), far_on ? px(kPrismY) : px(hidden_y), 2 * unit, kRayFar, stroke);
-        if (frame.paths[0].key != key) {
-            frame.paths[0].key = frame.paths[1].key = frame.paths[2].key = frame.paths[3].key = key;
-            const i32 far_end = end - px(kPrismX);
-            rays(frame.paths[kNodeRayUp], middle, far_end, -px(3), -inner_reach, 512, diffusion, da, bend, state.waver, degrees * 10, sway);
-            rays(frame.paths[kNodeRayDown], middle, far_end, px(3), inner_reach, 512, diffusion, da, -bend, state.waver + 0x40000000u, degrees * 10, sway);
-            rays(frame.paths[kNodeRayUpFar], middle, far_end, -(inner_reach + px(3)), -outer_reach, px(7) + 512, diffusion, da, bend, state.waver + 0x08000000u, degrees * 10, sway);
-            rays(frame.paths[kNodeRayDownFar], middle, far_end, inner_reach + px(3), outer_reach, px(7) + 512, diffusion, da, -bend, state.waver + 0x48000000u, degrees * 10, sway);
-        }
+    }
+    // Hidden paths still need a key and points, or the frame isn't valid; hidden, they stay still.
+    const i32 inner_reach = px(9) + share(px(18), da);
+    const i32 outer_reach = inner_reach + px(9) + share(px(18), da);
+    const i32 bend = rays_off ? 0 : share(px(5), v[kDrift]);
+    const u32 waver = rays_off ? 0 : state.waver;
+    // The light follows the glass, a degree at a time: its feet stay on the face, its far end sways.
+    const i32 degrees = rays_off ? 0 : angle / 10;
+    const i32 sway = px(degrees) * 6 / 26;
+    // Any change to these reshapes the rays.
+    const u32 parts[6] = {static_cast<u32>(da >> 8), static_cast<u32>(end >> 10), diffusion, static_cast<u32>(bend >> 7), waver >> 26, static_cast<u32>(degrees + 64)};
+    u32 key = 0;
+    for (u32 part : parts) key = key * 131 + part;
+    key |= 1;
+    if (frame.paths[0].key != key) {
+        frame.paths[0].key = frame.paths[1].key = frame.paths[2].key = frame.paths[3].key = key;
+        const i32 middle = (end - px(kPrismX)) / 2, far_end = end - px(kPrismX);
+        rays(frame.paths[kNodeRayUp], middle, far_end, -px(3), -inner_reach, 512, diffusion, da, bend, waver, degrees * 10, sway);
+        rays(frame.paths[kNodeRayDown], middle, far_end, px(3), inner_reach, 512, diffusion, da, -bend, waver + 0x40000000u, degrees * 10, sway);
+        rays(frame.paths[kNodeRayUpFar], middle, far_end, -(inner_reach + px(3)), -outer_reach, px(7) + 512, diffusion, da, bend, waver + 0x08000000u, degrees * 10, sway);
+        rays(frame.paths[kNodeRayDownFar], middle, far_end, inner_reach + px(3), outer_reach, px(7) + 512, diffusion, da, -bend, waver + 0x48000000u, degrees * 10, sway);
     }
 }
 }
