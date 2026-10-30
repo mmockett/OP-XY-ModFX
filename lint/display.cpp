@@ -172,9 +172,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     for (u32 s = 0; s < 4; ++s) {
         const i32 x = bay(at[s]);
         text(frame, kLetter + s, px(x + 7), px(kTop + 13), input.shift ? unit * 4 / 3 : unit, kLetters[s]);
-        // Struck twice, half a pixel apart, for weight: the device has only the light cut.
-        text(frame, kName + s, px(x + 7), px(kBottom - 7), unit, kNames[s]);
-        text(frame, kNameBold + s, px(x + 7) + unit / 2, px(kBottom - 7), unit, kNames[s]);
+        text(frame, kName + s, px(x + kPlaqueCentre) - kNameWidth[s] / 2, px(kPlaqueBase), unit, kNames[s]);
     }
 
     // Dust: the tape's wrinkles, and a speck for each eighth of the control.
@@ -260,7 +258,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // LFO 2's mark, in its shape, on the bay it wobbles.
     const i32 marked = wobble == kWobbleTime ? kE : wobble == kWobbleSpring ? kS : wobble == kWobblePhaser ? kP : -1;
     for (u32 k = 0; k < 3; ++k) {
-        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + 72), px(kBottom - 12), unit, 0, keep);
+        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + 69), px(kPlaqueY), unit, 0, keep);
         else hide(frame, kNodeSine + k);
     }
 

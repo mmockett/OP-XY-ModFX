@@ -4,24 +4,26 @@
 #include <opxy/types.hpp>
 
 namespace lint { namespace panel {
-const opxy::u32 kNodes = 107, kTexts = 31, kPalette = 12;
+const opxy::u32 kNodes = 107, kTexts = 27, kPalette = 12;
 enum Node { kNodeSpring0 = 0, kNodeSpring1 = 1, kNodeSpring2 = 2, kNodeTape = 3, kNodeHead = 4, kNodeGlow = 13, kNodeLamp0 = 14, kNodeLamp1 = 15, kNodeLamp2 = 16, kNodeLamp3 = 17, kNodeLamp4 = 18, kNodeLamp5 = 19, kNodeLamp6 = 20, kNodeLamp7 = 21, kNodeLamp8 = 22, kNodeLamp9 = 23, kNodeLamp10 = 24, kNodeLamp11 = 25, kNodeRateMark = 26, kNodeWearMark = 27, kNodeRays = 28, kNodeLoop0 = 29, kNodeLoop1 = 30, kNodeMadness0 = 31, kNodeMadness1 = 32, kNodeEcho0 = 33, kNodeEcho1 = 34, kNodeEcho2 = 35, kNodeEcho3 = 36, kNodeEcho4 = 37, kNodeEcho5 = 38, kNodeEcho6 = 39, kNodeEcho7 = 40, kNodeEcho8 = 41, kNodeEcho9 = 42, kNodeEcho10 = 43, kNodeArm = 44, kNodeRecord = 45, kNodePlay = 46, kNodeTank0 = 53, kNodeTank1 = 54, kNodeTank2 = 55, kNodeTank3 = 56, kNodeDust0 = 57, kNodeDust1 = 58, kNodeDust2 = 59, kNodeDust3 = 60, kNodeDust4 = 61, kNodeDust5 = 62, kNodeDust6 = 63, kNodeDust7 = 64, kNodeDust8 = 65, kNodeDust9 = 66, kNodeDust10 = 67, kNodeSine = 68, kNodeTriangle = 69, kNodeSquare = 70, kNodeTape2 = 96, kNodeTape2Screw0 = 97, kNodeTape2Screw1 = 98 };
 const opxy::u32 kLampParts = 12, kEchoParts = 11, kTankParts = 4, kDustParts = 11;
 const opxy::u32 kNodeSpecks = 5, kNodeRepeats = 47, kNodeJumpers = 71, kNodeBypasses = 76, kNodeBars = 99;
 // Text slots: the two-page header's 0..15, then the bays' letters and names and the loop's labels.
-enum Text { kLetter = 16, kName = 20, kNameBold = 24, kLoopLabel = 28, kEchoLoop = 29, kTape2Label = 30 };
+enum Text { kLetter = 16, kName = 20, kLoopLabel = 24, kEchoLoop = 25, kTape2Label = 26 };
 // Palette: strokes bright, light, mid and dim, then the lamp's eight glows.
 enum Shade { kBright = 0, kLight = 1, kMid = 2, kDim = 3, kGlows = 4 };
 const opxy::i32 kBayW = 92, kTop = 52, kGap = 12, kLeft = 19, kBottom = 188, kLane = 202;
-const opxy::i32 kDustY = 98, kPhaseY = 102, kLampX = 27, kEchoY = 110;
-const opxy::i32 kEchoRx = 31, kEchoRy = 31, kRecord = -1650;  // tenths of a degree
+const opxy::i32 kDustY = 100, kPhaseY = 104, kLampX = 27, kEchoY = 112;
+const opxy::i32 kEchoRx = 32, kEchoRy = 32, kRecord = -1650;  // tenths of a degree
 const opxy::i32 kTimeStart = 350, kTimeSpan = 1700;  // tenths of a degree
-const opxy::i32 kSpringY[3] = {86, 115, 144}, kSpringHalf = 26;
+const opxy::i32 kSpringY[3] = {88, 118, 148}, kSpringHalf = 26;
 const opxy::i32 kTape2X = 448, kTape2Y[2] = {74, 156}, kTape2Travel = 16, kTape2H = 18;
-const opxy::i32 kRateX = 16, kRateW = 60, kRateY = 150;
-const opxy::i32 kWearX = -22, kWearW = 44, kWearY = 52;
+const opxy::i32 kRateX = 16, kRateW = 60, kRateY = 156;
+const opxy::i32 kWearX = -22, kWearW = 44, kWearY = 56;
 // Q10: each speck's place above the head, and the labels' widths.
 const opxy::i32 kSpecks[8][2] = {{-30720, -19456}, {-17408, -24576}, {-4096, -18432}, {9216, -25600}, {21504, -19456}, {32768, -24576}, {-24576, -26624}, {3072, -24576}};
+const opxy::i32 kNameWidth[4] = {20070, 27679, 22518, 28713};
+const opxy::i32 kPlaqueCentre = 34, kPlaqueBase = 181, kPlaqueY = 178;
 const opxy::i32 kLoopWidth = 16036, kEchoLoopWidth = 36352, kTape2Width = 23050;
 // The loop cable from the echo at position e to position t, or tape 2 (t 4); -1 for none.
 const opxy::i32 kCable[4][5] = {{-1, 80, 81, 82, 83}, {84, -1, 85, 86, 87}, {88, 89, -1, 90, 91}, {92, 93, 94, -1, 95}};

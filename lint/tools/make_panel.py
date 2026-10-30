@@ -55,22 +55,24 @@ RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 # Bay contents, in each bay's own pixels (x from its left edge, y on screen).
 # Every module sits on the same screwed plate, so they line up in any order, and
 # the two rails and the echo's motor share one row.
-PLATE = (5, TOP + 16, BAY_W - 5, TOP + 110)   # x0, y0, x1, y1 in the bay
-RAIL_Y = TOP + 98
-DUST_CY = TOP + 46          # the tape head's top
-PHASE_CY = TOP + 50         # the lamp's centre
+PLATE = (4, TOP + 16, BAY_W - 4, TOP + 116)   # x0, y0, x1, y1 in the bay
+PLAQUE = (6, BOTTOM - 16, 62, BOTTOM - 4)     # the riveted nameplate under it, the same in every bay
+RAIL_Y = TOP + 104
+DUST_CY = TOP + 48          # the tape head's top
+PHASE_CY = TOP + 52         # the lamp's centre
 LAMP_X, CELL_X = 27, 68
 RATE_X, RATE_W, RATE_Y = 16, 60, RAIL_Y   # LFO 1's rail in the lamp's can
 WEAR_X, WEAR_W, WEAR_Y = -22, 44, RAIL_Y - DUST_CY   # the dust gauge on the head's plate, about DUST_CY
-ECHO_CY, ECHO_RX, ECHO_RY = TOP + 58, 31, 31
+ECHO_CY, ECHO_RX, ECHO_RY = TOP + 60, 32, 32
 HEAD_R = ECHO_RX + 5        # the heads' centres, flush on the drum
 REC_DEGREES = -165        # the record head, upper left of the loop
 TIME_START, TIME_SPAN = 35, 170   # the playback head's arc: degrees past the record head, and across time
-SPRING_Y = (TOP + 34, TOP + 63, TOP + 92)
+SPRING_Y = (TOP + 36, TOP + 66, TOP + 96)
 SPRING_HALF = 26            # each spring's half length
 SPRING_POINTS = 32          # along one edge of its ribbon
 SPECKS = ((-30, -19), (-17, -24), (-4, -18), (9, -25), (21, -19), (32, -24), (-24, -26), (3, -24))
 
+NAME_WIDTHS = (19.6, 27.03, 21.99, 28.04)   # at 10 px
 # Header-free labels, measured in Univers Next Pro Light (OP-XY-Dev tools/caption_width.py).
 NAMES = ("dust", "phase", "echo", "spring")
 LOOP_WIDTH, ECHO_LOOP_WIDTH, TAPE2_WIDTH, OUT_WIDTH = 15.66, 35.5, 22.51, 11.76   # at 8 px
@@ -82,7 +84,7 @@ PALETTE = [("#000000", BRIGHT), ("#000000", LIGHT), ("#000000", MID), ("#000000"
 # Text slots: the two-page header's sixteen first (opxy/page_header.hpp), then Lint's own.
 HEADER_TEXTS = 16
 TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["letter_d", "letter_p", "letter_e", "letter_s", "name_d", "name_p", "name_e", "name_s",
-         "bold_d", "bold_p", "bold_e", "bold_s", "loop_label", "echo_loop", "tape2_label"]
+         "loop_label", "echo_loop", "tape2_label"]
 
 
 def num(v, places=2):
@@ -202,7 +204,7 @@ def circle(r, x=0, y=0, steps=12):
 def tape_head():
     """The head's shield, its crown at the origin under the tape: domed where the
     tape runs over it, on a flat foot."""
-    return [[(-22, 44)] + arc(0, 180, 360, 14, 0, 18, 22, 21) + [(22, 44)]]
+    return [[(-22, 50)] + arc(0, 180, 360, 14, 0, 20, 22, 23) + [(22, 50)]]
 
 
 def tape(dust):
@@ -227,10 +229,10 @@ def dust_kit():
     parts = []
     for x in (-32, 32):
         parts += [part(circle(7.5, x, -6.5, 16)), part(circle(4.8, x, -6.5, 12), DIM, ENGRAVED), part(circle(1.6, x, -6.5, 8), MID, DETAIL)]
-    core = [(-0.8, 2), (-14, 5), (-18, 12), (-18, 31), (-12, 38), (12, 38), (18, 31), (18, 12), (14, 5), (0.8, 2),
-            (0.8, 8), (9, 11), (11, 16), (11, 27), (-11, 27), (-11, 16), (-9, 11), (-0.8, 8)]
+    core = [(-0.8, 2), (-14, 5), (-18, 12), (-18, 36), (-12, 44), (12, 44), (18, 36), (18, 12), (14, 5), (0.8, 2),
+            (0.8, 8), (9, 11), (11, 16), (11, 32), (-11, 32), (-11, 16), (-9, 11), (-0.8, 8)]
     parts.append(part(core, LIGHT, DETAIL))
-    parts.append(part(rack([((-9 + 2.25 * i, 28), (-9 + 2.25 * i, 37)) for i in range(9)], 0.5, 0.6, 4), MID, ENGRAVED))
+    parts.append(part(rack([((-9 + 2.25 * i, 33), (-9 + 2.25 * i, 43)) for i in range(9)], 0.5, 0.6, 4), MID, ENGRAVED))
     y = WEAR_Y - 6
     parts.append(part(rounded(-31, y, 31, y + 15, 2, 2)))
     parts.append(part([(WEAR_X, WEAR_Y - 0.4), (WEAR_X + WEAR_W, WEAR_Y - 0.4), (WEAR_X + WEAR_W, WEAR_Y + 0.4), (WEAR_X, WEAR_Y + 0.4)], MID, DETAIL))
@@ -255,14 +257,14 @@ def lamp():
     rail with its scale."""
     cy = PHASE_CY
     parts = [part(arc(17, 0, 360, 24, LAMP_X, cy)[:-1])]
-    parts.append(part(ribbon([(LAMP_X - 8, cy + 15), (LAMP_X - 8, cy + 29), (LAMP_X + 8, cy + 29), (LAMP_X + 8, cy + 15)]), MID, DETAIL))
+    parts.append(part(ribbon([(LAMP_X - 8, cy + 15), (LAMP_X - 8, cy + 33), (LAMP_X + 8, cy + 33), (LAMP_X + 8, cy + 15)]), MID, DETAIL))
     parts.append(part(ribbon([(LAMP_X - 7, cy + 4), (LAMP_X - 3.5, cy - 5), (LAMP_X, cy + 4), (LAMP_X + 3.5, cy - 5), (LAMP_X + 7, cy + 4)]), LIGHT, DETAIL))
     parts.append(part(ribbon(arc(13, 205, 250, 5, LAMP_X, cy), 0.5), DIM, ENGRAVED))
     parts.append(part(arc(13, 0, 360, 24, CELL_X, cy)[:-1]))
     parts.append(part(ribbon([(CELL_X - 9 + 18 * i / 6, cy + (4.5 if i % 2 else -4.5)) for i in range(7)]), LIGHT, DETAIL))
     for x in (CELL_X - 4, CELL_X + 4):
-        parts.append(part([(x - 0.4, cy + 13), (x + 0.4, cy + 13), (x + 0.4, cy + 29), (x - 0.4, cy + 29)], MID, ENGRAVED))
-    parts.append(part(rounded(12, cy + 29, BAY_W - 12, cy + 36, 1.5, 2), MID, DETAIL))
+        parts.append(part([(x - 0.4, cy + 13), (x + 0.4, cy + 13), (x + 0.4, cy + 33), (x - 0.4, cy + 33)], MID, ENGRAVED))
+    parts.append(part(rounded(12, cy + 33, BAY_W - 12, cy + 40, 1.5, 2), MID, DETAIL))
     angles = [math.radians(-40 + 80 * k / 6) for k in range(7)]
     parts.append(part(rack([((LAMP_X + 25 * math.cos(a), cy + 25 * math.sin(a)), (LAMP_X + 27 * math.cos(a), cy + 27 * math.sin(a))) for a in angles], 0.5, 0.8), MID, ENGRAVED))
     parts.append(part([(RATE_X, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y + 0.4), (RATE_X, RATE_Y + 0.4)], MID, DETAIL))
@@ -451,6 +453,10 @@ def chassis():
         x0, y0, x1, y1 = PLATE
         shapes.append((rounded(x + x0, y0, x + x1, y1, 5), "none", LIGHT, STRUCTURE))
         shapes.append((rounded(x + x0 + 2.5, y0 + 2.5, x + x1 - 2.5, y1 - 2.5, 3, 2), "none", FAINT, ENGRAVED))
+        px0, py0, px1, py1 = PLAQUE
+        shapes.append((rounded(x + px0, py0, x + px1, py1, 1.5, 2), "#242424", MID, DETAIL))
+        for rx in (x + px0 + 4, x + px1 - 4):
+            shapes.append((circle(1.1, rx, (py0 + py1) / 2, 8), "none", MID, ENGRAVED))
         for sx in (x + x0 + 6, x + x1 - 6):
             for sy in (y0 + 6, y1 - 6):
                 shapes.append((circle(1.4, sx, sy, 8), "none", MID, DETAIL))
@@ -558,13 +564,12 @@ def fragment():
     for k, name in enumerate(NAMES):
         x = bay_x(k)
         lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + k}" {FONT} font-size="9" fill="{DIM}" {at(x + 7, TOP + 13)}>{"DPES"[k]}</text>')
-    # Each title twice, half a pixel apart: the device has only the light weight.
-    for strike in (0, 1):
-        for k, name in enumerate(NAMES):
-            lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + 4 * strike + k}" {FONT} font-size="20" fill="{BRIGHT}" {at(bay_x(k) + 7 + strike / 2, BOTTOM - 7)}>{name}</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 12}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 13}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 14}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + TAPE2_TRAVEL + 30)}>tape 2</text>')
+    centre_x, baseline = (PLAQUE[0] + PLAQUE[2]) / 2, PLAQUE[3] - 3
+    for k, name in enumerate(NAMES):
+        lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + k}" {FONT} font-size="10" fill="{BRIGHT}" {at(bay_x(k) + centre_x - NAME_WIDTHS[k] / 2, baseline)}>{name}</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 8}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 9}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 10}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + TAPE2_TRAVEL + 30)}>tape 2</text>')
     for i, (fill, stroke) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
     lines.append("</g>")
@@ -590,7 +595,7 @@ enum Node {{ {", ".join(f"kNode{''.join(w.title() for w in n.split('_'))} = {i}"
 const opxy::u32 kLampParts = {len(lamp())}, kEchoParts = {len(echo_kit())}, kTankParts = {len(tank())}, kDustParts = {len(dust_kit())};
 const opxy::u32 kNodeSpecks = {index["speck_0"]}, kNodeRepeats = {index["repeat_0"]}, kNodeJumpers = {index["jumper_0"]}, kNodeBypasses = {index["bypass_0"]}, kNodeBars = {index["bar_0"]};
 // Text slots: the two-page header's 0..15, then the bays' letters and names and the loop's labels.
-enum Text {{ kLetter = 16, kName = 20, kNameBold = 24, kLoopLabel = 28, kEchoLoop = 29, kTape2Label = 30 }};
+enum Text {{ kLetter = 16, kName = 20, kLoopLabel = 24, kEchoLoop = 25, kTape2Label = 26 }};
 // Palette: strokes bright, light, mid and dim, then the lamp's eight glows.
 enum Shade {{ kBright = 0, kLight = 1, kMid = 2, kDim = 3, kGlows = 4 }};
 const opxy::i32 kBayW = {BAY_W}, kTop = {TOP}, kGap = {GAP}, kLeft = {LEFT}, kBottom = {BOTTOM}, kLane = {LANE};
@@ -603,6 +608,8 @@ const opxy::i32 kRateX = {RATE_X}, kRateW = {RATE_W}, kRateY = {RATE_Y};
 const opxy::i32 kWearX = {WEAR_X}, kWearW = {WEAR_W}, kWearY = {WEAR_Y};
 // Q10: each speck's place above the head, and the labels' widths.
 const opxy::i32 kSpecks[8][2] = {{{specks}}};
+const opxy::i32 kNameWidth[4] = {{{row(q(w) for w in NAME_WIDTHS)}}};
+const opxy::i32 kPlaqueCentre = {(PLAQUE[0] + PLAQUE[2]) // 2}, kPlaqueBase = {PLAQUE[3] - 3}, kPlaqueY = {(PLAQUE[1] + PLAQUE[3]) // 2};
 const opxy::i32 kLoopWidth = {q(LOOP_WIDTH)}, kEchoLoopWidth = {q(ECHO_LOOP_WIDTH)}, kTape2Width = {q(TAPE2_WIDTH)};
 // The loop cable from the echo at position e to position t, or tape 2 (t 4); -1 for none.
 const opxy::i32 kCable[4][5] = {{{", ".join("{" + row(c) + "}" for c in cables)}}};
