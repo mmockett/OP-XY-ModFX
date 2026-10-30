@@ -92,7 +92,7 @@ drawn and why this one was chosen.
 ## CPU and memory
 
 Not yet measured on a device. Host timing against Lint, which measures 7.745%,
-suggests about 4 to 6% for the default and up to about 9.5% with the heaviest
+suggests about 4 to 6% for the default and up to about 10% with the heaviest
 effect in every module, all at full. Treat those as estimates. Chroma takes 321 KiB
 of a send's memory and 43 KiB of module memory.
 

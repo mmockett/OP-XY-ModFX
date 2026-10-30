@@ -59,7 +59,14 @@ i32 soft(i32 u) {
 // The same curve at unity gain near zero, flattening at two thirds of full scale.
 i32 limit(i32 u) { return mul(soft(u), 1431655765); }
 // A cheaper clip, one multiply: unity near zero, half at full scale.
-i32 gentle(i32 u) { return u - (mul(u, u < 0 ? -u : u) >> 1); }
+// ~u for the size: -u overflows at full negative scale, and the result would flip to positive.
+i32 gentle(i32 u) { return u - (mul(u, u < 0 ? ~u : u) >> 1); }
+// x moved toward y by w, 0..1. By halves: a full difference is twice what a word
+// holds, and clipped it would let x through in bursts wherever x and y swing apart.
+i32 blend(i32 x, i32 y, i32 w) {
+    const i32 half = mul(w, (y >> 1) - (x >> 1));
+    return add(add(x, half), half);
+}
 // A 33-point curve at a control's value, interpolated.
 template <class T> T curve(const T (&table)[33], i32 value) {
     const u32 at = static_cast<u32>(control(value)) >> 26, part = (static_cast<u32>(control(value)) >> 18) & 0xff;
@@ -163,7 +170,7 @@ struct Box {
             i32 split = a.split[ch];
             for (u32 i = 0; i < kN; ++i) {
                 split = add(split, mul(203000000, sub(x[i], split)));
-                x[i] = add(x[i], mul(t, sub(x[i], split << 1)));
+                x[i] = add(x[i], mul(t, sub(x[i], add(split, split))));
             }
             a.split[ch] = split;
         }
@@ -197,7 +204,7 @@ struct Box {
                 const i32 centred = add(sub(post, in), mul(held, 2134900000));  // about 20 Hz
                 in = post;
                 held = centred;
-                x[i] = add(x[i], mul(wet, sub(centred, x[i])));
+                x[i] = blend(x[i], centred, wet);
             }
             a.post[ch] = post;
             a.dc_in[ch] = in;
@@ -219,7 +226,7 @@ struct Box {
                 const i32 y = mul(k, in - y1) + x1;
                 x1 = in;
                 y1 = y;
-                x[i] = add(x[i], mul(wet, sub(add(y, y), x[i])));
+                x[i] = blend(x[i], add(y, y), wet);
             }
             a.ap[ch * 2] = x1;
             a.ap[ch * 2 + 1] = y1;
@@ -273,7 +280,7 @@ struct Box {
                 low = add(low, mul(f, band));
                 const i32 high = sub(sub(in >> 1, low), add(mul(q, band), mul(q, band)));
                 band = gentle(add(band, mul(f, high)));
-                x[i] = add(x[i], mul(wet, sub(mul(add(band, low), level), x[i])));
+                x[i] = blend(x[i], mul(add(band, low), level), wet);
             }
             a.band[ch] = band;
             a.low[ch] = low;
@@ -495,8 +502,8 @@ struct Box {
             const i32 x = mul(tap_left(line, mask, w, (a >> 13) + 16384), window(a)) + mul(tap_left(line, mask, w, (b >> 13) + 16384), window(b));
             const i32 y = mul(tap_right(line, mask, w, (e >> 13) + 16384), window(e)) + mul(tap_right(line, mask, w, (f >> 13) + 16384), window(f));
             const i32 cx = static_cast<i32>(static_cast<u32>(add(x, round)) & keep), cy = static_cast<i32>(static_cast<u32>(add(y, round)) & keep);
-            l[i] = add(l[i], mul(mix, sub(cx, l[i])));
-            r[i] = add(r[i], mul(mix, sub(cy, r[i])));
+            l[i] = blend(l[i], cx, mix);
+            r[i] = blend(r[i], cy, mix);
         }
         m.pitch_phase[0] = p0;
         m.pitch_phase[1] = p1;
@@ -655,8 +662,8 @@ struct Box {
                 now1 = add(now1, now1 >> 1);
             }
             const i32 wet0 = i & 1 ? now0 : add(last0 >> 1, now0 >> 1), wet1 = i & 1 ? now1 : add(last1 >> 1, now1 >> 1);
-            l[i] = add(l[i], mul(mix, sub(wet0, l[i])));
-            r[i] = add(r[i], mul(mix, sub(wet1, r[i])));
+            l[i] = blend(l[i], wet0, mix);
+            r[i] = blend(r[i], wet1, mix);
         }
         a.cloud_pass[0] = pass0;
         a.cloud_pass[1] = pass1;

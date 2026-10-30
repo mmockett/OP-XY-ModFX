@@ -8,6 +8,7 @@
 
 namespace {
 const opxy::i32 kWordHalf = 1073741824;
+const double kHowlBurst = 1.0;  // 16 before the blend, 0.15 after
 opxy::i32 enum_word(unsigned choice, unsigned count) {
     const unsigned bucket = 0x7fffffffu / count;
     return static_cast<opxy::i32>(choice * bucket + bucket / 2);
@@ -90,6 +91,40 @@ int main() {
             }
         }
         if (peak > 0.51) { std::printf("FAIL the level's fall: peak %f\n", peak); ok = false; }
+    }
+    // A wet signal swinging against a hot input: a blend reaches it, with no dry left over.
+    if (std::abs(chroma::blend(1717986918, -1073741824, 0x7fffffff) + 1073741824) > 4) { std::puts("FAIL a full blend leaves dry signal"); ok = false; }
+    // A hot sweep through Howl, high in its range: it must not burst into high frequencies.
+    {
+        chroma::State state;
+        chroma::initialize(state);
+        const opxy::Transport transport = {1200, 0, true};
+        const opxy::i32 tilt = 1610612736;  // 75%
+        const opxy::i32 words[12] = {0x7fffffff, 0, 0, kWordHalf, tilt, kWordHalf, kWordHalf, 0, enum_word(3, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
+        opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+        double phase = 0, last = 0, last1 = 0, last2 = 0, power = 0, edges = 0, worst = 0;
+        for (unsigned b = 0; b < 4000; ++b) {
+            for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                phase += 2 * 3.14159265358979 * (100 + 4000.0 * b / 4000) / 44100;
+                left[i] = right[i] = static_cast<opxy::i32>(std::sin(phase) * 0.8 * 2147483647.0);
+            }
+            chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+            for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                const double a = left[i] / 2147483648.0;
+                const double third = a - 3 * last + 3 * last1 - last2;  // what's left is mostly the top octaves
+                last2 = last1;
+                last1 = last;
+                last = a;
+                power += a * a;
+                edges += third * third;
+            }
+            if (b % 16 == 15) {
+                if (b > 64 && power > 1e-3 && edges / power > worst) worst = edges / power;
+                power = edges = 0;
+            }
+        }
+        std::printf("Howl's worst high-frequency share on a hot sweep: %.3f\n", worst);
+        if (worst > kHowlBurst) { std::puts("FAIL Howl bursts into high frequencies on a hot send"); ok = false; }
     }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
     if (chroma::kBufferWords * 4 != 328280) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
