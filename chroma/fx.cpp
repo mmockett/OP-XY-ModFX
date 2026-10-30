@@ -31,7 +31,8 @@ const u32 kClearChunk = 8192;  // words a block, while an effect starts
 const u32 kFadeStep = 1u << 28;  // a module's fade in: eight blocks, about 12 ms
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
-i32 sub(i32 a, i32 b) { return add(a, -b); }
+// Saturating, as add. -b would overflow at full negative scale, and flip the difference's sign.
+i32 sub(i32 a, i32 b) { return add(add(a, ~b), 1); }
 i32 mul(i32 a, i32 b) { return opxy::q31::multiply(a, b); }
 i32 control(i32 word) { return word < 0 ? 0 : word; }
 u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16) * count) >> 15; }
@@ -47,7 +48,7 @@ struct Gain {
     i32 apply(i32 x) const {
         const i32 high = x >> 12, low = x & 4095;
         if (high > limit) return kMaximum;
-        if (high < -limit - 1) return kMinimum;
+        if (high < -limit) return kMinimum;
         return add(high * q12, (low * q12) >> 12);
     }
 };
@@ -223,7 +224,7 @@ struct Box {
             i32 x1 = a.ap[ch * 2], y1 = a.ap[ch * 2 + 1];
             for (u32 i = 0; i < kN; ++i) {
                 const i32 in = x[i] >> 1;
-                const i32 y = mul(k, in - y1) + x1;
+                const i32 y = add(mul(k, sub(in, y1)), x1);
                 x1 = in;
                 y1 = y;
                 x[i] = blend(x[i], add(y, y), wet);
@@ -237,7 +238,7 @@ struct Box {
         // Squeezed gently a block at a time, then a soft saturation, then spread.
         i32 peak = 0;
         for (u32 i = 0; i < kN; ++i) {
-            const i32 a = l[i] < 0 ? -l[i] : l[i], b = r[i] < 0 ? -r[i] : r[i];
+            const i32 a = l[i] < 0 ? ~l[i] : l[i], b = r[i] < 0 ? ~r[i] : r[i];
             if (a > peak) peak = a;
             if (b > peak) peak = b;
         }
@@ -273,7 +274,8 @@ struct Box {
         i32* channel[2] = {l, r};
         for (u32 ch = 0; ch < 2; ++ch) {
             i32* x = channel[ch];
-            const i32 f = mul(place, ch ? 1900000000 + beat : kUnit - beat);
+            // Short of full scale, so the left's can't overflow: a negative f would undo the damping, and it would scream.
+            const i32 f = mul(place, ch ? 1900000000 + beat : 2080000000 - beat);
             i32 band = a.band[ch], low = a.low[ch];
             for (u32 i = 0; i < kN; ++i) {
                 const i32 in = gentle(drive.apply(x[i]));
@@ -292,7 +294,7 @@ struct Box {
     void swell(i32 amount) {
         i32 peak = 0;
         for (u32 i = 0; i < kN; ++i) {
-            const i32 a = l[i] < 0 ? -l[i] : l[i], b = r[i] < 0 ? -r[i] : r[i];
+            const i32 a = l[i] < 0 ? ~l[i] : l[i], b = r[i] < 0 ? ~r[i] : r[i];
             if (a > peak) peak = a;
             if (b > peak) peak = b;
         }
@@ -337,7 +339,10 @@ struct Box {
             stage(kFuzzCurve, amount, 240000, 950000000 + mul(control(c[kTilt]), 900000000));
             parted(amount >> 1);
         }
-        else if (effect == kHowl) howl(amount);
+        else if (effect == kHowl) {
+            howl(amount);
+            parted(amount);
+        }
         else swell(amount);
     }
 
@@ -430,14 +435,14 @@ struct Box {
                 earlier = before;
                 before = v;
                 for (u32 st = 0; st < 2; ++st, state += 2) {
-                    const i32 y = mul(k, v - state[1]) + state[0];
+                    const i32 y = add(mul(k, sub(v, state[1])), state[0]);
                     state[0] = v;
                     state[1] = y;
                     v = y;
                 }
             }
             // The last pair comes in with Amount, so the count never steps.
-            const i32 wet0 = before + mul(part, v - before), wet1 = earlier + mul(part, before - earlier);
+            const i32 wet0 = blend(before, v, part), wet1 = blend(earlier, before, part);
             fed = add(wet0, wet0);
             const i32 out0 = add(l[i] >> 1, wet0), out1 = add(r[i] >> 1, wet1);
             l[i] = add(out0, out0 >> 2);
@@ -820,7 +825,7 @@ struct Box {
     void press(i32 amount) {
         i32 peak = 0;
         for (u32 i = 0; i < kN; ++i) {
-            const i32 a = l[i] < 0 ? -l[i] : l[i], b = r[i] < 0 ? -r[i] : r[i];
+            const i32 a = l[i] < 0 ? ~l[i] : l[i], b = r[i] < 0 ? ~r[i] : r[i];
             if (a > peak) peak = a;
             if (b > peak) peak = b;
         }
@@ -916,7 +921,7 @@ struct Box {
             const u32 p = phase + (ch ? 0x70000000u : 0);
             const i32 sag = p < 0x30000000u ? static_cast<i32>((p >> 13) / 3) : static_cast<i32>((~p >> 13) / 13);  // 0..32767
             const i32 depth = sag * (amount >> 16) >> 15;
-            const i32 delay = 30000 + flutter + (depth * 76800 >> 15);
+            const i32 delay = 30000 + flutter + (depth * 2400 >> 10);
             const i32 gain = kUnit - (depth << 15);
             step[ch] = (delay - m.ramp[8 + ch]) >> 6;
             step[2 + ch] = (gain >> 6) - (m.ramp[6 + ch] >> 6);
@@ -944,7 +949,7 @@ struct Box {
     void radio(i32 amount) {
         i32 peak = 0;
         for (u32 i = 0; i < kN; ++i) {
-            const i32 a = l[i] < 0 ? -l[i] : l[i], b = r[i] < 0 ? -r[i] : r[i];
+            const i32 a = l[i] < 0 ? ~l[i] : l[i], b = r[i] < 0 ? ~r[i] : r[i];
             if (a > peak) peak = a;
             if (b > peak) peak = b;
         }

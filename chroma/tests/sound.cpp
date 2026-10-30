@@ -126,6 +126,55 @@ int main() {
         std::printf("Howl's worst high-frequency share on a hot sweep: %.3f\n", worst);
         if (worst > kHowlBurst) { std::puts("FAIL Howl bursts into high frequencies on a hot send"); ok = false; }
     }
+    // Notes, then silence with Amount turned: Howl's filter must die away, at every Tilt and Amount.
+    // Its tuning once overflowed on the device, not here, unless built with -fwrapv.
+    for (double amount : {0.3, 0.6, 1.0})
+        for (double tilt : {0.25, 0.5, 0.75, 1.0}) {
+            chroma::State state;
+            chroma::initialize(state);
+            const opxy::Transport transport = {1200, 0, true};
+            opxy::i32 words[12] = {static_cast<opxy::i32>(amount * 2147483647.0), 0, 0, kWordHalf, static_cast<opxy::i32>(tilt * 2147483647.0), kWordHalf, kWordHalf, 0, enum_word(3, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
+            opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+            double phase = 0, peak = 0;
+            for (unsigned b = 0; b < 8000; ++b) {
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    phase += 2 * 3.14159265358979 * 440 / 44100;
+                    left[i] = right[i] = b < 400 ? static_cast<opxy::i32>(std::sin(phase) * 0.5 * 2147483647.0) : 0;
+                }
+                if (b > 2000 && b < 3000) words[0] = static_cast<opxy::i32>(amount * (0.75 + 0.25 * std::sin(b * 0.01)) * 2147483647.0);
+                chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+                if (b < 1000) continue;
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    if (std::fabs(left[i] / 2147483648.0) > peak) peak = std::fabs(left[i] / 2147483648.0);
+                    if (std::fabs(right[i] / 2147483648.0) > peak) peak = std::fabs(right[i] / 2147483648.0);
+                }
+            }
+            if (peak > 0.0001) { std::printf("FAIL Howl sounds in silence at Amount %.2f, Tilt %.2f: peak %f\n", amount, tilt, peak); ok = false; }
+        }
+    // The settings Max filmed it screaming at, about 5.4 kHz: Tilt +100, trem 97 at full rate, cloud 0,
+    // press 0, Drift 54, and Amount turned up and down with no notes. It needed the turning to start.
+    {
+        chroma::State state;
+        chroma::initialize(state);
+        const opxy::Transport transport = {1200, 0, true};
+        opxy::i32 words[12] = {kWordHalf, static_cast<opxy::i32>(0.97 * 2147483647.0), 0, 0, 0x7fffffff, 0x7fffffff, static_cast<opxy::i32>(0.43 * 2147483647.0), static_cast<opxy::i32>(0.54 * 2147483647.0), enum_word(3, 6), enum_word(3, 6), enum_word(0, 6), enum_word(3, 8)};
+        opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+        double phase = 0, peak = 0;
+        for (unsigned b = 0; b < 14000; ++b) {
+            for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                phase += 2 * 3.14159265358979 * 220 / 44100;
+                left[i] = right[i] = b < 300 ? static_cast<opxy::i32>(std::sin(phase) * 0.3 * 2147483647.0) : 0;
+            }
+            words[0] = static_cast<opxy::i32>((0.62 + 0.26 * std::sin(b * 2 * 3.14159265358979 / 500)) * 2147483647.0);
+            chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+            if (b < 1000) continue;
+            for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                if (std::fabs(left[i] / 2147483648.0) > peak) peak = std::fabs(left[i] / 2147483648.0);
+                if (std::fabs(right[i] / 2147483648.0) > peak) peak = std::fabs(right[i] / 2147483648.0);
+            }
+        }
+        if (peak > 0.0001) { std::printf("FAIL Howl screams at the filmed settings: peak %f\n", peak); ok = false; }
+    }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
     if (chroma::kBufferWords * 4 != 328280) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");
