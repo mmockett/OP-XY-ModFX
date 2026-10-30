@@ -78,6 +78,17 @@ of a moonlit lake. The difference between the views is the stereo width.
   the screen. These answered "too scientific".
 - The prism's stops moved above it, clear of the stem's metronome weight.
 
+The second pass made it more of a real instrument, without changing what any
+control moves:
+
+- A magic lantern with its chimney, door and stepped lens, in place of a plain lamp box.
+- Turned posts on carriages clamped to a rail engraved in centimetres, so the
+  screen's carriage reads off its place. The screen is ground glass in a frame.
+- A glass plate in a graduated ring in place of the card, a prism with depth and a
+  glint, and a scale on the arc and the stem for the stops and the weight.
+- The rays now start on the prism's far face and follow it as it rocks.
+- Dark static bodies hide what's behind them, as Wane's do.
+
 ![The bench as built, from the real display code](../screens.png)
 
 Every control at 0, 50 and 100 is in [controls-1x.png](controls-1x.png), and every

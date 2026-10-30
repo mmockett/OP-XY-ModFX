@@ -4,7 +4,7 @@
 namespace chroma {
 // Matches resources.display in definition.json: paths, points, nodes, texts,
 // palette. tools/make_panel.py names every node (panel.h).
-using Frame = opxy::draw::Frame<4, 64, 67, 18, 6>;
+using Frame = opxy::draw::Frame<4, 64, 84, 18, 8>;
 // The two-page header; each control as the screen shows it, easing toward its
 // value; the prism's swing, the rays' waver and the motes' drift; whether the first frame has been drawn.
 struct DisplayState {

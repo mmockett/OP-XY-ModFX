@@ -77,12 +77,14 @@ Correlation is measured on a mono phrase, whose own is 1.00: lower is wider.
 
 ## The screen
 
-An optical bench from the side, left to right as the sound goes. The lamp burns as
-Character's effect does, and Tilt turns the card before it. The prism rocks between
-its stops at the rate its metronome weight shows, and doubles, nests or shutters as
-Movement's effect does. Its light fans out with Diffuse, in that effect's own
-pattern, with dust adrift in it: upper rays left, lower right. Time slides the
-screen along the rail, and Texture marks it.
+A Victorian optical bench from the side, left to right as the sound goes, on a rail
+engraved in centimetres. A magic lantern's flame burns as Character's effect does,
+and Tilt turns a glass plate in a graduated ring before it. The prism rocks between
+the stops on its arc, at the rate the sliding weight on its stem shows, and doubles,
+nests or shutters as Movement's effect does. Its light leaves from the prism's far
+face and follows it, fanning out with Diffuse in that effect's own pattern, with
+dust adrift in it: upper rays left, lower right. Time slides the ground-glass screen
+along the rail, and Texture marks it.
 
 [docs/visual-directions.md](docs/visual-directions.md) records the three directions
 drawn and why this one was chosen.

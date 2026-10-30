@@ -7,7 +7,7 @@ import html, json, pathlib, re, subprocess, sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FACE = '<style>@font-face{font-family:"UniversNextPro-Light";src:url("file:///Users/mmockett/Documents/GitHub/OP-XY/tools/render/font/UniversNextPro-Light.ttf")}</style>'
 Q = 1024
-PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*stroke="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
+PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
 
 
 def apply(frame):
@@ -25,7 +25,9 @@ def apply(frame):
             d = 'M' + ' L'.join(f'{a / Q:.3f},{b / Q:.3f}' for a, b in pts) + ' Z'
             tag = re.sub(r' d="[^"]*"', f' d="{d}"', tag)
         if paint:
-            tag = re.sub(r'stroke="[^"]*"', f'stroke="{PALETTE[shade]}"', tag)
+            # As on the device, the palette lends its stroke's width too.
+            tag = re.sub(r'stroke="[^"]*"', f'stroke="{PALETTE[shade][0]}"', tag, count=1)
+            tag = re.sub(r'stroke-width="[^"]*"', f'stroke-width="{PALETTE[shade][1]}"', tag)
         return tag
 
     art = re.sub(r'<path id="chroma_node_(\d+)"[^>]*/>', node, art)
