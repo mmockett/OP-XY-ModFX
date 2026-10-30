@@ -9,7 +9,7 @@ patched into the echo's feedback loop, and two LFOs move them.
 | --- | --- | --- | --- | --- |
 | Page 1 | dust: tape 1, diode types I..V | phase: depth, wet, feedback | echo: wet and feedback; Madness above 85% | spring: drive and wet |
 | Page 2 (press) | tape 2: after the chain | rate: LFO 1, 0.17..7.5 Hz | time: 3..650 ms | tone: the tank's tilt |
-| Shift | order: DPES, DEPS, PDES, DSPE, SDEP, EDPS | shape: both LFOs (sine, tri, sqr) | loop: what's in the echo's feedback (off, tape 2, phase, tank) | wobble: LFO 2's target (off, time, tank, phase) |
+| Shift | order: DPES, DEPS, PDES, DSPE, SDEP, EDPS | shape: both LFOs (sine, tri, sqr) | loop: what's in the echo's feedback (off, tape, lamp, tank) | wobble: LFO 2's target (off, time, tank, lamp) |
 
 Page 1's encoders follow the default order, DPES, and each control on page 2
 and the shift row sits under the section it shapes. Both pages show at once,
@@ -51,21 +51,25 @@ fade in from clean over the first quarter of their controls.
 
 ![Lint's screen in six settings](screens.png)
 
-Under the two pages, the box seen from above: four bays in the chosen order
-on one patch cable. The header captions rate in hertz, time in milliseconds
+Under the two pages, a 1970s effects chassis with its lid off, seen from above:
+four screwed-in modules in the chosen order on one patch cable, each with its
+name on a riveted plaque. On the shift row, `lamp` is the phaser. The header captions rate in hertz, time in milliseconds
 (then seconds from 0.1 s) and tone from -100 to 100.
 
-- **dust:** the tape across its head wrinkles, and dust gathers on it.
-- **phase:** the lamp glows with depth and pulses with its LFO.
-- **echo:** the playback head slides round the loop with time, repeats trail
-  it with feedback, and Madness buckles the loop.
-- **spring:** the springs shake wider as they're driven, and tone tilts them.
+- **dust:** the tape across a tape head, its core and coil laid open, wrinkles,
+  dust gathers on it, and a mark moves along a wear gauge.
+- **phase:** in a light can, the lamp glows with depth and pulses with its LFO,
+  its rays reaching the photocell, and a mark on a rail shows rate.
+- **echo:** a drum in the Binson way: the playback head on its arm reads time
+  against a scale, repeats trail it with feedback, and Madness buckles the wire.
+- **spring:** in a reverb pan, the springs shake wider as they're driven, and
+  tone tilts them against the scales on the transducers.
 
 A section patched into the echo's loop leaves the cable, which hops over it,
-for one under the bays, and tape 2 drops down to it when it's the one in the
-loop. Tape 2's head rises to the cable before OUT with its level, brightening as it
-drives. A mark on a rail in the lamp's box shows rate. LFO
-2's mark, in its shape, sits on what it wobbles. Holding Shift enlarges the
+for one under the bays, plugged into a port beside each plaque, and tape 2 drops
+down to it when it's the one in the loop. Tape 2's head rises to the cable before
+OUT with its level, brightening as it drives. LFO 2's mark, in its shape, sits in
+a window at the top right of what it wobbles. Holding Shift enlarges the
 bays' letters, which the order names.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots

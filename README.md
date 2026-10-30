@@ -67,7 +67,7 @@ after changing a shape.
 
 ## Lint
 
-![Lint's screen in six settings: the four bays in order on one cable; everything turned up; the spring patched into the echo's loop; tape 2 in the loop; the phaser in the loop; everything at zero](docs/screens/lint.png)
+![Lint's screen in six settings: the four modules in order on one cable; everything turned up; the spring patched into the echo's loop; tape 2 in the loop; the phaser in the loop; everything at zero](docs/screens/lint.png)
 
 A 1970s effects box for a send, after Finegear's Dust Collector: two tape
 saturations, an optical phaser, a gritty PT2399-style echo and a three-spring
@@ -81,9 +81,9 @@ hold Shift for order, shape, loop, wobble
 can't ship presets, so these appear in the SDK's browser preview and not on the
 OP-XY.
 
-**The screen** is the box seen from above: its four sections as bays in the
-chosen order, joined by one patch cable from in to out. Each control moves its
-own bay. [`lint/README.md`](lint/README.md) says how.
+**The screen** is a 1970s effects chassis with its lid off, seen from above: its
+four sections as modules in the chosen order, joined by one patch cable from in to
+out. Each control moves a part of its module. [`lint/README.md`](lint/README.md) says how.
 
 Put Lint on a send with **Shift** and **M1** on FX I or II. At full send a
 track goes wholly through the box, as it would through the hardware inline;
