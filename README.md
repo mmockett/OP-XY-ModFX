@@ -87,6 +87,48 @@ Put Lint on a send with **Shift** and **M1** on FX I or II. At full send a
 track goes wholly through the box, as it would through the hardware inline;
 less send blends the clean track with it.
 
+## Chroma
+
+![Chroma's screen in six settings: a lamp, a glass plate in a ring, a prism and a fan of light landing on a screen, on a graduated rail. The flame, prism, rays and screen change with Halo; everything up; Mirage; Postcard; Shift held; and Tide](docs/screens/chroma.png)
+
+An ethereal stereo console for a send, after Hologram's Chroma Console: four
+modules in a row, 22 effects between them, each module running one of its own or
+none. Most voices reach a send in the centre, so each module that can parts left
+and right, and a mono source leaves wide. It's built from the pedal's manual, as
+no pedal has been measured, so it follows what the manual describes and not the
+pedal's own sound.
+
+**Controls:** character, movement, diffuse, texture; press for tilt, rate, time,
+drift; hold Shift for each module's effect
+
+**The screen** is a Victorian optical bench from the side, left to right as the
+sound goes: a magic lantern, a glass plate in a ring, a rocking prism, its light
+fanning out, and a ground-glass screen on a rail. Each control moves its own part.
+[`chroma/README.md`](chroma/README.md) says how, and lists all 22 effects.
+
+Put Chroma on a send with **Shift** and **M1** on FX I or II. A new project starts
+on warm, vibe, cloud and tilt. At full send a track goes wholly through it; less
+send blends the clean track with it.
+
+**Recipes:** a send effect can't ship presets, so these don't appear in a browser
+on the OP-XY. Choose the effects with Shift, and turn the controls to what the
+header shows:
+
+| Recipe | Effects | Page 1 | Page 2 |
+| --- | --- | --- | --- |
+| Halo | warm, vibe, cloud, tilt | 30, 25, 60, 0 | +10, 0.3hz, 80, 10 |
+| Aurora | warm, pitch, cloud, tilt | 20, 35, 70, +24 | +20, +11, 90, 15 |
+| Mirage | swell, twin, back, tilt | 35, 60, 60, 0 | 0, 25ms, x1.0, 20 |
+| Tide | warm, swirl, dusk, off | 25, 65, 50, - | 0, 0.3hz, 1/8, 25 |
+| Postcard | drive, vibe, tape, cass | 25, 30, 50, 45 | -16, 0.2hz, 1/8d, 40 |
+| Mosaic | warm, twin, slice, tilt | 20, 40, 60, -10 | 0, 33ms, .19s, 45 |
+| Static | fuzz, trem, cloud, radio | 20, 40, 45, 30 | -10, 0.8hz, 70, 20 |
+
+**CPU,** measured on an OP-XY at v1.4.1: 7.23% of the block budget on the default
+effects, and 10.76% on howl, swirl, cloud and cass with every control at full. That
+heaviest setting is enough that a busy project may drop audio, though no one has
+heard it do so yet.
+
 ## Status: experimental
 
 Each machine needs SDK changes still in review, and builds against its own
@@ -98,6 +140,7 @@ branch until they merge:
 - **Lint** needs effect pages, shift rows and effect screens (SDK 1.7),
   [etcetc000/open-xy#230](https://github.com/etcetc000/open-xy/pull/230):
   branch `sdk/effect-screens`.
+- **Chroma** needs the same (SDK 1.7), on the same branch.
 
 ```bash
 git clone -b sdk/effect-screens https://github.com/mmockett/open-xy
@@ -111,7 +154,8 @@ python open-xy/sdk.py test --machine OP-XY-ModFX/lint
 python open-xy/sdk.py build --machine OP-XY-ModFX/lint --machine <a synth> --stock-os <stock-1.2.1>/os.ldr --out <builds>/lint-001
 ```
 
-For Omnifilter, clone `sdk/aux-modules` instead and pass `OP-XY-ModFX/omnifilter`.
+For Chroma, pass `OP-XY-ModFX/chroma` instead. For Omnifilter, clone `sdk/aux-modules`
+and pass `OP-XY-ModFX/omnifilter`.
 A firmware needs at least one synth. It runs on an OP-XY with **OS 1.2.1**; installing
 it is described in the SDK's
 [building firmware](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
