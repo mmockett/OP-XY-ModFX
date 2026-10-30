@@ -37,7 +37,7 @@ through it.
 | --- | --- |
 | vibe | Pitch sway, the sides apart; drift goes from a sine to tape-like wander |
 | twin | Two late voices at different lengths, each on the other's side; rate sets the delay |
-| swirl | A phaser of 2 to 8 stages; left and right hear different points of it |
+| swirl | A phaser of 2 to 6 stages; left and right hear different points of it |
 | trem | Level swinging well apart on each side, from soft to chopped |
 | pitch | -12 to +12 semitones; drift coarsens it |
 

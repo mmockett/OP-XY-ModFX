@@ -280,7 +280,8 @@ struct Box {
             for (u32 i = 0; i < kN; ++i) {
                 const i32 in = gentle(drive.apply(x[i]));
                 low = add(low, mul(f, band));
-                const i32 high = sub(sub(in >> 1, low), add(mul(q, band), mul(q, band)));
+                const i32 damped = mul(q, band);
+                const i32 high = sub(sub(in >> 1, low), add(damped, damped));
                 band = gentle(add(band, mul(f, high)));
                 x[i] = blend(x[i], mul(add(band, low), level), wet);
             }
@@ -407,15 +408,16 @@ struct Box {
         m.write[kMoveLine] = w;
     }
 
-    // First-order all-passes, one multiply each, two to eight of them as Amount
+    // First-order all-passes, one multiply each, two to six of them as Amount
     // rises, on one chain from both sides. Left hears the whole chain and right
     // an earlier point on it, so their notches fall in different places and the
-    // two trade across the sweep. Half scale, so plain sums hold.
+    // two trade across the sweep. Above 75% only the feedback and depth still grow.
     void swirl(i32 amount) {
         const i32 drift = control(c[kDrift]);
         const u32 phase = lfo(0, curve(kRateStep, c[kRate]));
-        const u32 count = 1 + (static_cast<u32>(amount) >> 29);  // 1..4 pairs
-        const i32 part = static_cast<i32>((static_cast<u32>(amount) << 3) >> 1);  // through this pair, Q31
+        const bool all = amount >= 1610612736;
+        const u32 count = all ? 3 : 1 + (static_cast<u32>(amount) >> 29);  // 1..3 pairs
+        const i32 part = all ? kUnit : static_cast<i32>((static_cast<u32>(amount) << 3) >> 1);  // through this pair, Q31
         const i32 back = 214748365 + mul(amount, 859000000);  // feedback 0.1..0.5
         const i32 depth = 858993459 + mul(amount, 1073741824);
         const i32 jitter = mul(wander(0, 40), drift);
