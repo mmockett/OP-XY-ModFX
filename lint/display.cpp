@@ -54,7 +54,7 @@ i32 curve(const i32 (&table)[33], i32 q15) {
 // One of the three springs: a coil of 31 strokes about its centre, shaking
 // wider with the drive, tilted by tone and bowed by the wobble, as a ribbon.
 void spring(Frame::path_type& path, i32 amount, i32 tilt, i32 bow) {
-    const i32 amplitude = px(1) + share(px(6), amount);
+    const i32 amplitude = px(1) + share(px(9), amount);
     for (u32 j = 0; j < 32; ++j) {
         const i32 t = static_cast<i32>(j) * 1024 / 31;  // Q10 along it
         const i32 x = -px(kSpringHalf) + 2 * kSpringHalf * t;
@@ -102,11 +102,11 @@ void captions(char (&values)[8][header_capacity], const i32 (&slots)[8]) {
 // The tape across the dust bay's head: a crest over the head, scuffed by dust.
 void tape(Frame::path_type& path, i32 dust) {
     for (u32 j = 0; j < 32; ++j) {
-        const i32 x = -px(38) + px(76) * static_cast<i32>(j) / 31;
+        const i32 x = -px(40) + px(80) * static_cast<i32>(j) / 31;
         const bool scuffed = j >= 3 && j <= 28;
-        // sin(2.3 j) as the mockup's, Q10; up to 2.2 pixels.
-        const i32 wrinkle = scuffed ? share(sine(static_cast<i32>(j) * 1318 % 3600) * 2253 >> 10, dust) : 0;
-        const i32 y = -px(12) + kCrest[j] * 7 + wrinkle;
+        // sin(2.3 j) as the mockup's, Q10; up to 4 pixels.
+        const i32 wrinkle = scuffed ? share(sine(static_cast<i32>(j) * 1318 % 3600) * 4, dust) : 0;
+        const i32 y = -px(14) + kCrest[j] * 10 + wrinkle;
         path.points[j] = Point{x, y};
         path.points[63 - j] = Point{x, y + unit};
     }
@@ -171,8 +171,10 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // Letters and names, which move with the order.
     for (u32 s = 0; s < 4; ++s) {
         const i32 x = bay(at[s]);
-        text(frame, kLetter + s, px(x + 7), px(kTop + 25), input.shift ? unit * 4 / 3 : unit, kLetters[s]);
-        text(frame, kName + s, px(x) + px(kBayW) / 2 - kNameWidth[s] / 2, px(kBottom - 8), unit, kNames[s]);
+        text(frame, kLetter + s, px(x + 7), px(kTop + 13), input.shift ? unit * 4 / 3 : unit, kLetters[s]);
+        // Struck twice, half a pixel apart, for weight: the device has only the light cut.
+        text(frame, kName + s, px(x + 7), px(kBottom - 7), unit, kNames[s]);
+        text(frame, kNameBold + s, px(x + 7) + unit / 2, px(kBottom - 7), unit, kNames[s]);
     }
 
     // Dust: the tape's wrinkles, and a speck for each eighth of the control.
@@ -217,10 +219,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     for (u32 k = 0; k < kEchoParts; ++k) place(frame, kNodeEcho0 + k, px(echo_x), px(kEchoY), unit, 0, keep);
     const i32 rx = kEchoRx + 6, ry = kEchoRy + 6;
     place(frame, kNodeRecord, px(echo_x) + rx * sine(kRecord + 900), px(kEchoY) + ry * sine(kRecord), unit, 0, keep);
-    const i32 play = kRecord + 380 + share(1260, v[kTime]) + (wobble == kWobbleTime ? share(46, lfo2) : 0);
+    turn(frame, kNodeRecord, rotation(kRecord));
+    const i32 play = kRecord + kTimeStart + share(kTimeSpan, v[kTime]) + (wobble == kWobbleTime ? share(46, lfo2) : 0);
+    place(frame, kNodeArm, px(echo_x), px(kEchoY), unit, 0, keep);
+    turn(frame, kNodeArm, rotation(play));
     const bool echoing = v[kEcho] > 328;
     place(frame, kNodePlay, px(echo_x) + rx * sine(play + 900), px(kEchoY) + ry * sine(play), unit,
           echoing ? kBright : kDim, stroke);
+    turn(frame, kNodePlay, rotation(play));
     const i32 feedback = v[kEcho] > 27853 ? 32767 : v[kEcho] * 20 / 17;
     const i32 repeats = echoing ? 1 + ((feedback * 5 + 16384) >> 15) : 0;
     for (i32 k = 0; k < 6; ++k) {
@@ -238,7 +244,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 spring_x = bay(at[kS]);
     for (u32 k = 0; k < kTankParts; ++k) place(frame, kNodeTank0 + k, px(spring_x), 0, unit, 0, keep);
     const i32 drive = patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
-    const i32 tilt = share(px(18), v[kTone] - 16384);
+    const i32 tilt = share(px(24), v[kTone] - 16384);
     const i32 swing = wobble == kWobbleSpring ? share(px(4) + share(px(4), drive), lfo2) : 0;
     static const i32 kSway[3] = {574, 1023, -307};  // each spring's share of the swing, Q10
     for (u32 k = 0; k < 3; ++k) {
@@ -254,7 +260,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // LFO 2's mark, in its shape, on the bay it wobbles.
     const i32 marked = wobble == kWobbleTime ? kE : wobble == kWobbleSpring ? kS : wobble == kWobblePhaser ? kP : -1;
     for (u32 k = 0; k < 3; ++k) {
-        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + 70), px(kBottom - 11), unit, 0, keep);
+        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + 72), px(kBottom - 12), unit, 0, keep);
         else hide(frame, kNodeSine + k);
     }
 
@@ -282,7 +288,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         text(frame, kEchoLoop, px(hidden_x), px(hidden_y), unit, "echo loop");
     }
     if (skipped >= 0)
-        text(frame, kLoopLabel, px(bay(skipped) + kBayW - 7) - kLoopWidth, px(kTop + 25), unit, "loop");
+        text(frame, kLoopLabel, px(bay(skipped) + kBayW - 7) - kLoopWidth, px(kTop + 13), unit, "loop");
     else
         text(frame, kLoopLabel, px(hidden_x), px(hidden_y), unit, "loop");
 
