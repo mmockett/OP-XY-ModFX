@@ -300,23 +300,25 @@ struct Box {
             if (b > peak) peak = b;
         }
         Audio& a = m.audio;
-        // A note is the level jumping over what it has lately been: a run of
-        // notes close together counts as one, as they never fall away from it.
+        // A note is the level jumping over what it has been for about 100 ms: a held
+        // sound's waveform dips for less than that, and a quick run counts as one.
         if (m.swell_hold) --m.swell_hold;
         if (!m.swell_hold && peak > 8589934 && (peak >> 1) > a.level) {  // above -48 dB
             m.swell_open = 1;
             m.swell_hold = 24;
-            m.swell_gain[0] = m.swell_gain[1] = 0;
         } else if (a.level < 2147483) {  // below -60 dB
             m.swell_open = 0;
         }
-        a.level = peak > a.level ? peak : a.level - (a.level >> 4);
+        a.level = peak > a.level ? peak : a.level - (a.level >> 6);
+        // A new note first ducks what's sounding, over about 4 ms, so it doesn't click.
+        const bool ducking = m.swell_hold > 21;
         const i32 rise = curve(kSwellRise, amount);
         i32* channel[2] = {l, r};
         for (u32 ch = 0; ch < 2; ++ch) {
             i32 g = m.swell_gain[ch];
             const i32 start = g;
-            g = m.swell_open ? add(g, mul(ch ? rise - (rise >> 2) : rise, kUnit - g)) : g - (g >> 5);
+            if (ducking) g >>= 2;
+            else g = m.swell_open ? add(g, mul(ch ? rise - (rise >> 2) : rise, kUnit - g)) : g - (g >> 5);
             const i32 step = (g >> 6) - (start >> 6);
             i32 now = start;
             i32* x = channel[ch];

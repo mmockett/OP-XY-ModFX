@@ -175,6 +175,36 @@ int main() {
         }
         if (peak > 0.0001) { std::printf("FAIL Howl screams at the filmed settings: peak %f\n", peak); ok = false; }
     }
+    // Swell on a held saw chord: once it's open it stays open. And a new note still fades in.
+    {
+        chroma::State state;
+        chroma::initialize(state);
+        const opxy::Transport transport = {1200, 0, true};
+        const opxy::i32 words[12] = {0x7fffffff, 0, 0, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, enum_word(4, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
+        opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+        const double freq[4] = {110, 110.7, 165, 220.5};
+        double phase[4] = {0, 0, 0, 0}, quietest = 1, first_block = 0, first_in = 0;
+        for (unsigned b = 0; b < 8000; ++b) {
+            double in_power = 0;
+            for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                double v = 0;
+                for (int k = 0; k < 4 && b >= 100; ++k) {
+                    phase[k] += freq[k] / 44100;
+                    if (phase[k] >= 1) phase[k] -= 1;
+                    v += (2 * phase[k] - 1) * 0.15;
+                }
+                in_power += v * v;
+                left[i] = right[i] = static_cast<opxy::i32>(v * 2147483647.0);
+            }
+            chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+            double out_power = 0;
+            for (unsigned i = 0; i < opxy::block_frames; ++i) out_power += std::pow(left[i] / 2147483648.0, 2);
+            if (b == 103) { first_block = out_power; first_in = in_power; }  // the effect has started by now
+            if (b > 1500 && in_power > 1e-3 && out_power / in_power < quietest) quietest = out_power / in_power;
+        }
+        if (quietest < 0.01) { std::printf("FAIL Swell cuts out on a held chord: %f of the input's power\n", quietest); ok = false; }
+        if (first_block > first_in * 0.01) { std::puts("FAIL Swell no longer fades a note in"); ok = false; }
+    }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
     if (chroma::kBufferWords * 4 != 328280) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");
