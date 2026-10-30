@@ -17,10 +17,13 @@ each control acts on a part of its bay:
 
 A section patched into the echo's loop leaves the cable, which jumps over it,
 and a cable under the bays joins it to the echo; tape 2 drops down to it when
-it is the one in the loop. LFO 2's mark, in its shape, sits on the bay it wobbles.
+it is the one in the loop. Tape 2's head rises to the cable as its level does.
+A mark on a rail in the lamp's box shows LFO 1's rate. LFO 2's mark, in its
+shape, sits on the bay it wobbles.
 
 Node, text and palette numbers are listed in NODES, TEXTS and PALETTE; every
-outline is a closed ribbon with distinct points, so every one encloses area."""
+outline is a closed ribbon with distinct points, so every one encloses area,
+and every path is one outline of at most 64 points (docs/display.md)."""
 import math
 import pathlib
 
@@ -39,14 +42,16 @@ JACK_Y = TOP + 18           # each bay's input on its left edge, output on its r
 LANE = (TOP + BAY_H + BOX_BOTTOM) // 2   # the loop cable runs along the bottom, under the bays
 BOTTOM = TOP + BAY_H        # the bays' lower edge, where a loop cable plugs in
 TAPE2_X = LEFT + 3 * (BAY_W + GAP) + BAY_W + GAP + 13   # its column, 26 wide
-TAPE2_Y = (JACK_Y + 4, LANE - 46)    # tape 2's head: on the cable, or down in the loop
+TAPE2_Y = (JACK_Y + 4, LANE - 46)    # tape 2's head: at the cable at full level, or down in the loop
 TAPE2_H = 18                # its height, crown to flange
+TAPE2_TRAVEL = 16           # how far below the cable it rests at level 0
 RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 
 # Bay contents, in each bay's own pixels (x from its left edge, y on screen).
 DUST_CY = TOP + 70          # the tape head's top
 PHASE_CY = TOP + 66         # the lamp's centre
 LAMP_X, CELL_X = 30, 64
+RATE_X, RATE_W, RATE_Y = 16, 60, PHASE_CY + 23   # LFO 1's rail in the lamp's box
 ECHO_CY, ECHO_RX, ECHO_RY = TOP + 72, 37, 27
 REC_DEGREES = -147.6        # the record head, upper left of the loop
 SPRING_Y = (TOP + 52, TOP + 70, TOP + 88)
@@ -65,9 +70,10 @@ PALETTE = [("#000000", BRIGHT), ("#000000", LIGHT), ("#000000", MID), ("#000000"
 
 # The nodes, in order: the reshaping outlines first.
 NODES = (["spring_0", "spring_1", "spring_2", "tape", "head"] + [f"speck_{i}" for i in range(8)] +
-         ["glow", "lamp", "rays", "loop", "madness", "hub", "record", "play"] + [f"repeat_{i}" for i in range(6)] +
-         ["tank", "sine", "triangle", "square"] + [f"jumper_{i}" for i in range(5)] + [f"bypass_{i}" for i in range(4)] +
-         [f"cable_{e}_{t}" for e in range(4) for t in range(5) if t != e] + ["tape2"] +
+         ["glow"] + [f"lamp_{i}" for i in range(7)] + ["rate_mark", "rays", "loop_0", "loop_1", "madness_0", "madness_1",
+                                                       "hub_0", "hub_1", "record", "play"] +
+         [f"repeat_{i}" for i in range(6)] + ["tank_0", "tank_1", "tank_2", "sine", "triangle", "square"] + [f"jumper_{i}" for i in range(5)] + [f"bypass_{i}" for i in range(4)] +
+         [f"cable_{e}_{t}" for e in range(4) for t in range(5) if t != e] + ["tape2", "tape2_screw_0", "tape2_screw_1"] +
          [f"bar_{i}" for i in range(8)])
 # Text slots: the two-page header's sixteen first (opxy/page_header.hpp), then Lint's own.
 HEADER_TEXTS = 16
@@ -81,6 +87,7 @@ def num(v):
 
 
 def outline(points):
+    assert 2 <= len(points) <= 64, len(points)
     return "M" + " L".join(f"{num(x)},{num(y)}" for x, y in points) + " Z"
 
 
@@ -105,6 +112,10 @@ def ribbon(line, width=RIBBON):
         left.append((p[0] + nx * h, p[1] + ny * h))
         right.append((p[0] - nx * h, p[1] - ny * h))
     return left + right[::-1]
+
+
+def polar(r, degrees):
+    return (r * math.cos(math.radians(degrees)), r * math.sin(math.radians(degrees)))
 
 
 def arc(r, a0, a1, steps, cx=0, cy=0, rx=None, ry=None):
@@ -136,8 +147,7 @@ def hump(a, b):
 
 # Fixed artwork.
 def box():
-    shapes = [rounded(LEFT - GAP, BOX_TOP, TAPE2_X + 13 + GAP, BOX_BOTTOM, 7)]
-    return shapes
+    return [rounded(LEFT - GAP, BOX_TOP, TAPE2_X + 13 + GAP, BOX_BOTTOM, 7)]
 
 
 def bays():
@@ -157,9 +167,27 @@ def jacks():
 
 
 # Bay contents, each drawn about its node's origin.
+def slotted(points, at, x0, x1, y0, y1):
+    """An outline with a slot cut into it after point `at`: the gap of a tape head."""
+    return points[:at + 1] + [(x0, y0), (x0, y1), (x1, y1), (x1, y0)] + points[at + 1:]
+
+
+def comb(radius, teeth, width, steps):
+    """A fan of radial strokes on a thin arc, as one outline about the origin:
+    each tooth out from `radius` to its tip and back, then the arc home inside
+    them. Teeth are (degrees, tip radius), in order."""
+    half = lambda r: math.degrees(width / 2 / r)
+    points = []
+    for degrees, tip in teeth:
+        points += [polar(radius, degrees - half(radius)), polar(tip, degrees - half(tip)),
+                   polar(tip, degrees + half(tip)), polar(radius, degrees + half(radius))]
+    a0, a1 = teeth[0][0] - half(radius), teeth[-1][0] + half(radius)
+    return points + [polar(radius - 1, a1 + (a0 - a1) * i / steps) for i in range(steps + 1)]
+
+
 def tape_head():
     """The head, its top at the origin (the bay's centre, DUST_CY): a rounded block with its gap."""
-    return [rounded(-16, -4, 16, 26, 8), [(-0.5, -4), (0.5, -4), (0.5, 6), (-0.5, 6)]]
+    return [slotted(rounded(-16, -4, 16, 26, 8), 4, -0.5, 0.5, -4, 6)]
 
 
 def tape(dust):
@@ -189,17 +217,22 @@ def lamp():
     shapes.append(ribbon([(LAMP_X - 4, cy + 2), (LAMP_X - 2, cy - 3), (LAMP_X, cy + 2), (LAMP_X + 2, cy - 3), (LAMP_X + 4, cy + 2)]))
     shapes.append(arc(9, 0, 360, 28, CELL_X, cy)[:-1])
     shapes.append(ribbon([(CELL_X - 6 + 12 * i / 6, cy + (3 if i % 2 else -3)) for i in range(7)]))
+    shapes.append([(RATE_X, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y - 0.4), (RATE_X + RATE_W, RATE_Y + 0.4), (RATE_X, RATE_Y + 0.4)])
     return shapes
+
+
+def rate_mark():
+    """LFO 1's rate on its rail, about its centre."""
+    return [(-1, -3), (1, -3), (1, 3), (-1, 3)]
 
 
 def rays():
     """Seven rays toward the cell, about the lamp's centre; they reach further as it glows."""
-    return [ribbon([(14 * math.cos(a), 14 * math.sin(a)), (19 * math.cos(a), 19 * math.sin(a))], 1.0)
-            for a in (math.radians(-40 + 80 * k / 6) for k in range(7))]
+    return comb(14, [(-40 + 80 * k / 6, 19) for k in range(7)], 1.0, 6)
 
 
 def loop(wobble=0.0):
-    return [ellipse(ECHO_RX, ECHO_RY, 96, wobble=wobble), ellipse(ECHO_RX - 1.2, ECHO_RY - 1.2, 96, wobble=wobble)]
+    return [ellipse(ECHO_RX, ECHO_RY, 64, wobble=wobble), ellipse(ECHO_RX - 1.2, ECHO_RY - 1.2, 64, wobble=wobble)]
 
 
 def hub():
@@ -207,10 +240,8 @@ def hub():
 
 
 def head_block(bright):
-    shapes = [rounded(-6, -5, 6, 5, 2, 2)]
-    if bright:
-        shapes.append([(-0.6, -5), (0.6, -5), (0.6, 0), (-0.6, 0)])
-    return shapes
+    block = rounded(-6, -5, 6, 5, 2, 2)
+    return [slotted(block, 2, -0.6, 0.6, -5, 0) if bright else block]
 
 
 def repeat_mark():
@@ -229,7 +260,7 @@ def spring(amount, tilt=0.0, bow=0.0):
     top = []
     for j in range(SPRING_POINTS):
         t = j / (SPRING_POINTS - 1)
-        amp = 0 if j in (0, SPRING_POINTS - 1) else (2.5 + 3.5 * amount) * (1 if j % 2 else -1)
+        amp = 0 if j in (0, SPRING_POINTS - 1) else (1 + 6 * amount) * (1 if j % 2 else -1)
         top.append((-SPRING_HALF + 2 * SPRING_HALF * t, bow * math.sin(math.pi * t) + tilt * (t - 0.5) + amp))
     return top + [(x, y + 1) for x, y in reversed(top)]
 
@@ -259,30 +290,42 @@ def bypass(i):
     return [ribbon(bezier(a, (a[0] + 1, TOP - 17), (b[0] - 1, TOP - 17), b, 24), 1.4)]
 
 
+def round_the_jack(a, b, jack):
+    """The jack's circle between two points beside it, the long way round."""
+    start = math.degrees(math.atan2(a[1] - jack[1], a[0] - jack[0]))
+    end = math.degrees(math.atan2(b[1] - jack[1], b[0] - jack[0]))
+    sweep = (end - start) % 360
+    sweep = sweep if sweep > 180 else sweep - 360
+    return arc(3, start, start + sweep, 11, *jack)[1:-1]
+
+
 def cable(e, t):
-    """The echo's loop: down from the echo bay's foot (at position e), along the
-    lane and up into the patched bay's foot (position t) or tape 2's head (t 4),
-    with a gap for its caption in the middle."""
+    """The echo's loop as one outline: a jack on the echo bay's foot (at position
+    e), down, along the lane and up to a jack on the patched bay's foot (position
+    t) or tape 2's head (t 4). Its caption sits above the lane."""
     xe = bay_x(e) + BAY_W / 2
     xt = bay_x(t) + BAY_W / 2 if t < 4 else TAPE2_X
     yt = BOTTOM if t < 4 else TAPE2_Y[1] + TAPE2_H
     r, sign = 8, 1 if xt > xe else -1
-    middle = (xe + xt) / 2
-    gap = ECHO_LOOP_WIDTH / 2 + 5
-    first = ([(xe, BOTTOM + 3), (xe, LANE - r)] + arc(r, 180 if sign > 0 else 0, 90, 4, xe + sign * r, LANE - r)[1:] +
-             [(middle - sign * gap, LANE)])
-    second = ([(middle + sign * gap, LANE), (xt - sign * r, LANE)] +
-              arc(r, 90, 0 if sign > 0 else 180, 4, xt - sign * r, LANE - r)[1:] + [(xt, yt + 3)])
-    return [ribbon(first, 1.2), ribbon(second, 1.2),
-            arc(3, 0, 360, 12, xe, BOTTOM)[:-1], arc(3, 0, 360, 12, xt, yt)[:-1]]
+    line = ([(xe, BOTTOM + 3), (xe, LANE - r)] + arc(r, 180 if sign > 0 else 0, 90, 4, xe + sign * r, LANE - r)[1:] +
+            [(xt - sign * r, LANE)] + arc(r, 90, 0 if sign > 0 else 180, 4, xt - sign * r, LANE - r)[1:] + [(xt, yt + 3)])
+    edges = ribbon(line, 1.2)
+    half = len(edges) // 2
+    return [edges[:half] + round_the_jack(edges[half - 1], edges[half], (xt, yt)) + edges[half:] +
+            round_the_jack(edges[-1], edges[0], (xe, BOTTOM))]
 
 
 def tape2_head():
     """Tape 2's head, its crown at the origin under the tape: a body domed where
-    the tape runs over it, with its gap, on a flange screwed down at each end."""
-    body = [(-9, TAPE2_H - 4)] + arc(9, 180, 360, 12, 0, 8, 9, 8) + [(9, TAPE2_H - 4)]
-    return [body, [(-0.5, 0.2), (0.5, 0.2), (0.5, 5), (-0.5, 5)], rounded(-13, TAPE2_H - 4, 13, TAPE2_H, 1.5, 2),
-            arc(1.3, 0, 360, 8, -10, TAPE2_H - 2)[:-1], arc(1.3, 0, 360, 8, 10, TAPE2_H - 2)[:-1]]
+    the tape runs over it, with its gap, on a flange."""
+    dome = arc(9, 180, 270, 6, 0, 8, 9, 8)[:-1] + [(-0.5, 0.05), (-0.5, 5), (0.5, 5), (0.5, 0.05)] + arc(9, 270, 360, 6, 0, 8, 9, 8)[1:]
+    y = TAPE2_H - 4
+    return [dome + [(9, y), (11.5, y)] + arc(1.5, 270, 360, 2, 11.5, y + 1.5)[1:] + arc(1.5, 0, 90, 2, 11.5, y + 2.5)[1:] +
+            arc(1.5, 90, 180, 2, -11.5, y + 2.5)[1:] + arc(1.5, 180, 270, 2, -11.5, y + 1.5)[1:] + [(-9, y)]]
+
+
+def tape2_screw():
+    return arc(1.3, 0, 360, 8)[:-1]
 
 
 def path(shapes):
@@ -313,8 +356,8 @@ def header_block():
 
 def fragment():
     lines = [f'<g id="{ID}_panel">'] + header_block()
-    add = lambda shapes, stroke, extra="": lines.append(
-        f'  <path d="{path(shapes)}" fill="none" stroke="{stroke}" stroke-width="1"{extra}/>')
+    add = lambda shapes, stroke, extra="": lines.extend(
+        f'  <path d="{outline(shape)}" fill="none" stroke="{stroke}" stroke-width="1"{extra}/>' for shape in shapes)
     add(box(), FAINT)
     add(bays(), MID)
     add(jacks(), LIGHT)
@@ -323,22 +366,26 @@ def fragment():
         lines.append(f'  <text {FONT} font-size="8" fill="{MID}" transform="matrix(1 0 0 1 {num(x)} {JACK_Y - 9})">{label}</text>')
     at = lambda x, y: f'transform="matrix(1 0 0 1 {num(x)} {num(y)})"'
     centre = bay_x(0) + BAY_W / 2
+    head_at = at(TAPE2_X, TAPE2_Y[0] + TAPE2_TRAVEL)
     shapes = {
         "spring_0": None, "spring_1": None, "spring_2": None, "tape": None,
         "head": (tape_head(), LIGHT, at(centre, DUST_CY)),
         "glow": (None, LIGHT, at(bay_x(1) + LAMP_X, PHASE_CY)),
-        "lamp": (lamp(), LIGHT, at(bay_x(1), 0)),
-        "rays": (rays(), LIGHT, at(bay_x(1) + LAMP_X, PHASE_CY)),
-        "loop": (loop(), BRIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
-        "madness": (loop(1.6), BRIGHT, at(640, 320)),
-        "hub": (hub(), DIM, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
+        **{f"lamp_{k}": ([shape], LIGHT, at(bay_x(1), 0)) for k, shape in enumerate(lamp())},
+        "rate_mark": ([rate_mark()], LIGHT, at(bay_x(1) + RATE_X, RATE_Y)),
+        "rays": ([rays()], LIGHT, at(bay_x(1) + LAMP_X, PHASE_CY)),
+        **{f"loop_{k}": ([shape], BRIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)) for k, shape in enumerate(loop())},
+        **{f"madness_{k}": ([shape], BRIGHT, at(640, 320)) for k, shape in enumerate(loop(1.6))},
+        **{f"hub_{k}": ([shape], DIM, at(bay_x(2) + BAY_W / 2, ECHO_CY)) for k, shape in enumerate(hub())},
         "record": (head_block(False), LIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
         "play": (head_block(True), BRIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
-        "tank": (tank(), LIGHT, at(bay_x(3), 0)),
+        **{f"tank_{k}": ([shape], LIGHT, at(bay_x(3), 0)) for k, shape in enumerate(tank())},
         "sine": (glyph("sine"), LIGHT, at(640, 320)),
         "triangle": (glyph("triangle"), LIGHT, at(640, 320)),
         "square": (glyph("square"), LIGHT, at(640, 320)),
-        "tape2": (tape2_head(), DIM, at(TAPE2_X, TAPE2_Y[0])),
+        "tape2": (tape2_head(), DIM, head_at),
+        "tape2_screw_0": ([tape2_screw()], DIM, at(TAPE2_X - 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
+        "tape2_screw_1": ([tape2_screw()], DIM, at(TAPE2_X + 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
     }
     # The springs and the tape, the reshaping outlines.
     for k in range(3):
@@ -380,7 +427,7 @@ def fragment():
         lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + k}" {FONT} font-size="10" fill="{LIGHT}" {at(x, BOTTOM - 8)}>{name}</text>')
     lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 8}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
     lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 9}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 10}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + 30)}>tape 2</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 10}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + TAPE2_TRAVEL + 30)}>tape 2</text>')
     for i, (fill, stroke) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
     lines.append("</g>")
@@ -412,7 +459,8 @@ const opxy::i32 kBayW = {BAY_W}, kTop = {TOP}, kGap = {GAP}, kLeft = {LEFT}, kBo
 const opxy::i32 kDustY = {DUST_CY}, kPhaseY = {PHASE_CY}, kLampX = {LAMP_X}, kEchoY = {ECHO_CY};
 const opxy::i32 kEchoRx = {ECHO_RX}, kEchoRy = {ECHO_RY}, kRecord = {round(REC_DEGREES * 10)};  // tenths of a degree
 const opxy::i32 kSpringY[3] = {{{row(SPRING_Y)}}}, kSpringHalf = {SPRING_HALF};
-const opxy::i32 kTape2X = {TAPE2_X}, kTape2Y[2] = {{{row(TAPE2_Y)}}};
+const opxy::i32 kTape2X = {TAPE2_X}, kTape2Y[2] = {{{row(TAPE2_Y)}}}, kTape2Travel = {TAPE2_TRAVEL}, kTape2H = {TAPE2_H};
+const opxy::i32 kRateX = {RATE_X}, kRateW = {RATE_W}, kRateY = {RATE_Y};
 // Q10: each speck's place above the head, and the labels' widths.
 const opxy::i32 kSpecks[8][2] = {{{specks}}};
 const opxy::i32 kNameWidth[4] = {{{row(q(w) for w in NAME_WIDTHS)}}};

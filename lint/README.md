@@ -63,7 +63,8 @@ on one patch cable. The header captions rate in hertz, time in milliseconds
 
 A section patched into the echo's loop leaves the cable, which hops over it,
 for one under the bays, and tape 2 drops down to it when it's the one in the
-loop. Tape 2's head sits on the cable before OUT, lit while it drives. LFO
+loop. Tape 2's head rises to the cable before OUT with its level, brightening as it
+drives. A mark on a rail in the lamp's box shows rate. LFO
 2's mark, in its shape, sits on what it wobbles. Holding Shift enlarges the
 bays' letters, which the order names.
 

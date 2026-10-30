@@ -10,6 +10,8 @@ namespace lint {
 // the springs shake wider as the tank is driven, and tone tilts them. A section
 // patched into the echo's loop leaves the cable for one under the bays, and LFO
 // 2's mark sits on what it wobbles, swinging the springs when it is theirs.
+// Rate slides a mark along a rail in the lamp's box, and tape 2's head rises
+// to the cable with its level, brightening as it does.
 // Held Shift enlarges the bays' letters, which the order names. A turned
 // control eases to its new value in about 0.15 s; only the LFOs move an idle screen.
 using opxy::i32;
@@ -51,7 +53,7 @@ i32 curve(const i32 (&table)[33], i32 q15) {
 // One of the three springs: a coil of 31 strokes about its centre, shaking
 // wider with the drive, tilted by tone and bowed by the wobble, as a ribbon.
 void spring(Frame::path_type& path, i32 amount, i32 tilt, i32 bow) {
-    const i32 amplitude = px(5) / 2 + share(px(7) / 2, amount);
+    const i32 amplitude = px(1) + share(px(6), amount);
     for (u32 j = 0; j < 32; ++j) {
         const i32 t = static_cast<i32>(j) * 1024 / 31;  // Q10 along it
         const i32 x = -px(kSpringHalf) + 2 * kSpringHalf * t;
@@ -148,8 +150,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         {"order", "shape", "loop", "wobble", "tape 2", "rate", "time", "tone"},
         {"dust", "phase", "echo", "spring", "order", "shape", "loop", "wobble"}};
     static const char* const kShapes[3] = {"sine", "tri", "sqr"};
-    static const char* const kLoops[4] = {"off", "tape", "phase", "tank"};
-    static const char* const kWobbles[4] = {"off", "time", "tank", "phase"};
+    // The lamp is the phaser: "phase" is a pixel over the column at this size.
+    static const char* const kLoops[4] = {"off", "tape", "lamp", "tank"};
+    static const char* const kWobbles[4] = {"off", "time", "tank", "lamp"};
     char values[8][header_capacity];
     captions(values, input.slots);
     u32 page = 0;
@@ -191,7 +194,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 depth = patched == kP && v[kPhase] < 328 ? 16384 : v[kPhase];
     const i32 light = ((wobble == kWobblePhaser ? lfo2 : lfo1) + 32767) >> 1;  // 0..32767
     const i32 glow = share(depth, 8192 + share(24575, light * light >> 15));
-    place(frame, kNodeLamp, px(phase_x), 0, unit, 0, keep);
+    for (u32 k = 0; k < 7; ++k) place(frame, kNodeLamp0 + k, px(phase_x), 0, unit, 0, keep);
+    place(frame, kNodeRateMark, px(phase_x + kRateX) + share(px(kRateW), v[kRate]), px(kRateY), unit, 0, keep);
     place(frame, kNodeGlow, px(phase_x + kLampX), px(kPhaseY), unit, kGlows + static_cast<u32>(clamp(glow * 8 >> 15, 0, 7)),
           fill_and_stroke);
     if (glow > 3277)
@@ -203,9 +207,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // round with time; the repeats trailing it, more with feedback.
     const i32 echo_x = bay(at[kE]) + kBayW / 2;
     const bool madness = v[kEcho] > 27853;  // 0.85
-    place(frame, madness ? kNodeMadness : kNodeLoop, px(echo_x), px(kEchoY), unit, 0, keep);
-    hide(frame, madness ? kNodeLoop : kNodeMadness);
-    place(frame, kNodeHub, px(echo_x), px(kEchoY), unit, 0, keep);
+    for (u32 k = 0; k < 2; ++k) {
+        place(frame, (madness ? kNodeMadness0 : kNodeLoop0) + k, px(echo_x), px(kEchoY), unit, 0, keep);
+        hide(frame, (madness ? kNodeLoop0 : kNodeMadness0) + k);
+        place(frame, kNodeHub0 + k, px(echo_x), px(kEchoY), unit, 0, keep);
+    }
     const i32 rx = kEchoRx + 6, ry = kEchoRy + 6;
     place(frame, kNodeRecord, px(echo_x) + rx * sine(kRecord + 900), px(kEchoY) + ry * sine(kRecord), unit, 0, keep);
     const i32 play = kRecord + 380 + share(1260, v[kTime]) + (wobble == kWobbleTime ? share(46, lfo2) : 0);
@@ -227,9 +233,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // Spring: the tank, and its springs shaking with the drive, tilted by tone
     // (bass down on the left, treble on the right) and swung by LFO 2.
     const i32 spring_x = bay(at[kS]);
-    place(frame, kNodeTank, px(spring_x), 0, unit, 0, keep);
+    for (u32 k = 0; k < 3; ++k) place(frame, kNodeTank0 + k, px(spring_x), 0, unit, 0, keep);
     const i32 drive = patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
-    const i32 tilt = share(px(10), v[kTone] - 16384);
+    const i32 tilt = share(px(18), v[kTone] - 16384);
     const i32 swing = wobble == kWobbleSpring ? share(px(4) + share(px(4), drive), lfo2) : 0;
     static const i32 kSway[3] = {574, 1023, -307};  // each spring's share of the swing, Q10
     for (u32 k = 0; k < 3; ++k) {
@@ -268,7 +274,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
     if (cable >= 0) {
         const i32 from = bay(at[kE]) + kBayW / 2, to = target < 4 ? bay(target) + kBayW / 2 : kTape2X;
-        text(frame, kEchoLoop, px(from + to) / 2 - kEchoLoopWidth / 2, px(kLane + 3), unit, "echo loop");
+        text(frame, kEchoLoop, px(from + to) / 2 - kEchoLoopWidth / 2, px(kLane - 4), unit, "echo loop");
     } else {
         text(frame, kEchoLoop, px(hidden_x), px(hidden_y), unit, "echo loop");
     }
@@ -277,11 +283,16 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     else
         text(frame, kLoopLabel, px(hidden_x), px(hidden_y), unit, "loop");
 
-    // Tape 2: its head on the cable before OUT, or down in the echo's loop; lit while it drives.
+    // Tape 2: its head under the cable before OUT, rising to it with the level, or
+    // down in the echo's loop, where it runs at half when its control is down.
+    // Brighter as it drives harder.
     const bool looped = loop == kLoopTape;
-    const bool driving = looped || v[kTape2Level] > 328;
-    const i32 head_y = kTape2Y[looped ? 1 : 0];
-    place(frame, kNodeTape2, px(kTape2X), px(head_y), unit, driving ? kBright : kDim, stroke);
-    text(frame, kTape2Label, px(kTape2X) - kTape2Width / 2, px(looped ? head_y - 5 : head_y + 30), unit, "tape 2");
+    const i32 level = looped && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
+    const u32 lit = level <= 328 ? kDim : kMid - static_cast<u32>(clamp(level * 3 >> 15, 0, 2));
+    const i32 head_y = looped ? px(kTape2Y[1]) : px(kTape2Y[0]) + share(px(kTape2Travel), 32767 - level);
+    place(frame, kNodeTape2, px(kTape2X), head_y, unit, lit, stroke);
+    for (i32 k = 0; k < 2; ++k)
+        place(frame, kNodeTape2Screw0 + static_cast<u32>(k), px(kTape2X - 10 + 20 * k), head_y + px(kTape2H - 2), unit, lit, stroke);
+    text(frame, kTape2Label, px(kTape2X) - kTape2Width / 2, looped ? px(kTape2Y[1] - 5) : px(kTape2Y[0] + kTape2Travel + 30), unit, "tape 2");
 }
 }
