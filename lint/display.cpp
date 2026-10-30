@@ -62,6 +62,40 @@ void spring(Frame::path_type& path, i32 amount, i32 tilt, i32 bow) {
     }
 }
 
+// n in decimal at out, tenths with a point when asked, then unit; out's end.
+char* number(char* out, i32 n, const char* unit_text, bool tenths = false) {
+    if (n < 0) { *out++ = '-'; n = -n; }
+    char d[6];
+    u32 k = 0;
+    do { d[k++] = static_cast<char>('0' + n % 10); n /= 10; } while (n || (tenths && k < 2));
+    while (k) {
+        *out++ = d[--k];
+        if (tenths && k == 1) *out++ = '.';
+    }
+    while (*unit_text) *out++ = *unit_text++;
+    *out = 0;
+    return out;
+}
+
+// The header's captions for the eight controls: amounts 0..100, LFO 1's rate
+// in hertz, the echo's time and the tank's tone signed.
+void captions(char (&values)[8][header_capacity], const i32 (&slots)[8]) {
+    static const u32 kAmounts[5] = {kDust, kPhase, kEcho, kSpringAmount, kTape2Level};
+    for (u32 i : kAmounts) header_amount(values[i], header_capacity, slots[i]);
+    const i32 rate = clamp(slots[kRate], 0, 0x7fffffff) >> 16, time = clamp(slots[kTime], 0, 0x7fffffff) >> 16;
+    number(values[kRate], (curve(kLfoHz, rate) * 10 + 512) >> 10, "hz", true);
+    // Time: "3ms" to "99ms", then ".10s" to ".65s", as three digits of
+    // milliseconds would not fit the column.
+    const i32 ms = (curve(kEchoMs, time) + 512) >> 10;
+    if (ms < 100) {
+        number(values[kTime], ms, "ms");
+    } else {
+        values[kTime][0] = '.';
+        number(values[kTime] + 1, (ms + 5) / 10, "s");
+    }
+    number(values[kTone], (((clamp(slots[kTone], 0, 0x7fffffff) >> 15) * 200 + 32768) >> 16) - 100, "");
+}
+
 // The tape across the dust bay's head: a crest over the head, scuffed by dust.
 void tape(Frame::path_type& path, i32 dust) {
     for (u32 j = 0; j < 32; ++j) {
@@ -76,7 +110,10 @@ void tape(Frame::path_type& path, i32 dust) {
 }
 }
 
-void display_reset(DisplayState& state) { state.ready = 0; }
+void display_reset(DisplayState& state) {
+    state.ready = 0;
+    state.header.reset();
+}
 
 void display(DisplayState& state, const Input& input, Frame& frame) {
     // Each control as Q15, eased: a turn settles within about 0.15 s.
@@ -103,6 +140,29 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         for (i32 s = 0; s < 4; ++s)
             if (kOrders[order][p] == kLetters[s][0]) at[s] = p;
     const i32 patched = loop == kLoopPhaser ? kP : loop == kLoopSpring ? kS : -1;
+
+    // The two-page header: page 1 over page 2, the row the encoders turn bright
+    // on the bar. While Shift is held, that row names the shift row instead.
+    static const char* const kTitles[3][8] = {
+        {"dust", "phase", "echo", "spring", "tape 2", "rate", "time", "tone"},
+        {"order", "shape", "loop", "wobble", "tape 2", "rate", "time", "tone"},
+        {"dust", "phase", "echo", "spring", "order", "shape", "loop", "wobble"}};
+    static const char* const kShapes[3] = {"sine", "tri", "sqr"};
+    static const char* const kLoops[4] = {"off", "tape", "phase", "tank"};
+    static const char* const kWobbles[4] = {"off", "time", "tank", "phase"};
+    char values[8][header_capacity];
+    captions(values, input.slots);
+    u32 page = 0;
+    for (u32 col = 0; col < 4; ++col)
+        if (input.shown[col] == col + 4) page = 1;
+    if (input.shift) {
+        char (*row)[header_capacity] = values + page * 4;
+        copy(row[0], header_capacity, kOrders[order]);
+        copy(row[1], header_capacity, kShapes[shape]);
+        copy(row[2], header_capacity, kLoops[loop]);
+        copy(row[3], header_capacity, kWobbles[wobble]);
+    }
+    page_header(state.header, input, frame, kTitles[input.shift ? 1 + page : 0], values, kNodeBars);
 
     // Letters and names, which move with the order.
     for (u32 s = 0; s < 4; ++s) {
@@ -222,6 +282,6 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const bool driving = looped || v[kTape2Level] > 328;
     const i32 head_y = kTape2Y[looped ? 1 : 0];
     place(frame, kNodeTape2, px(kTape2X), px(head_y), unit, driving ? kBright : kDim, stroke);
-    text(frame, kTape2Label, px(kTape2X) - kTape2Width / 2, px(looped ? head_y - 5 : head_y + 28), unit, "tape 2");
+    text(frame, kTape2Label, px(kTape2X) - kTape2Width / 2, px(looped ? head_y - 5 : head_y + 30), unit, "tape 2");
 }
 }

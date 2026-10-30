@@ -12,7 +12,10 @@ patched into the echo's feedback loop, and two LFOs move them.
 | Shift | order: DPES, DEPS, PDES, DSPE, SDEP, EDPS | shape: both LFOs (sine, tri, sqr) | loop: what's in the echo's feedback (off, tape 2, phase, tank) | wobble: LFO 2's target (off, time, tank, phase) |
 
 Page 1's encoders follow the default order, DPES, and each control on page 2
-and the shift row sits under the section it shapes. The order's letters are
+and the shift row sits under the section it shapes. Both pages show at once,
+page 1 over page 2, as on the two-page synths: a press of any encoder moves the
+encoders to the other row, which grows and brightens on the stepped bar.
+Holding Shift turns that row into the shift row's choices. The order's letters are
 page 1's names: D dust, P phase, E echo, S spring.
 
 **Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed.
@@ -46,7 +49,9 @@ fade in from clean over the first quarter of their controls.
 
 ![Lint's screen in six settings](screens.png)
 
-The box seen from above: four bays in the chosen order on one patch cable.
+Under the two pages, the box seen from above: four bays in the chosen order
+on one patch cable. The header captions rate in hertz, time in milliseconds
+(then seconds from 0.1 s) and tone from -100 to 100.
 
 - **dust:** the tape across its head wrinkles, and dust gathers on it.
 - **phase:** the lamp glows with depth and pulses with its LFO.
@@ -56,8 +61,13 @@ The box seen from above: four bays in the chosen order on one patch cable.
 
 A section patched into the echo's loop leaves the cable, which hops over it,
 for one under the bays, and tape 2 drops down to it when it's the one in the
-loop. LFO 2's mark, in its shape, sits on what it wobbles. Holding Shift
-enlarges the bays' letters, which the order names.
+loop. Tape 2's head sits on the cable before OUT, lit while it drives. LFO
+2's mark, in its shape, sits on what it wobbles. Holding Shift enlarges the
+bays' letters, which the order names.
+
+Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
+0..15 and its own labels in 16..26, so it needs the 32-slot limit an SDK 1.7
+display may declare.
 
 `tools/make_panel.py` writes the artwork and `panel.h`, `tools/make_tables.py`
 writes `tables.h`, and `tools/mockup.py` drew the first proposal (`mockup.png`).

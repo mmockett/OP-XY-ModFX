@@ -30,21 +30,26 @@ FONT = 'font-family="UniversNextPro-Light"'
 FAINT, DIM, MID, LIGHT, BRIGHT = "#3c3c3c", "#5a5a5a", "#8c8c8c", "#b4b4b4", "#ebebeb"
 
 # The bays, in screen pixels.
-BAY_W, BAY_H, TOP, GAP, LEFT = 92, 150, 34, 16, 16
+# One step, GAP, spaces everything: the box's sides from the bays and tape 2's
+# column, the bays from each other and from the box's top, and the loop's lane
+# sits midway between the bays and the box's foot.
+BAY_W, BAY_H, TOP, GAP, LEFT = 92, 136, 52, 12, 19   # below the two-page header
+BOX_TOP, BOX_BOTTOM = TOP - GAP, 216
 JACK_Y = TOP + 18           # each bay's input on its left edge, output on its right
-LANE = 202                  # the loop cable runs along the bottom, under the bays
+LANE = (TOP + BAY_H + BOX_BOTTOM) // 2   # the loop cable runs along the bottom, under the bays
 BOTTOM = TOP + BAY_H        # the bays' lower edge, where a loop cable plugs in
-TAPE2_X = LEFT + 3 * (BAY_W + GAP) + BAY_W + 26
+TAPE2_X = LEFT + 3 * (BAY_W + GAP) + BAY_W + GAP + 13   # its column, 26 wide
 TAPE2_Y = (JACK_Y + 4, LANE - 46)    # tape 2's head: on the cable, or down in the loop
+TAPE2_H = 18                # its height, crown to flange
 RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 
 # Bay contents, in each bay's own pixels (x from its left edge, y on screen).
-DUST_CY = TOP + 74          # the tape head's top
-PHASE_CY = TOP + 70         # the lamp's centre
+DUST_CY = TOP + 70          # the tape head's top
+PHASE_CY = TOP + 66         # the lamp's centre
 LAMP_X, CELL_X = 30, 64
-ECHO_CY, ECHO_RX, ECHO_RY = TOP + 76, 37, 27
+ECHO_CY, ECHO_RX, ECHO_RY = TOP + 72, 37, 27
 REC_DEGREES = -147.6        # the record head, upper left of the loop
-SPRING_Y = (TOP + 56, TOP + 74, TOP + 92)
+SPRING_Y = (TOP + 52, TOP + 70, TOP + 88)
 SPRING_HALF = 26            # each spring's half length
 SPRING_POINTS = 32          # along one edge of its ribbon
 SPECKS = ((-26, -22), (-14, -27), (-3, -20), (9, -29), (19, -21), (28, -26), (-20, -33), (4, -35))
@@ -52,7 +57,7 @@ SPECKS = ((-26, -22), (-14, -27), (-3, -20), (9, -29), (19, -21), (28, -26), (-2
 # Header-free labels, measured in Univers Next Pro Light (OP-XY-Dev tools/caption_width.py).
 NAMES = ("dust", "phase", "echo", "spring")
 NAME_WIDTHS = (19.6, 27.03, 21.99, 28.04)   # at 10 px
-LOOP_WIDTH, ECHO_LOOP_WIDTH, TAPE2_WIDTH = 15.66, 35.5, 22.51   # at 8 px
+LOOP_WIDTH, ECHO_LOOP_WIDTH, TAPE2_WIDTH, OUT_WIDTH = 15.66, 35.5, 22.51, 11.76   # at 8 px
 
 # Palette: strokes, then the lamp's glow fills from dark to bright.
 GLOWS = ["#%02x%02x%02x" % (g, g, g) for g in (0x14, 0x30, 0x4c, 0x68, 0x88, 0xa8, 0xc8, 0xe8)]
@@ -62,8 +67,11 @@ PALETTE = [("#000000", BRIGHT), ("#000000", LIGHT), ("#000000", MID), ("#000000"
 NODES = (["spring_0", "spring_1", "spring_2", "tape", "head"] + [f"speck_{i}" for i in range(8)] +
          ["glow", "lamp", "rays", "loop", "madness", "hub", "record", "play"] + [f"repeat_{i}" for i in range(6)] +
          ["tank", "sine", "triangle", "square"] + [f"jumper_{i}" for i in range(5)] + [f"bypass_{i}" for i in range(4)] +
-         [f"cable_{e}_{t}" for e in range(4) for t in range(5) if t != e] + ["tape2"])
-TEXTS = ["letter_d", "letter_p", "letter_e", "letter_s", "name_d", "name_p", "name_e", "name_s",
+         [f"cable_{e}_{t}" for e in range(4) for t in range(5) if t != e] + ["tape2"] +
+         [f"bar_{i}" for i in range(8)])
+# Text slots: the two-page header's sixteen first (opxy/page_header.hpp), then Lint's own.
+HEADER_TEXTS = 16
+TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["letter_d", "letter_p", "letter_e", "letter_s", "name_d", "name_p", "name_e", "name_s",
          "loop_label", "echo_loop", "tape2_label"]
 
 
@@ -128,7 +136,7 @@ def hump(a, b):
 
 # Fixed artwork.
 def box():
-    shapes = [rounded(6, 26, 474, 216, 7)]
+    shapes = [rounded(LEFT - GAP, BOX_TOP, TAPE2_X + 13 + GAP, BOX_BOTTOM, 7)]
     return shapes
 
 
@@ -211,7 +219,7 @@ def repeat_mark():
 
 
 def tank():
-    top, bottom = TOP + 44, TOP + 104
+    top, bottom = TOP + 40, TOP + 100
     return [rounded(8, top, BAY_W - 8, bottom, 3),
             rounded(12, top + 6, 20, bottom - 6, 1.5, 2), rounded(BAY_W - 20, top + 6, BAY_W - 12, bottom - 6, 1.5, 2)]
 
@@ -257,7 +265,7 @@ def cable(e, t):
     with a gap for its caption in the middle."""
     xe = bay_x(e) + BAY_W / 2
     xt = bay_x(t) + BAY_W / 2 if t < 4 else TAPE2_X
-    yt = BOTTOM if t < 4 else TAPE2_Y[1] + 16
+    yt = BOTTOM if t < 4 else TAPE2_Y[1] + TAPE2_H
     r, sign = 8, 1 if xt > xe else -1
     middle = (xe + xt) / 2
     gap = ECHO_LOOP_WIDTH / 2 + 5
@@ -270,22 +278,49 @@ def cable(e, t):
 
 
 def tape2_head():
-    return [rounded(-10, 0, 10, 16, 5), [(-0.5, 0), (0.5, 0), (0.5, 5), (-0.5, 5)]]
+    """Tape 2's head, its crown at the origin under the tape: a body domed where
+    the tape runs over it, with its gap, on a flange screwed down at each end."""
+    body = [(-9, TAPE2_H - 4)] + arc(9, 180, 360, 12, 0, 8, 9, 8) + [(9, TAPE2_H - 4)]
+    return [body, [(-0.5, 0.2), (0.5, 0.2), (0.5, 5), (-0.5, 5)], rounded(-13, TAPE2_H - 4, 13, TAPE2_H, 1.5, 2),
+            arc(1.3, 0, 360, 8, -10, TAPE2_H - 2)[:-1], arc(1.3, 0, 360, 8, 10, TAPE2_H - 2)[:-1]]
 
 
 def path(shapes):
     return " ".join(outline(s) for s in shapes)
 
 
+def header_block():
+    """The SDK's two-page header, as sdk.py new --controls 8 writes it: a cover
+    over the stock header, the stepped bar's eight steps (nodes bar_0..7) and its
+    sixteen text slots at their resting places. It comes before the rest, which
+    stays below y = 38."""
+    lines = ["<!-- SDK two-page header: keep this block before machine artwork below y=38. -->",
+             '  <path d="M0,0 L480,0 L480,38 L0,38 Z" fill="#000000"/>']
+    steps = ("#000000", "#323232", "#4B4B4B", "#646464", "#7D7D7D", "#969696", "#AFAFAF", "#CDCDCD")
+    first = NODES.index("bar_0")
+    for i, step in enumerate(steps):
+        lines.append(f'  <path id="{ID}_node_{first + i}" transform="matrix(1 0 0 1 {60 * i} 0)" '
+                     f'd="M0,0 L60,0 L60,20 L0,20 Z" fill="{step}" stroke="{step}" stroke-width="0.5"/>')
+    rows = (("#CBCBCB", "#000000", 10, 10, 5), ("#CBCBCB", "#000000", 20, 17.4, 65),
+            ("#5A5A5A", "#5A5A5A", 10, 33, 5), ("#707070", "#707070", 13, 33, 65))
+    for r, (dark, light, size, y, x) in enumerate(rows):
+        for col in range(4):
+            fill = dark if col < 2 else light
+            lines.append(f'  <text id="{ID}_text_{4 * r + col}" transform="matrix(1 0 0 1 {x + 120 * col} {num(y)})" '
+                         f'fill="{fill}" {FONT} font-size="{size}px">-</text>')
+    return lines
+
+
 def fragment():
-    lines = [f'<g id="{ID}_panel">']
+    lines = [f'<g id="{ID}_panel">'] + header_block()
     add = lambda shapes, stroke, extra="": lines.append(
         f'  <path d="{path(shapes)}" fill="none" stroke="{stroke}" stroke-width="1"{extra}/>')
     add(box(), FAINT)
     add(bays(), MID)
     add(jacks(), LIGHT)
-    for label, x in (("in", 4), ("out", 476 - 11.76)):
-        lines.append(f'  <text {FONT} font-size="8" fill="{MID}" transform="matrix(1 0 0 1 {num(x)} {JACK_Y - 6})">{label}</text>')
+    # IN and OUT between the box's sides and the bays, above the cable's rise.
+    for label, x in (("in", LEFT - GAP + 2), ("out", TAPE2_X + 13 + GAP - 2 - OUT_WIDTH)):
+        lines.append(f'  <text {FONT} font-size="8" fill="{MID}" transform="matrix(1 0 0 1 {num(x)} {JACK_Y - 9})">{label}</text>')
     at = lambda x, y: f'transform="matrix(1 0 0 1 {num(x)} {num(y)})"'
     centre = bay_x(0) + BAY_W / 2
     shapes = {
@@ -328,6 +363,8 @@ def fragment():
             add(jumper(int(name[7:])), BRIGHT, f' id="{node}"')
         elif name.startswith("bypass_"):
             lines.append(f'  <path id="{node}" d="{path(bypass(int(name[7:])))}" {at(640, 320)} fill="none" stroke="{BRIGHT}" stroke-width="1"/>')
+        elif name.startswith("bar_"):
+            continue
         elif name.startswith("cable_"):
             e, t = map(int, name[6:].split("_"))
             lines.append(f'  <path id="{node}" d="{path(cable(e, t))}" {at(640, 320)} fill="none" stroke="{BRIGHT}" stroke-width="1"/>')
@@ -337,13 +374,13 @@ def fragment():
     # Text slots: the bays' letters and names, and the loop's labels.
     for k, name in enumerate(NAMES):
         x = bay_x(k)
-        lines.append(f'  <text id="{ID}_text_{k}" {FONT} font-size="9" fill="{DIM}" {at(x + 7, TOP + 25)}>{"DPES"[k]}</text>')
+        lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + k}" {FONT} font-size="9" fill="{DIM}" {at(x + 7, TOP + 25)}>{"DPES"[k]}</text>')
     for k, name in enumerate(NAMES):
         x = bay_x(k) + BAY_W / 2 - NAME_WIDTHS[k] / 2
-        lines.append(f'  <text id="{ID}_text_{4 + k}" {FONT} font-size="10" fill="{LIGHT}" {at(x, BOTTOM - 8)}>{name}</text>')
-    lines.append(f'  <text id="{ID}_text_8" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
-    lines.append(f'  <text id="{ID}_text_9" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
-    lines.append(f'  <text id="{ID}_text_10" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + 28)}>tape 2</text>')
+        lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + k}" {FONT} font-size="10" fill="{LIGHT}" {at(x, BOTTOM - 8)}>{name}</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 8}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 9}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
+    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 10}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + 30)}>tape 2</text>')
     for i, (fill, stroke) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
     lines.append("</g>")
@@ -357,6 +394,7 @@ def header():
     specks = ", ".join(f"{{{q(x)}, {q(y)}}}" for x, y in SPECKS)
     row = lambda values: ", ".join(str(v) for v in values)
     lfo = [round(0.17 * (7.5 / 0.17) ** (i / 32) * 1024) for i in range(33)]
+    echo = [round(3 * (650 / 3) ** (i / 32) * 1024) for i in range(33)]
     return f"""// Generated by tools/make_panel.py: where display.cpp places the artwork's
 // nodes, in pixels unless named Q10.
 #pragma once
@@ -364,9 +402,10 @@ def header():
 
 namespace lint {{ namespace panel {{
 const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};
-enum Node {{ {", ".join(f"kNode{''.join(w.title() for w in n.split('_'))} = {i}" for i, n in enumerate(NODES) if not n.startswith(("cable_", "speck_", "repeat_", "jumper_", "bypass_")))} }};
-const opxy::u32 kNodeSpecks = {index["speck_0"]}, kNodeRepeats = {index["repeat_0"]}, kNodeJumpers = {index["jumper_0"]}, kNodeBypasses = {index["bypass_0"]};
-enum Text {{ kLetter = 0, kName = 4, kLoopLabel = 8, kEchoLoop = 9, kTape2Label = 10 }};
+enum Node {{ {", ".join(f"kNode{''.join(w.title() for w in n.split('_'))} = {i}" for i, n in enumerate(NODES) if not n.startswith(("cable_", "speck_", "repeat_", "jumper_", "bypass_", "bar_")))} }};
+const opxy::u32 kNodeSpecks = {index["speck_0"]}, kNodeRepeats = {index["repeat_0"]}, kNodeJumpers = {index["jumper_0"]}, kNodeBypasses = {index["bypass_0"]}, kNodeBars = {index["bar_0"]};
+// Text slots: the two-page header's 0..15, then the bays' letters and names and the loop's labels.
+enum Text {{ kLetter = 16, kName = 20, kLoopLabel = 24, kEchoLoop = 25, kTape2Label = 26 }};
 // Palette: strokes bright, light, mid and dim, then the lamp's eight glows.
 enum Shade {{ kBright = 0, kLight = 1, kMid = 2, kDim = 3, kGlows = 4 }};
 const opxy::i32 kBayW = {BAY_W}, kTop = {TOP}, kGap = {GAP}, kLeft = {LEFT}, kBottom = {BOTTOM}, kLane = {LANE};
@@ -384,6 +423,8 @@ const opxy::i32 kCable[4][5] = {{{", ".join("{" + row(c) + "}" for c in cables)}
 const opxy::i32 kCrest[32] = {{{row(round(1024 * math.cos(math.pi * (j / 31 - 0.5)) ** 4) for j in range(32))}}};
 // LFO 1's rate across the control, Q10 Hz: 0.17..7.5, as the effect's.
 const opxy::i32 kLfoHz[33] = {{{row(lfo)}}};
+// The echo's time across the control, Q10 ms: 3..650, as the effect's.
+const opxy::i32 kEchoMs[33] = {{{row(echo)}}};
 }}}}
 """
 

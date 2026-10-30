@@ -4,17 +4,18 @@
 #include <opxy/types.hpp>
 
 namespace lint { namespace panel {
-const opxy::u32 kNodes = 57, kTexts = 11, kPalette = 12;
+const opxy::u32 kNodes = 65, kTexts = 27, kPalette = 12;
 enum Node { kNodeSpring0 = 0, kNodeSpring1 = 1, kNodeSpring2 = 2, kNodeTape = 3, kNodeHead = 4, kNodeGlow = 13, kNodeLamp = 14, kNodeRays = 15, kNodeLoop = 16, kNodeMadness = 17, kNodeHub = 18, kNodeRecord = 19, kNodePlay = 20, kNodeTank = 27, kNodeSine = 28, kNodeTriangle = 29, kNodeSquare = 30, kNodeTape2 = 56 };
-const opxy::u32 kNodeSpecks = 5, kNodeRepeats = 21, kNodeJumpers = 31, kNodeBypasses = 36;
-enum Text { kLetter = 0, kName = 4, kLoopLabel = 8, kEchoLoop = 9, kTape2Label = 10 };
+const opxy::u32 kNodeSpecks = 5, kNodeRepeats = 21, kNodeJumpers = 31, kNodeBypasses = 36, kNodeBars = 57;
+// Text slots: the two-page header's 0..15, then the bays' letters and names and the loop's labels.
+enum Text { kLetter = 16, kName = 20, kLoopLabel = 24, kEchoLoop = 25, kTape2Label = 26 };
 // Palette: strokes bright, light, mid and dim, then the lamp's eight glows.
 enum Shade { kBright = 0, kLight = 1, kMid = 2, kDim = 3, kGlows = 4 };
-const opxy::i32 kBayW = 92, kTop = 34, kGap = 16, kLeft = 16, kBottom = 184, kLane = 202;
-const opxy::i32 kDustY = 108, kPhaseY = 104, kLampX = 30, kEchoY = 110;
+const opxy::i32 kBayW = 92, kTop = 52, kGap = 12, kLeft = 19, kBottom = 188, kLane = 202;
+const opxy::i32 kDustY = 122, kPhaseY = 118, kLampX = 30, kEchoY = 124;
 const opxy::i32 kEchoRx = 37, kEchoRy = 27, kRecord = -1476;  // tenths of a degree
-const opxy::i32 kSpringY[3] = {90, 108, 126}, kSpringHalf = 26;
-const opxy::i32 kTape2X = 458, kTape2Y[2] = {56, 156};
+const opxy::i32 kSpringY[3] = {104, 122, 140}, kSpringHalf = 26;
+const opxy::i32 kTape2X = 448, kTape2Y[2] = {74, 156};
 // Q10: each speck's place above the head, and the labels' widths.
 const opxy::i32 kSpecks[8][2] = {{-26624, -22528}, {-14336, -27648}, {-3072, -20480}, {9216, -29696}, {19456, -21504}, {28672, -26624}, {-20480, -33792}, {4096, -35840}};
 const opxy::i32 kNameWidth[4] = {20070, 27679, 22518, 28713};
@@ -25,4 +26,6 @@ const opxy::i32 kCable[4][5] = {{-1, 40, 41, 42, 43}, {44, -1, 45, 46, 47}, {48,
 const opxy::i32 kCrest[32] = {0, 0, 2, 8, 25, 57, 109, 184, 283, 400, 531, 665, 792, 899, 978, 1019, 1019, 978, 899, 792, 665, 531, 400, 283, 184, 109, 57, 25, 8, 2, 0, 0};
 // LFO 1's rate across the control, Q10 Hz: 0.17..7.5, as the effect's.
 const opxy::i32 kLfoHz[33] = {174, 196, 221, 248, 279, 315, 354, 399, 449, 505, 568, 640, 720, 811, 913, 1027, 1156, 1302, 1465, 1649, 1856, 2089, 2352, 2647, 2980, 3354, 3776, 4250, 4784, 5385, 6061, 6823, 7680};
+// The echo's time across the control, Q10 ms: 3..650, as the effect's.
+const opxy::i32 kEchoMs[33] = {3072, 3634, 4299, 5086, 6017, 7119, 8421, 9963, 11786, 13943, 16495, 19514, 23086, 27311, 32310, 38223, 45219, 53495, 63286, 74868, 88571, 104782, 123959, 146647, 173486, 205238, 242802, 287241, 339812, 402006, 475583, 562626, 665600};
 }}
