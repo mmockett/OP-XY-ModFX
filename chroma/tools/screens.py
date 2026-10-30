@@ -2,10 +2,14 @@
 """Renders Chroma's real frames, from tools/shot.cpp, into SVG on its artwork, in the
 device's font, for contact sheets at 1:1 and for review.
 screens.py <shot binary> <out folder>"""
-import html, json, pathlib, re, subprocess, sys
+import html, json, os, pathlib, re, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-FACE = '<style>@font-face{font-family:"UniversNextPro-Light";src:url("file:///Users/mmockett/Documents/GitHub/OP-XY/tools/render/font/UniversNextPro-Light.ttf")}</style>'
+# The OP-XY's screen font, Univers Next Pro Light; it is never committed here.
+_font = os.environ.get("XY_FONT")
+if not _font or not pathlib.Path(_font).is_file():
+    sys.exit("set XY_FONT to the path of UniversNextPro-Light.ttf (the OP-XY's screen font)")
+FACE = f'<style>@font-face{{font-family:"UniversNextPro-Light";src:url("{pathlib.Path(_font).resolve().as_uri()}")}}</style>'
 Q = 1024
 PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
 

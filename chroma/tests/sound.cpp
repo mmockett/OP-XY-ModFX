@@ -151,7 +151,7 @@ int main() {
             }
             if (peak > 0.0001) { std::printf("FAIL Howl sounds in silence at Amount %.2f, Tilt %.2f: peak %f\n", amount, tilt, peak); ok = false; }
         }
-    // The settings Max filmed it screaming at, about 5.4 kHz: Tilt +100, trem 97 at full rate, cloud 0,
+    // Settings it was filmed screaming at on the device, about 5.4 kHz: Tilt +100, trem 97 at full rate, cloud 0,
     // press 0, Drift 54, and Amount turned up and down with no notes. It needed the turning to start.
     {
         chroma::State state;

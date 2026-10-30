@@ -5,8 +5,9 @@ Chroma Console: four modules in a row, each running one of its five effects or
 none. Most voices reach a send in the centre, so each module that can parts left
 and right, and a mono source leaves wide.
 
-**Status:** in development. It passes its host tests and compiles for the
-Blackfin, but it hasn't yet been heard or seen on a device.
+**Status: experimental.** Played on an OP-XY.
+It's built from the pedal's manual, as no pedal has been measured, so it follows
+what the manual describes and not the pedal's own sound.
 
 ![Chroma's screen at rest, driven hard and with Shift held](screens.png)
 
@@ -91,10 +92,12 @@ drawn and why this one was chosen.
 
 ## CPU and memory
 
-Not yet measured on a device. Host timing against Lint, which measures 7.745%,
-suggests about 4 to 6% for the default and up to about 10% with the heaviest
-effect in every module, all at full. Treat those as estimates. Chroma takes 321 KiB
-of a send's memory and 43 KiB of module memory.
+<!-- CPU: replace this line with the figures measured on the device at the tag. -->
+
+Host timing against Lint, which measures 7.745% on a device, suggests about 4 to 6%
+for the default and about 10% with the heaviest effect in every module, all at full.
+Those two are estimates. Chroma takes 321 KiB of a send's memory and about 46 KiB of
+module memory.
 
 ## Building
 

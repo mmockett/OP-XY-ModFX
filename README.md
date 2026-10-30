@@ -9,7 +9,7 @@ Mods and effects for the Teenage Engineering OP-XY, built with the
 - **Lint**, a send effect: a 1970s box of effects on FX I or II, with its own
   page on the send.
 - **Chroma**, a send effect: an ethereal stereo console of four modules on FX I
-  or II, in development. See [chroma/README.md](chroma/README.md).
+  or II. See [chroma/README.md](chroma/README.md).
 
 ![Omnifilter's screen at four settings: the iris wide open; half open; closed to a sharp star with both rings turned; and almost shut](docs/screens/omnifilter.png)
 

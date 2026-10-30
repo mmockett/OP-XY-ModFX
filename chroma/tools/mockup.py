@@ -3,9 +3,13 @@
 A, an optical bench; B, a chromatrope; C, a stereoscope. Each is shown at
 rest, driven hard and with Shift held. Plain SVG with the two-page header in the
 device's face. Takes a folder; writes one HTML page per direction."""
-import math, pathlib, random, sys
+import math, os, pathlib, random, sys
 
-FACE = '<style>@font-face{font-family:"UniversNextPro-Light";src:url("file:///Users/mmockett/Documents/GitHub/OP-XY/tools/render/font/UniversNextPro-Light.ttf")}</style>'
+# The OP-XY's screen font, Univers Next Pro Light; it is never committed here.
+_font = os.environ.get("XY_FONT")
+if not _font or not pathlib.Path(_font).is_file():
+    sys.exit("set XY_FONT to the path of UniversNextPro-Light.ttf (the OP-XY's screen font)")
+FACE = f'<style>@font-face{{font-family:"UniversNextPro-Light";src:url("{pathlib.Path(_font).resolve().as_uri()}")}}</style>'
 FAINT, DIM, MID, LIGHT, BRIGHT = '#3c3c3c', '#5a5a5a', '#8c8c8c', '#b4b4b4', '#ebebeb'
 
 

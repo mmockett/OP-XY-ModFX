@@ -944,7 +944,7 @@ struct Box {
         m.write[kTextureLine] = w;
     }
 
-    // Interference, more of it as the control rises: static over what's playing,
+    // Radio, more of it as the control rises: static over what's playing,
     // then a coarser signal, then packets dropping on one side and the other.
     void radio(i32 amount) {
         i32 peak = 0;
