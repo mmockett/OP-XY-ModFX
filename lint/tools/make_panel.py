@@ -56,7 +56,9 @@ RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 # Every module sits on the same screwed plate, so they line up in any order, and
 # the two rails and the echo's motor share one row.
 PLATE = (4, TOP + 16, BAY_W - 4, TOP + 116)   # x0, y0, x1, y1 in the bay
-PLAQUE = (6, BOTTOM - 16, 62, BOTTOM - 4)     # the riveted nameplate under it, the same in every bay
+PLAQUE = (18, BOTTOM - 16, BAY_W - 18, BOTTOM - 4)   # the riveted nameplate under it, centred, the same in every bay
+PORT_X, PORT_Y = BAY_W - 10, BOTTOM - 10      # the loop's port beside the plaque, where its cable plugs in
+MARK_BOX = (BAY_W - 28, TOP + 2, BAY_W - 8, TOP + 14)   # LFO 2's window, top right, whether or not it shows
 RAIL_Y = TOP + 104
 DUST_CY = TOP + 48          # the tape head's top
 PHASE_CY = TOP + 52         # the lamp's centre
@@ -384,19 +386,19 @@ def round_the_jack(a, b, jack):
 
 
 def cable(e, t):
-    """The echo's loop as one outline: a jack on the echo bay's foot (at position
-    e), down, along the lane and up to a jack on the patched bay's foot (position
+    """The echo's loop as one outline: a jack in the echo bay's port (at position
+    e), down, along the lane and up to a jack in the patched bay's port (position
     t) or tape 2's head (t 4). Its caption sits above the lane."""
-    xe = bay_x(e) + BAY_W / 2
-    xt = bay_x(t) + BAY_W / 2 if t < 4 else TAPE2_X
-    yt = BOTTOM if t < 4 else TAPE2_Y[1] + TAPE2_H
+    xe = bay_x(e) + PORT_X
+    xt = bay_x(t) + PORT_X if t < 4 else TAPE2_X
+    yt = PORT_Y if t < 4 else TAPE2_Y[1] + TAPE2_H
     r, sign = 8, 1 if xt > xe else -1
-    line = ([(xe, BOTTOM + 3), (xe, LANE - r)] + arc(r, 180 if sign > 0 else 0, 90, 3, xe + sign * r, LANE - r)[1:] +
+    line = ([(xe, PORT_Y + 3), (xe, LANE - r)] + arc(r, 180 if sign > 0 else 0, 90, 3, xe + sign * r, LANE - r)[1:] +
             [(xt - sign * r, LANE)] + arc(r, 90, 0 if sign > 0 else 180, 3, xt - sign * r, LANE - r)[1:] + [(xt, yt + 3)])
     edges = ribbon(line, 1.2)
     half = len(edges) // 2
     return [edges[:half] + round_the_jack(edges[half - 1], edges[half], (xt, yt)) + edges[half:] +
-            round_the_jack(edges[-1], edges[0], (xe, BOTTOM))]
+            round_the_jack(edges[-1], edges[0], (xe, PORT_Y))]
 
 
 def tape2_head():
@@ -457,6 +459,10 @@ def chassis():
         shapes.append((rounded(x + px0, py0, x + px1, py1, 1.5, 2), "#242424", MID, DETAIL))
         for rx in (x + px0 + 4, x + px1 - 4):
             shapes.append((circle(1.1, rx, (py0 + py1) / 2, 8), "none", MID, ENGRAVED))
+        shapes.append((circle(3, x + PORT_X, PORT_Y, 10), "#000000", LIGHT, STRUCTURE))
+        shapes.append((circle(1.2, x + PORT_X, PORT_Y, 6), "none", DIM, ENGRAVED))
+        mx0, my0, mx1, my1 = MARK_BOX
+        shapes.append((rounded(x + mx0, my0, x + mx1, my1, 1.5, 2), "#000000", DIM, DETAIL))
         for sx in (x + x0 + 6, x + x1 - 6):
             for sy in (y0 + 6, y1 - 6):
                 shapes.append((circle(1.4, sx, sy, 8), "none", MID, DETAIL))
@@ -610,6 +616,7 @@ const opxy::i32 kWearX = {WEAR_X}, kWearW = {WEAR_W}, kWearY = {WEAR_Y};
 const opxy::i32 kSpecks[8][2] = {{{specks}}};
 const opxy::i32 kNameWidth[4] = {{{row(q(w) for w in NAME_WIDTHS)}}};
 const opxy::i32 kPlaqueCentre = {(PLAQUE[0] + PLAQUE[2]) // 2}, kPlaqueBase = {PLAQUE[3] - 3}, kPlaqueY = {(PLAQUE[1] + PLAQUE[3]) // 2};
+const opxy::i32 kPortX = {PORT_X}, kMarkX = {(MARK_BOX[0] + MARK_BOX[2]) // 2 - 7}, kMarkY = {(MARK_BOX[1] + MARK_BOX[3]) // 2}, kLoopEnd = {MARK_BOX[0] - 4};
 const opxy::i32 kLoopWidth = {q(LOOP_WIDTH)}, kEchoLoopWidth = {q(ECHO_LOOP_WIDTH)}, kTape2Width = {q(TAPE2_WIDTH)};
 // The loop cable from the echo at position e to position t, or tape 2 (t 4); -1 for none.
 const opxy::i32 kCable[4][5] = {{{", ".join("{" + row(c) + "}" for c in cables)}}};

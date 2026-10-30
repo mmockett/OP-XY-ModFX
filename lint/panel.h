@@ -23,7 +23,8 @@ const opxy::i32 kWearX = -22, kWearW = 44, kWearY = 56;
 // Q10: each speck's place above the head, and the labels' widths.
 const opxy::i32 kSpecks[8][2] = {{-30720, -19456}, {-17408, -24576}, {-4096, -18432}, {9216, -25600}, {21504, -19456}, {32768, -24576}, {-24576, -26624}, {3072, -24576}};
 const opxy::i32 kNameWidth[4] = {20070, 27679, 22518, 28713};
-const opxy::i32 kPlaqueCentre = 34, kPlaqueBase = 181, kPlaqueY = 178;
+const opxy::i32 kPlaqueCentre = 46, kPlaqueBase = 181, kPlaqueY = 178;
+const opxy::i32 kPortX = 82, kMarkX = 67, kMarkY = 60, kLoopEnd = 60;
 const opxy::i32 kLoopWidth = 16036, kEchoLoopWidth = 36352, kTape2Width = 23050;
 // The loop cable from the echo at position e to position t, or tape 2 (t 4); -1 for none.
 const opxy::i32 kCable[4][5] = {{-1, 80, 81, 82, 83}, {84, -1, 85, 86, 87}, {88, 89, -1, 90, 91}, {92, 93, 94, -1, 95}};

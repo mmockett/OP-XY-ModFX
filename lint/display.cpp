@@ -258,7 +258,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // LFO 2's mark, in its shape, on the bay it wobbles.
     const i32 marked = wobble == kWobbleTime ? kE : wobble == kWobbleSpring ? kS : wobble == kWobblePhaser ? kP : -1;
     for (u32 k = 0; k < 3; ++k) {
-        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + 69), px(kPlaqueY), unit, 0, keep);
+        if (marked >= 0 && k == shape) place(frame, kNodeSine + k, px(bay(at[marked]) + kMarkX), px(kMarkY), unit, 0, keep);
         else hide(frame, kNodeSine + k);
     }
 
@@ -280,13 +280,16 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             else hide(frame, static_cast<u32>(node));
         }
     if (cable >= 0) {
-        const i32 from = bay(at[kE]) + kBayW / 2, to = target < 4 ? bay(target) + kBayW / 2 : kTape2X;
-        text(frame, kEchoLoop, px(from + to) / 2 - kEchoLoopWidth / 2, px(kLane - 4), unit, "echo loop");
+        const i32 from = bay(at[kE]) + kPortX, to = target < 4 ? bay(target) + kPortX : kTape2X;
+        // Between the risers when it fits, else just outside the left one.
+        const i32 span = to > from ? to - from : from - to, left = to > from ? from : to;
+        text(frame, kEchoLoop, span > 48 ? px(from + to) / 2 - kEchoLoopWidth / 2 : px(left - 6) - kEchoLoopWidth, px(kLane - 4), unit,
+             "echo loop");
     } else {
         text(frame, kEchoLoop, px(hidden_x), px(hidden_y), unit, "echo loop");
     }
     if (skipped >= 0)
-        text(frame, kLoopLabel, px(bay(skipped) + kBayW - 7) - kLoopWidth, px(kTop + 13), unit, "loop");
+        text(frame, kLoopLabel, px(bay(skipped) + kLoopEnd) - kLoopWidth, px(kTop + 13), unit, "loop");
     else
         text(frame, kLoopLabel, px(hidden_x), px(hidden_y), unit, "loop");
 
