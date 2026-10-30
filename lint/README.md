@@ -18,7 +18,9 @@ encoders to the other row, which grows and brightens on the stepped bar.
 Holding Shift turns that row into the shift row's choices. The order's letters are
 page 1's names: D dust, P phase, E echo, S spring.
 
-**Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed.
+**Named presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed. A send effect
+can't ship presets, so these appear in the SDK's browser preview and not on the
+OP-XY.
 
 ## The sections
 

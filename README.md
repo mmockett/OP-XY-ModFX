@@ -77,7 +77,9 @@ echo's feedback loop, and two LFOs move them.
 **Controls:** dust, phase, echo, spring; press for tape 2, rate, time, tone;
 hold Shift for order, shape, loop, wobble
 
-**Presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed
+**Named presets:** Dusty, Tank, Slapback, Swoosh, Runaway, Crushed. A send effect
+can't ship presets, so these appear in the SDK's browser preview and not on the
+OP-XY.
 
 **The screen** is the box seen from above: its four sections as bays in the
 chosen order, joined by one patch cable from in to out. Each control moves its
