@@ -1150,6 +1150,20 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
     }
     Memory& m = *reinterpret_cast<Memory*>(buffer.words);
     i32* const lines = buffer.words + kMemoryWords;
+    // PROBE, never released: beeps on what changes at a transport start. 1 init, 2 shift word, 3 buffer overwritten, 4 tempo word.
+    static u32 probe_beeps = 0, probe_at = 0, probe_phase = 0, probe_bpm = 0, probe_seen = 0;
+    static i32 probe_words[4];
+    const u32 probe_magic = 0x5a17c0de;
+    u32 probe_event = 0;
+    if (!state.ready) probe_event = 1;
+    if (probe_seen && state.ready) {
+        for (u32 i = 0; i < 4; ++i) if (parameters[kCharacterChoice + i] != probe_words[i]) probe_event = 2;
+        if (m.audio.swirl[0][7][0] != static_cast<i32>(probe_magic) || m.audio.swirl[0][7][1] != static_cast<i32>(probe_magic)) probe_event = 3;
+        if (transport.bpm_x10 != probe_bpm) probe_event = 4;
+    }
+    for (u32 i = 0; i < 4; ++i) probe_words[i] = parameters[kCharacterChoice + i];
+    probe_bpm = transport.bpm_x10;
+    if (probe_event && !probe_beeps) { probe_beeps = probe_event; probe_at = 0; }
     if (!state.ready) {
         for (u32 i = 0; i < kMemoryWords; ++i) buffer.words[i] = 0;
         for (u32 i = 0; i < 8; ++i) state.smooth[i] = control(parameters[i]);
@@ -1186,11 +1200,26 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
         box.run(k, picked + 1 == kChoices[k] ? 0 : picked + 1);
     }
 
+    m.audio.swirl[0][7][0] = m.audio.swirl[0][7][1] = static_cast<i32>(probe_magic);
+    probe_seen = 1;
     // Out through a soft limit, and held within half scale.
     for (unsigned i = 0; i < kN; ++i) {
         const i32 a = limit(left[i]), b = limit(right[i]);
         left[i] = (a > kHalf ? kHalf : a < -kHalf ? -kHalf : a) >> lift;
         right[i] = (b > kHalf ? kHalf : b < -kHalf ? -kHalf : b) >> lift;
+    }
+    if (probe_beeps) {
+        // Each beep 60 ms on, 60 ms off, at -34 dBFS, after the working level.
+        for (u32 i = 0; i < kN; ++i) {
+            probe_phase += 41000000u;
+            if ((probe_at / 2646) % 2 == 0) {
+                const i32 v = probe_phase < 0x80000000u ? 42949673 : -42949673;
+                left[i] = add(left[i], v);
+                right[i] = add(right[i], v);
+            }
+            ++probe_at;
+        }
+        if (probe_at >= probe_beeps * 5292) probe_beeps = 0;
     }
 }
 }
