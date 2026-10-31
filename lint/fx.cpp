@@ -47,6 +47,7 @@ const i32 kEchoLow = 36403663;
 const i32 kLampOn = 541000632, kLampOff = 68151367;
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
+i32 sub(i32 a, i32 b) { return opxy::q31::subtract(a, b); }  // saturating (SDK q31::subtract)
 i32 mul(i32 a, i32 b) { return opxy::q31::multiply(a, b); }
 i32 control(i32 word) { return word < 0 ? 0 : word; }
 u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16) * count) >> 15; }
@@ -160,10 +161,10 @@ struct Saturation {
         t.bump += mul(kBump, (x >> 1) - (t.bump >> 1)) * 2;
         const i32 y = makeup.apply(shape(drive.apply(add(x, mul(t.bump, kBumpGain)))));
         t.loss += mul(loss, (y >> 1) - (t.loss >> 1)) * 2;
-        const i32 centred = add(add(t.loss, -t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
+        const i32 centred = add(sub(t.loss, t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
         t.dc_in = t.loss;
         t.dc_out = centred;
-        return add(x, mul(wet, add(centred, -x)));
+        return add(x, mul(wet, sub(centred, x)));
     }
 };
 
@@ -235,7 +236,7 @@ struct Box {
         v = allpass(m.a, v, m.in3, m.out3);
         v = add(v, v);
         m.back = v;
-        return add(x, mul(phase_mix, add(v, -x)));
+        return add(x, mul(phase_mix, sub(v, x)));
     }
 
     // The tank runs at a quarter rate and a quarter of full scale, so its sums
@@ -245,11 +246,11 @@ struct Box {
         t.in += soft(spring_gain.apply(x)) >> 4;
         if (++t.phase < 4) {
             const i32 wet = t.last + ((t.out >> 2) - (t.last >> 2)) * static_cast<i32>(t.phase);
-            return add(x, mul(spring_mix, add(wet, -x)));
+            return add(x, mul(spring_mix, sub(wet, x)));
         }
         t.phase = 0;
         ring(t);
-        return add(x, mul(spring_mix, add(t.last, -x)));
+        return add(x, mul(spring_mix, sub(t.last, x)));
     }
     __attribute__((noinline)) void ring(TankMemory& t) const {
         const i32 in = t.in;
@@ -314,14 +315,14 @@ struct Box {
             const u32 step = static_cast<u32>((t.out >> 2) - (t.last >> 2));
             const u32 wet = static_cast<u32>(t.last);  // last + step * phase, which wraps as before
             t.in += soft(gain.apply(q[0])) >> 4;
-            q[0] = add(q[0], mul(mix, add(static_cast<i32>(wet + step), -q[0])));
+            q[0] = add(q[0], mul(mix, sub(static_cast<i32>(wet + step), q[0])));
             t.in += soft(gain.apply(q[1])) >> 4;
-            q[1] = add(q[1], mul(mix, add(static_cast<i32>(wet + step + step), -q[1])));
+            q[1] = add(q[1], mul(mix, sub(static_cast<i32>(wet + step + step), q[1])));
             t.in += soft(gain.apply(q[2])) >> 4;
-            q[2] = add(q[2], mul(mix, add(static_cast<i32>(wet + step + step + step), -q[2])));
+            q[2] = add(q[2], mul(mix, sub(static_cast<i32>(wet + step + step + step), q[2])));
             t.in += soft(gain.apply(q[3])) >> 4;
             ring(t);
-            q[3] = add(q[3], mul(mix, add(t.last, -q[3])));
+            q[3] = add(q[3], mul(mix, sub(t.last, q[3])));
         }
         t.save(s);
     }
@@ -390,9 +391,9 @@ struct Box {
         TankMemory tank(s);
         for (unsigned i = 0; i < opxy::block_frames; ++i) {
             // The loop: darker as the PT2399's clock slows, its lows let go.
-            dark = add(dark, mul(dark_by, add(out[i], -dark)));
+            dark = add(dark, mul(dark_by, sub(out[i], dark)));
             low += mul(kEchoLow, (dark >> 1) - (low >> 1)) * 2;
-            i32 loop_out = add(dark, -low);
+            i32 loop_out = sub(dark, low);
             if (L == kLoopTape) loop_out = tape2.run(loop_out, tape);
             if (L == kLoopPhaser) loop_out = phaser(loop_out, phase);
             if (L == kLoopSpring) loop_out = spring(loop_out, tank);
@@ -417,7 +418,7 @@ struct Box {
         for (unsigned i = 0; i < opxy::block_frames; ++i) {
             noise = noise * 1664525u + 1013904223u;
             const i32 hiss = static_cast<i32>(noise) >> hiss_shift;
-            x[i] = add(x[i], mul(mix, add(add(out[i], hiss), -x[i])));
+            x[i] = add(x[i], mul(mix, sub(add(out[i], hiss), x[i])));
         }
         s.noise = noise;
     }
