@@ -8,6 +8,7 @@
 
 namespace {
 const opxy::i32 kWordHalf = 1073741824;
+const double kStartStep = 0.02;  // 0.0265 on vibe and 0.023 on cass when the fade stopped short
 const double kHowlBurst = 1.0;  // 16 before the blend, 0.15 after
 opxy::i32 enum_word(unsigned choice, unsigned count) {
     const unsigned bucket = 0x7fffffffu / count;
@@ -205,6 +206,34 @@ int main() {
         if (quietest < 0.01) { std::printf("FAIL Swell cuts out on a held chord: %f of the input's power\n", quietest); ok = false; }
         if (first_block > first_in * 0.01) { std::puts("FAIL Swell no longer fades a note in"); ok = false; }
     }
+    // An effect starting under a soft tone, as after an engine reset: its fade must not step.
+    for (unsigned module = 1; module < 4; ++module)
+        for (unsigned effect = 0; effect + 1 < chroma::kChoices[module]; ++effect) {
+            // Not diffuse, whose repeats build slowly; twin, longer than the fade; pitch's grains; radio's noise, which jumps by design.
+            if (module == 2 || (module == 1 && (effect == 1 || effect == 4)) || (module == 3 && effect == 6)) continue;
+            chroma::State state;
+            chroma::initialize(state);
+            const opxy::Transport transport = {1200, 0, true};
+            opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, enum_word(5, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
+            words[module] = 0x7fffffff;
+            words[8 + module] = enum_word(effect, chroma::kChoices[module]);
+            opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+            double phase = 0, last = 0, jump = 0;
+            int at = 0;
+            for (unsigned b = 0; b < 40; ++b) {
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    phase += 2 * 3.14159265358979 * 220 / 44100;
+                    left[i] = right[i] = static_cast<opxy::i32>(std::sin(phase) * std::fmin(1.0, (b * 64.0 + i) / 200) * 0.2 * 2147483647.0);
+                }
+                chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    const double a = left[i] / 2147483648.0;
+                    if (std::fabs(a - last) > jump) { jump = std::fabs(a - last); at = static_cast<int>(b * 64 + i); }
+                    last = a;
+                }
+            }
+            if (jump > kStartStep) { std::printf("FAIL module %u effect %u steps %.4f as it starts, at sample %d\n", module, effect, jump, at); ok = false; }
+        }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
     if (chroma::kBufferWords * 4 != 328280) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");

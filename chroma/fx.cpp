@@ -28,7 +28,7 @@ const u32 kFrames[4] = {0, kMoveFrames, kDiffuseFrames, kTextureFrames};
 // Each module's line in the buffer, its index into Memory::write.
 enum { kMoveLine, kDiffuseLine, kTextureLine };
 const u32 kClearChunk = 8192;  // words a block, while an effect starts
-const u32 kFadeStep = 1u << 28;  // a module's fade in: eight blocks, about 12 ms
+const u32 kFadeStep = 1u << 27;  // a module's start: eight blocks to fill its line, then eight of fade, about 12 ms each
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
 // Saturating, as add. -b would overflow at full negative scale, and flip the difference's sign.
@@ -124,6 +124,7 @@ struct Box {
     i32* r;
     const i32* c;
     u32 bpm_x10;
+    bool clearing;
 
     u32 random() {
         s.noise = s.noise * 1664525u + 1013904223u;
@@ -1023,7 +1024,9 @@ struct Box {
             clear_state(which);
         }
         const u32 frames = kFrames[which];
-        if (module.cleared < frames && module.playing) {
+        // One module clears at a time, so a start's blocks stay no heavier than this.
+        if (module.cleared < frames && module.playing && !clearing) {
+            clearing = true;
             i32* words = line[which - 1];
             u32 end = module.cleared + kClearChunk;
             if (end > frames) end = frames;
@@ -1031,9 +1034,9 @@ struct Box {
             module.cleared = end;
             return;
         }
-        if (!module.playing) return;
+        if (!module.playing || module.cleared < frames) return;
         i32 dry_l[kN], dry_r[kN];
-        const bool fading = module.gain < 0x80000000u - kFadeStep;
+        const bool fading = module.gain < 0x80000000u;  // all the way: it once stopped at 7/8, and stepped the rest in one sample
         if (fading)
             for (u32 i = 0; i < kN; ++i) {
                 dry_l[i] = l[i];
@@ -1044,15 +1047,16 @@ struct Box {
         else if (which == kDiffusion) diffusion(module.playing);
         else texture(module.playing);
         if (fading) {
-            const i32 from = static_cast<i32>(module.gain >> 1);
+            const u32 half = 1u << 30;  // the second half of the count is the fade
+            const i32 from = module.gain < half ? 0 : static_cast<i32>((module.gain - half) << 1);
             module.gain += kFadeStep;
-            const i32 to = static_cast<i32>(module.gain >> 1);
+            const i32 to = module.gain < half ? 0 : module.gain >= 0x80000000u ? kUnit : static_cast<i32>((module.gain - half) << 1);
             const i32 step = (to >> 6) - (from >> 6);
-            i32 g = from << 1;
+            i32 g = from;
             for (u32 i = 0; i < kN; ++i) {
-                g += step << 1;
-                l[i] = add(dry_l[i], mul(g, sub(l[i], dry_l[i])));
-                r[i] = add(dry_r[i], mul(g, sub(r[i], dry_r[i])));
+                g += step;
+                l[i] = blend(dry_l[i], l[i], g);
+                r[i] = blend(dry_r[i], r[i], g);
             }
         }
     }
@@ -1176,7 +1180,7 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
         right[i] <<= lift;
     }
 
-    Box box{state, m, {lines, lines + kMoveFrames, lines + kMoveFrames + kDiffuseFrames}, left, right, state.smooth, transport.bpm_x10};
+    Box box{state, m, {lines, lines + kMoveFrames, lines + kMoveFrames + kDiffuseFrames}, left, right, state.smooth, transport.bpm_x10, false};
     for (u32 k = 0; k < 4; ++k) {
         const u32 picked = choice(parameters[kCharacterChoice + k], kChoices[k]);
         box.run(k, picked + 1 == kChoices[k] ? 0 : picked + 1);
