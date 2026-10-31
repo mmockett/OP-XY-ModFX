@@ -92,10 +92,9 @@ drawn and why this one was chosen.
 
 ## CPU and memory
 
-<!-- CPU: replace the two @@ figures with v1.7.0's, measured on the device, then remove this line. -->
 Measured on an OP-XY at v1.7.0 with `sdk.py profile benchmark`, over three runs, with
-graphics excluded: @@% of the block budget on the default warm, vibe, cloud and
-tilt, and @@% on howl, swirl, cloud and cass with every control at full. That
+graphics excluded: 7.312% of the block budget on the default warm, vibe, cloud and
+tilt, and 10.91% on howl, swirl, cloud and cass with every control at full. That
 heaviest setting is enough that a busy project may drop audio, though no one has
 heard it do so yet. Drive or fuzz in place of howl wasn't measured.
 
