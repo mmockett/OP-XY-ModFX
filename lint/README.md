@@ -47,6 +47,12 @@ send level. The lift only ever falls, as louder input arrives, and Lint's
 memory falls with it, so nothing it holds jumps in level. Dust and tape 2
 fade in from clean over the first quarter of their controls.
 
+## CPU
+
+Measured on an OP-XY at v1.8.0 with `sdk.py profile benchmark`, in one run, with
+graphics excluded: 5.40% of the block budget at its default settings. No heavier
+setting was measured.
+
 ## The screen
 
 ![Lint's screen in six settings](screens.png)

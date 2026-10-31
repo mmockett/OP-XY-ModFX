@@ -85,6 +85,9 @@ OP-XY.
 four sections as modules in the chosen order, joined by one patch cable from in to
 out. Each control moves a part of its module. [`lint/README.md`](lint/README.md) says how.
 
+**CPU,** measured on an OP-XY at v1.8.0: 5.40% of the block budget at its default
+settings.
+
 Put Lint on a send with **Shift** and **M1** on FX I or II. At full send a
 track goes wholly through the box, as it would through the hardware inline;
 less send blends the clean track with it.
