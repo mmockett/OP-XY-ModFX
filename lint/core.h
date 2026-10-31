@@ -20,6 +20,12 @@ struct Tape {
     opxy::i32 bump, loss, dc_in, dc_out;
 };
 
+// A division a block would otherwise repeat while the controls rest: what it
+// last divided, and the quotient (fx.cpp's divide()).
+struct Kept {
+    opxy::i32 numerator, divisor, quotient;
+};
+
 struct State {
     opxy::u32 ready;                  // the springs' memory cleared since initialize
     opxy::u32 echo_write, echo_written;
@@ -36,6 +42,14 @@ struct State {
     opxy::u32 lfo1, lfo2;             // phases, 2^32 a cycle
     opxy::u32 lift;                   // the input's shift up to the box's working level
     opxy::i32 smooth[8];              // the eight controls, gliding
+    opxy::u32 echo_total;             // samples the echo has written since initialize
+    // The working level's falls the echo's line still holds: its words written
+    // before echo_total reached mark_at[k] are mark_by[k] bits too loud, and are
+    // lowered as they are read, instead of the whole line at once.
+    opxy::u32 marks;
+    opxy::u32 mark_at[20];
+    opxy::u8 mark_by[20];
+    Kept divisions[9];               // the block's divisions, as divide() last did them
 };
 void initialize(State& state);
 void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channel right,
