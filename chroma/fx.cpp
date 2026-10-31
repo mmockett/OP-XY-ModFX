@@ -40,16 +40,33 @@ u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16
 // A gain up to 64, in Q12, and the input beyond which it saturates, found once
 // a block so no sample divides.
 struct Gain {
-    i32 q12, limit;
+    i32 q12, limit, floor, q24, bottom;
     void set(i32 gain) {
         q12 = gain > 0 ? gain : 1;
         limit = kMaximum / q12;
+        floor = -limit;
+        q24 = q12 << 12;  // every gain here is under 128 (2^19 in Q12)
+        bottom = kMinimum;
     }
+    // high * q12 + (low * q12 >> 12), saturated. The low part as a fractional
+    // multiply gives it exactly: (low << 7) q24 / 2^31.
     i32 apply(i32 x) const {
-        const i32 high = x >> 12, low = x & 4095;
+        const i32 high = x >> 12;
         if (high > limit) return kMaximum;
-        if (high < -limit) return kMinimum;
-        return add(high * q12, (low * q12) >> 12);
+        if (high < floor) return kMinimum;
+        const i32 low = static_cast<i32>((static_cast<u32>(x) << 7) & (4095u << 7));
+        return add(high * q12, mul(low, q24));
+    }
+    // The same by selects, not branches, for where it saturates often.
+    // Bottom is kMinimum held in a member, so GCC doesn't branch to
+    // specialise what follows for it.
+    i32 select(i32 x) const {
+        const i32 high = x >> 12;
+        const i32 low = static_cast<i32>((static_cast<u32>(x) << 7) & (4095u << 7));
+        // Unsigned: out of range the product may overflow, and isn't used.
+        const i32 y = add(static_cast<i32>(static_cast<u32>(high) * static_cast<u32>(q12)), mul(low, q24));
+        const i32 clipped = high > limit ? kMaximum : y;
+        return high < floor ? bottom : clipped;
     }
 };
 // A smooth clip: 1.5u - 0.5u^3, unity at full scale (and 1.5 near zero).
@@ -61,7 +78,7 @@ i32 soft(i32 u) {
 i32 limit(i32 u) { return mul(soft(u), 1431655765); }
 // A cheaper clip, one multiply: unity near zero, half at full scale.
 // ~u for the size: -u overflows at full negative scale, and the result would flip to positive.
-i32 gentle(i32 u) { return u - (mul(u, u < 0 ? ~u : u) >> 1); }
+i32 gentle(i32 u) { return u - (mul(u, u ^ (u >> 31)) >> 1); }  // u ^ (u >> 31): ~u below zero
 // x moved toward y by w, 0..1. By halves: a full difference is twice what a word
 // holds, and clipped it would let x through in bursts wherever x and y swing apart.
 i32 blend(i32 x, i32 y, i32 w) {
@@ -93,16 +110,28 @@ i32 wave(u32 phase) {
 i32 pack(i32 l, i32 r) { return static_cast<i32>((static_cast<u32>(l) & 0xffff0000u) | (static_cast<u32>(r) >> 16)); }
 i32 high_half(i32 word) { return static_cast<i32>(static_cast<u32>(word) & 0xffff0000u); }
 i32 low_half(i32 word) { return static_cast<i32>(static_cast<u32>(word) << 16); }
+// Two 16-bit samples weighted by a delay's fraction, then the sum up 8 bits:
+// the same sum as the samples at 24 bits times the weights, in two 16x16
+// multiplies instead of two 32-bit ones.
+i32 between(opxy::i16 a, opxy::i16 b, u32 delay) {
+    const opxy::u16 part = static_cast<opxy::u16>(delay & 255), rest = static_cast<opxy::u16>(256 - part);
+    return static_cast<i32>(static_cast<u32>(a * rest + b * part) << 8);
+}
 // One channel of a line, a Q8 delay back from the write position, interpolated.
 i32 tap_left(const i32* line, u32 mask, u32 write, u32 delay) {
-    const u32 back = write - (delay >> 8), part = delay & 255;
-    return (high_half(line[back & mask]) >> 8) * static_cast<i32>(256 - part) +
-           (high_half(line[(back - 1) & mask]) >> 8) * static_cast<i32>(part);
+    const u32 back = write - (delay >> 8);
+    return between(static_cast<opxy::i16>(static_cast<u32>(line[back & mask]) >> 16),
+                   static_cast<opxy::i16>(static_cast<u32>(line[(back - 1) & mask]) >> 16), delay);
 }
 i32 tap_right(const i32* line, u32 mask, u32 write, u32 delay) {
-    const u32 back = write - (delay >> 8), part = delay & 255;
-    return (low_half(line[back & mask]) >> 8) * static_cast<i32>(256 - part) +
-           (low_half(line[(back - 1) & mask]) >> 8) * static_cast<i32>(part);
+    const u32 back = write - (delay >> 8);
+    return between(static_cast<opxy::i16>(line[back & mask]), static_cast<opxy::i16>(line[(back - 1) & mask]), delay);
+}
+// (a >> 8) (256 - part) + (b >> 8) part, as (a >> 8 << 8) + ((b >> 8) - (a >> 8)) part
+// in one multiply: the same sum, which fits, so wrapping arithmetic gives it exactly.
+i32 between24(i32 a, i32 b, u32 part) {
+    const i32 low = a >> 8;
+    return static_cast<i32>((static_cast<u32>(low) << 8) + static_cast<u32>((b >> 8) - low) * part);
 }
 // A triangle window: 0 at phase 0, 1 at the middle, 0 again.
 i32 window(u32 phase) { return static_cast<i32>(phase < 0x80000000u ? phase : ~phase); }
@@ -200,7 +229,8 @@ struct Box {
             const Gain& g = drive[ch];
             i32 post = a.post[ch], in = a.dc_in[ch], held = a.dc_out[ch];
             for (u32 i = 0; i < kN; ++i) {
-                const i32 y = makeup.apply(shaped(table, g.apply(x[i])));
+                // Driven hard, this saturates often: selects beat branches.
+                const i32 y = makeup.select(shaped(table, g.select(x[i])));
                 post = add(post, mul(loss, sub(y, post)));
                 const i32 centred = add(sub(post, in), mul(held, 2134900000));  // about 20 Hz
                 in = post;
@@ -353,7 +383,7 @@ struct Box {
 
     // Two voices a little late, each on the other's side, at different lengths,
     // their lengths drifting: an overdub, and with Drift, an unsteady one.
-    void twin(i32 amount) {
+    __attribute__((noinline)) void twin(i32 amount) {
         i32* line = this->line[kMoveLine];
         const u32 mask = kMoveFrames - 1;
         const i32 drift = control(c[kDrift]);
@@ -427,23 +457,38 @@ struct Box {
         const i32 place = add(add(858993459, mul(add(sweep, jitter), depth)), kHalf >> 2);
         const i32 target = curve(kSweep, place);
         const i32 step = (target >> 6) - (m.ramp[1] >> 6);
-        i32 k = m.ramp[1];
+        if (count == 3) swirled<3>(step, part, back);
+        else if (count == 2) swirled<2>(step, part, back);
+        else swirled<1>(step, part, back);
+        m.ramp[1] = target;
+    }
+    static i32 swirl_stage(i32 k, i32 v, i32& in, i32& out) {
+        const i32 y = add(mul(k, sub(v, out)), in);
+        in = v;
+        out = y;
+        return y;
+    }
+    // The chain for a block, its pairs written out, its memory in locals.
+    template <u32 Pairs> __attribute__((noinline)) void swirled(i32 step, i32 part, i32 back) {
         Audio& a = m.audio;
+        i32 k = m.ramp[1];
         i32 fed = a.swirl_back[0];
+        i32 (&st)[8][2] = a.swirl[0];
+        i32 i0 = st[0][0], o0 = st[0][1], i1 = st[1][0], o1 = st[1][1];
+        i32 i2 = st[2][0], o2 = st[2][1], i3 = st[3][0], o3 = st[3][1];
+        i32 i4 = st[4][0], o4 = st[4][1], i5 = st[5][0], o5 = st[5][1];
         for (u32 i = 0; i < kN; ++i) {
             k += step;
             i32 v = add(add(l[i] >> 1, r[i] >> 1), mul(back, fed)) >> 1;
             i32 earlier = v, before = v;
-            i32* state = a.swirl[0][0];
-            for (u32 pair = 0; pair < count; ++pair) {
-                earlier = before;
-                before = v;
-                for (u32 st = 0; st < 2; ++st, state += 2) {
-                    const i32 y = add(mul(k, sub(v, state[1])), state[0]);
-                    state[0] = v;
-                    state[1] = y;
-                    v = y;
-                }
+            v = swirl_stage(k, v, i0, o0), v = swirl_stage(k, v, i1, o1);
+            if (Pairs >= 2) {
+                earlier = before, before = v;
+                v = swirl_stage(k, v, i2, o2), v = swirl_stage(k, v, i3, o3);
+            }
+            if (Pairs >= 3) {
+                earlier = before, before = v;
+                v = swirl_stage(k, v, i4, o4), v = swirl_stage(k, v, i5, o5);
             }
             // The last pair comes in with Amount, so the count never steps.
             const i32 wet0 = blend(before, v, part), wet1 = blend(earlier, before, part);
@@ -452,8 +497,10 @@ struct Box {
             l[i] = add(out0, out0 >> 2);
             r[i] = add(out1, out1 >> 2);
         }
+        st[0][0] = i0, st[0][1] = o0, st[1][0] = i1, st[1][1] = o1;
+        if (Pairs >= 2) st[2][0] = i2, st[2][1] = o2, st[3][0] = i3, st[3][1] = o3;
+        if (Pairs >= 3) st[4][0] = i4, st[4][1] = o4, st[5][0] = i5, st[5][1] = o5;
         a.swirl_back[0] = fed;
-        m.ramp[1] = target;
     }
 
     // Each side's level on its own swing, well apart, softer or square
@@ -487,7 +534,7 @@ struct Box {
     // Two overlapping grains a channel, read at the new speed. The right's grains
     // fall between the left's and it runs a little sharp, so an interval opens
     // out as it's played. Drift coarsens it and unsettles it.
-    void pitch(i32 amount) {
+    __attribute__((noinline)) void pitch(i32 amount) {
         i32* line = this->line[kMoveLine];
         const u32 mask = kMoveFrames - 1;
         const i32 drift = control(c[kDrift]);
@@ -629,8 +676,7 @@ struct Box {
                 {
                     const u32 read = (length[4] << 8) + static_cast<u32>(sway0 + 9000);
                     const u32 whole = read >> 8, part = read & 255;
-                    const i32 d = (ring[(at + kFirst[4] + whole) & mask] >> 8) * static_cast<i32>(256 - part) +
-                                  (ring[(at + kFirst[4] + whole + 1) & mask] >> 8) * static_cast<i32>(part);
+                    const i32 d = between24(ring[(at + kFirst[4] + whole) & mask], ring[(at + kFirst[4] + whole + 1) & mask], part);
                     const i32 fed = add(v, mul(k3, d));
                     ring[(at + kFirst[4]) & mask] = fed;
                     v = sub(d, mul(k3, fed));
@@ -647,8 +693,7 @@ struct Box {
                 {
                     const u32 read = (length[8] << 8) + static_cast<u32>(sway1 + 9000);
                     const u32 whole = read >> 8, part = read & 255;
-                    const i32 d = (ring[(at + kFirst[8] + whole) & mask] >> 8) * static_cast<i32>(256 - part) +
-                                  (ring[(at + kFirst[8] + whole + 1) & mask] >> 8) * static_cast<i32>(part);
+                    const i32 d = between24(ring[(at + kFirst[8] + whole) & mask], ring[(at + kFirst[8] + whole + 1) & mask], part);
                     const i32 fed = add(v, mul(k3, d));
                     ring[(at + kFirst[8]) & mask] = fed;
                     v = sub(d, mul(k3, fed));
@@ -1115,13 +1160,21 @@ struct Box {
 namespace {
 // Lowers everything the box holds by `by` bits, as its working level falls: all
 // of Audio, and the lines in use, frame by frame or, for the cloud, word by word.
+// How much of a module's line its effect reads: all lowering needs to keep in step.
+u32 line_used(u32 module, u32 effect) {
+    if (module == kMovement) return effect == kTwin || effect == kVibe || effect == kPitch ? kMoveFrames : 0;
+    if (module == kDiffusion) return effect == kCloud ? 32768 : kDiffuseFrames;
+    return effect == kCass || effect == kWorn ? kTextureFrames : 0;
+}
+
 void lower(Memory& m, i32* lines, u32 by) {
     i32* held = reinterpret_cast<i32*>(&m.audio);
     for (u32 i = 0; i < sizeof(Audio) / 4; ++i) held[i] >>= by;
     for (u32 k = kMovement; k <= kTexture; ++k) {
         if (!m.module[k].playing) continue;
         i32* words = k == kMovement ? lines : k == kDiffusion ? lines + kMoveFrames : lines + kMoveFrames + kDiffuseFrames;
-        const u32 end = m.module[k].cleared;
+        const u32 used = line_used(k, m.module[k].playing);
+        const u32 end = m.module[k].cleared < used ? m.module[k].cleared : used;
         if (k == kDiffusion && m.module[k].playing == kCloud) {
             for (u32 i = 0; i < end; ++i) words[i] >>= by;
         } else {
