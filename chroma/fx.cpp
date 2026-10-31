@@ -31,8 +31,12 @@ const u32 kClearChunk = 8192;  // words a block, while an effect starts
 const u32 kFadeStep = 1u << 28;  // a module's fade in: eight blocks, about 12 ms
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
-// Saturating, as add. -b would overflow at full negative scale, and flip the difference's sign.
-i32 sub(i32 a, i32 b) { return add(add(a, ~b), 1); }
+// Saturating, as add, but never below -kMaximum, as this always was
+// (add(add(a, ~b), 1)): the SDK's subtract, held off full negative scale.
+i32 sub(i32 a, i32 b) {
+    const i32 d = opxy::q31::subtract(a, b);
+    return d > -kMaximum ? d : -kMaximum;  // written so: GCC makes it a max, not a branch
+}
 i32 mul(i32 a, i32 b) { return opxy::q31::multiply(a, b); }
 i32 control(i32 word) { return word < 0 ? 0 : word; }
 u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16) * count) >> 15; }
