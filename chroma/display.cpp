@@ -86,14 +86,19 @@ void signed_amount(char* out, i32 word) {
 void rays(Frame::path_type& path, i32 middle, i32 end, i32 first, i32 last, i32 foot, u32 pattern, i32 amount, i32 bend, u32 time, i32 turned, i32 sway) {
     const i32 sign = last < 0 ? -1 : 1;
     const i32 c = sine(turned + 900), s = sine(turned);
+    // The fan turned round leaves from along the face, more of it with Amount, and closes on the screen.
+    const i32 spread = pattern == kBack ? 1024 + (amount >> (sign < 0 ? 4 : 6)) : 1024;
+    // On the face at rest: tan 30 degrees across for each pixel down. Then as the prism turns.
+    const i32 middle_foot = ((sign * (foot + 2880)) >> 5) * spread >> 5;
+    const i32 middle_x = px(24) + 256 + (middle_foot >> 5) * 591 / 32;
+    // One x for all a path's feet, at its middle ray's. The joins between them are then upright,
+    // and a ray never leaves back along one, however the prism and the fan lie.
+    const i32 from_x = ((middle_x >> 5) * c - (middle_foot >> 5) * s) >> 5;
     for (u32 k = 0; k < kTeeth; ++k) {
         const i32 reach = first + (last - first) * static_cast<i32>(k) / static_cast<i32>(kTeeth - 1) + sway;
         const i32 up = sign * (foot + static_cast<i32>(k) * 1152);  // 1.1 pixels apart, at the prism
-        // The fan turned round leaves from along the face, more of it with Amount, and closes on the screen.
-        const i32 leave = pattern == kBack ? (up >> 5) * (1024 + (amount >> (sign < 0 ? 4 : 6))) >> 5 : up;
-        // On the face at rest: tan 30 degrees across for each pixel down. Then as the prism turns.
+        const i32 leave = (up >> 5) * spread >> 5;
         const i32 rest_x = px(24) + 256 + (leave >> 5) * 591 / 32;
-        const i32 from_x = ((rest_x >> 5) * c - (leave >> 5) * s) >> 5;
         const i32 base = ((rest_x >> 5) * s + (leave >> 5) * c) >> 5;
         // How far along the bench a ray gets: dusk's die away before the screen
         // as repeats do, unless Amount carries them; tape's are uneven.
@@ -116,10 +121,10 @@ void rays(Frame::path_type& path, i32 middle, i32 end, i32 first, i32 last, i32 
             // Cloud's rays bow outward, more as it opens.
             if (pattern == kCloud) y += sign * ((u * (1024 - u) >> 10) * (amount >> 5) >> 8);
             path.points[k * kTooth * 2 + j] = Point{x / 2, y / 2};
-            path.points[k * kTooth * 2 + kTooth * 2 - 1 - j] = Point{x / 2, y / 2 + unit / 4};
+            path.points[k * kTooth * 2 + kTooth * 2 - 1 - j] = Point{x / 2, y / 2 - sign * unit / 4};  // its far edge inward, clear of the next ray's foot
         }
     }
-    // The spine, along the face just inside the glass: back from the last tooth's foot to the first's.
+    // The spine, just inside the glass: back from the last tooth's foot to the first's.
     const Point a = path.points[kTeeth * kTooth * 2 - 1], b = path.points[0];
     for (u32 i = 0; i < 4; ++i) {
         const i32 t = static_cast<i32>(i) + 1;

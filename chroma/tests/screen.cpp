@@ -2,6 +2,7 @@
 // its values on every effect stays a valid frame the device can draw, no control
 // is dead on the bench, and few nodes change a frame at the heaviest settings.
 #include "../display.cpp"
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -33,6 +34,11 @@ bool outline_ok(const chroma::Frame::path_type& path) {
         const int dx = a.x - b.x, dy = a.y - b.y;
         const int d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
         if (d < (i + 1 == chroma::Frame::point_count ? 256 : 128)) return false;
+        // An outline that turns nearly straight back draws a line escaping the shape.
+        const opxy::draw::Point& n = path.points[(i + 2) % chroma::Frame::point_count];
+        const double ax = b.x - a.x, ay = b.y - a.y, bx = n.x - b.x, by = n.y - b.y;
+        const double off = std::atan2(std::fabs(ax * by - ay * bx), -(ax * bx + ay * by));
+        if (off < 2.5 * 3.14159265358979 / 180) return false;
     }
     return true;
 }
