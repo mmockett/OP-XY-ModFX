@@ -31,6 +31,7 @@ enum Shape { kSine, kTriangle, kSquare };
 // The springs, at a quarter rate (11.025 kHz), which their bandwidth allows:
 // line lengths (27, 35 and 44 ms), loop gains, each one's chirp, and the
 // damping in their loops.
+static_assert((kSpringLine & (kSpringLine - 1)) == 0, "the springs' lines wrap by a mask");
 const u32 kSpringDelay[kSprings] = {298, 386, 485};
 const i32 kSpringGain[kSprings] = {1803886264, 1760936591, 1717986918};  // 0.84, 0.82, 0.80
 const i32 kChirp[kSprings] = {1331439862, 1417339208, 1503238554};       // 0.62, 0.66, 0.70
@@ -49,19 +50,39 @@ i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
 i32 mul(i32 a, i32 b) { return opxy::q31::multiply(a, b); }
 i32 control(i32 word) { return word < 0 ? 0 : word; }
 u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16) * count) >> 15; }
+// numerator / divisor, unless `kept` holds that division's quotient already:
+// while the controls rest, a block divides nothing.
+i32 divide(i32 numerator, i32 divisor, Kept& kept) {
+    if (kept.numerator != numerator || kept.divisor != divisor) {
+        kept.numerator = numerator;
+        kept.divisor = divisor;
+        kept.quotient = numerator / divisor;
+    }
+    return kept.quotient;
+}
 // A gain up to 64, in Q12, and the input beyond which it saturates, found once
 // a block so no sample divides.
 struct Gain {
-    i32 q12, limit;
-    void set(i32 gain) {
+    i32 q12, limit, floor, q24, bottom;
+    void set(i32 gain, Kept& kept) {
         q12 = gain > 0 ? gain : 1;
-        limit = kMaximum / q12;
+        limit = divide(kMaximum, q12, kept);
+        floor = -limit - 1;
+        q24 = q12 << 12;  // every gain here is under 128 (2^19 in Q12)
+        bottom = kMinimum;
     }
+    // high * q12 + (low * q12 >> 12), saturated. Selects, not branches: GCC
+    // predicts the saturation's branches taken. Bottom is kMinimum held in a
+    // member, so GCC doesn't branch to specialise what follows for it. The
+    // product wraps, as it always has, where high is floor and q12 no power of
+    // two. The low part is a fractional multiply, which gives it exactly:
+    // (low << 7) q24 / 2^31.
     i32 apply(i32 x) const {
-        const i32 high = x >> 12, low = x & 4095;
-        if (high > limit) return kMaximum;
-        if (high < -limit - 1) return kMinimum;
-        return add(high * q12, (low * q12) >> 12);
+        const i32 high = x >> 12;
+        const i32 low = static_cast<i32>((static_cast<u32>(x) << 7) & (4095u << 7));
+        const i32 y = add(static_cast<i32>(static_cast<u32>(high) * static_cast<u32>(q12)), mul(low, q24));
+        const i32 top = high > limit ? kMaximum : y;
+        return high < floor ? bottom : top;
     }
 };
 // A smooth clip: 1.5u - 0.5u^3, unity at full scale (and 1.5 near zero).
@@ -79,12 +100,12 @@ template <class T> T curve(const T (&table)[33], i32 value) {
     const i32 low = static_cast<i32>(table[at]), high = static_cast<i32>(table[at + 1]);
     return static_cast<T>(low + ((high - low) >> 8) * static_cast<i32>(part));
 }
-// A diode curve at an input of -1..1, interpolated between its 129 points.
-i32 diode(const i32 (&table)[129], i32 u) {
+// A diode curve at an input of -1..1, interpolated between its 129 points:
+// its segment's first point, plus its step times the input's next 8 bits.
+i32 diode(const i32 (*table)[2], i32 u) {
     const u32 at = (static_cast<u32>(u) + 0x80000000u) >> 8;  // 0..2^24
     const u32 index = at >> 17, part = (at >> 9) & 0xff;
-    const i32 low = table[index], high = table[index + (index < 128)];
-    return low + ((high >> 8) - (low >> 8)) * static_cast<i32>(part);
+    return table[index][0] + table[index][1] * static_cast<i32>(part);
 }
 // An LFO's value, -1..1, at a phase.
 i32 wave(u32 phase, u32 shape) {
@@ -106,16 +127,16 @@ i32 glide(i32 value, i32 target) { return value + ((target - value) >> 2); }
 // so turning it up adds grit, not loudness. Over the control's first quarter
 // it fades in from the clean signal, so its lowest settings are gentle.
 struct Saturation {
-    const i32* lower;
-    const i32* upper;
+    const i32 (*lower)[2];
+    const i32 (*upper)[2];
     i32 blend, loss, wet;
     Gain drive, makeup;
     i32 shape(i32 u) const {
-        const i32 a = diode(*reinterpret_cast<const i32(*)[129]>(lower), u);
-        const i32 b = diode(*reinterpret_cast<const i32(*)[129]>(upper), u);
+        const i32 a = diode(lower, u);
+        const i32 b = diode(upper, u);
         return a + mul(blend, (b >> 1) - (a >> 1)) * 2;
     }
-    void set(i32 type) {
+    void set(i32 type, Kept* kept) {
         const u32 position = (static_cast<u32>(control(type)) >> 15) * 4;  // types I..V as 0..4, Q16
         const u32 index = position >> 16 < 4 ? position >> 16 : 3;
         lower = kDiode[index];
@@ -124,14 +145,14 @@ struct Saturation {
         if (position >> 16 >= 4) blend = kUnit;
         // Drive: 1 to 16 as the square of the control.
         const i32 square = mul(control(type), control(type));
-        drive.set(4096 + static_cast<i32>(((static_cast<u32>(square) >> 16) * 61440u) >> 15));
+        drive.set(4096 + static_cast<i32>(((static_cast<u32>(square) >> 16) * 61440u) >> 15), kept[0]);
         // Makeup: what brings a quarter-scale input back to a quarter, between 0.25 and 2.
         const i32 reference = 536870912;
         const i32 out = shape(drive.apply(reference)) >> 12;
-        i32 gain = out > 0 ? reference / out : 8192;
+        i32 gain = out > 0 ? divide(reference, out, kept[1]) : 8192;
         if (gain < 1024) gain = 1024;
         if (gain > 8192) gain = 8192;
-        makeup.set(gain);
+        makeup.set(gain, kept[2]);
         loss = kLossOpen + mul(control(type), kLossDark - kLossOpen);
         wet = control(type) >= 536870912 ? kUnit : control(type) << 2;
     }
@@ -146,7 +167,48 @@ struct Saturation {
     }
 };
 
+// The phaser's and the tank's memory, held in locals while a block runs.
+struct PhaserMemory {
+    i32 a, back, in0, in1, in2, in3, out0, out1, out2, out3;
+    explicit PhaserMemory(const State& s)
+        : a(s.phase_a), back(s.phase_back), in0(s.phase[0]), in1(s.phase[1]), in2(s.phase[2]), in3(s.phase[3]),
+          out0(s.phase_out[0]), out1(s.phase_out[1]), out2(s.phase_out[2]), out3(s.phase_out[3]) {}
+    void save(State& s) const {
+        s.phase_a = a;
+        s.phase_back = back;
+        s.phase[0] = in0, s.phase[1] = in1, s.phase[2] = in2, s.phase[3] = in3;
+        s.phase_out[0] = out0, s.phase_out[1] = out1, s.phase_out[2] = out2, s.phase_out[3] = out3;
+    }
+};
+struct TankMemory {
+    i32 in, out, last;
+    u32 phase;
+    explicit TankMemory(const State& s) : in(s.tank_in), out(s.tank_out), last(s.tank_last), phase(s.tank_phase) {}
+    void save(State& s) const {
+        s.tank_in = in, s.tank_out = out, s.tank_last = last, s.tank_phase = phase;
+    }
+};
+// One first-order all-pass of one multiply: y = a(x - y') + x'.
+i32 allpass(i32 a, i32 v, i32& in, i32& out) {
+    const i32 y = mul(a, v - out) + in;
+    in = v;
+    out = y;
+    return y;
+}
+
+// One chirp stage: its output kept in `out`; `before`, its input's last
+// value, becomes this stage's last output, the next stage's.
+i32 chirp(i32 a, i32 v, i32& out, i32& before) {
+    const i32 last = out;
+    out = mul(a, v - last) + before;
+    before = last;
+    return out;
+}
+
 struct Box {
+    // process sets every other member: none starts zeroed, which would cost a
+    // memset a block.
+    Box(State& state, i32* line, i32* lines, i32* chirp) : s(state), echo(line), springs(lines), chirps(chirp) {}
     State& s;
     i32* echo;
     i32* springs;
@@ -156,6 +218,7 @@ struct Box {
     i32 phase_step, phase_mix, phase_back;
     i32 echo_target, echo_mix, echo_dark, echo_hiss, echo_grit;
     Gain echo_feedback, spring_gain;
+    bool marked;  // the echo's line still holds words from before a fall
     i32 spring_mix, tone_low, tone_high;
     u32 loop;
 
@@ -163,100 +226,200 @@ struct Box {
     // run at half scale: an all-pass's gain is one, so plain sums stay in range.
     // Their coefficient ramps across the block to where the lamp now sweeps it;
     // the wet's feedback sharpens the notches, and an even mix makes them deep.
-    i32 phaser(i32 x) {
-        s.phase_a += phase_step;
-        const i32 a = s.phase_a;
-        i32 v = add(x, mul(phase_back, s.phase_back)) >> 1;
-        for (u32 i = 0; i < 4; ++i) {
-            const i32 y = mul(a, v - s.phase_out[i]) + s.phase[i];
-            s.phase[i] = v;
-            s.phase_out[i] = y;
-            v = y;
-        }
+    i32 phaser(i32 x, PhaserMemory& m) const {
+        m.a += phase_step;
+        i32 v = add(x, mul(phase_back, m.back)) >> 1;
+        v = allpass(m.a, v, m.in0, m.out0);
+        v = allpass(m.a, v, m.in1, m.out1);
+        v = allpass(m.a, v, m.in2, m.out2);
+        v = allpass(m.a, v, m.in3, m.out3);
         v = add(v, v);
-        s.phase_back = v;
+        m.back = v;
         return add(x, mul(phase_mix, add(v, -x)));
     }
 
     // The tank runs at a quarter rate and a quarter of full scale, so its sums
     // need no saturation. Every fourth sample it takes the four's mean and
-    // rings once; between, its output is interpolated.
-    i32 spring(i32 x) {
-        s.tank_in += soft(spring_gain.apply(x)) >> 4;
-        if (++s.tank_phase < 4) {
-            const i32 wet = s.tank_last + ((s.tank_out >> 2) - (s.tank_last >> 2)) * static_cast<i32>(s.tank_phase);
+    // rings once (ring); between, its output is interpolated.
+    i32 spring(i32 x, TankMemory& t) const {
+        t.in += soft(spring_gain.apply(x)) >> 4;
+        if (++t.phase < 4) {
+            const i32 wet = t.last + ((t.out >> 2) - (t.last >> 2)) * static_cast<i32>(t.phase);
             return add(x, mul(spring_mix, add(wet, -x)));
         }
-        s.tank_phase = 0;
-        const i32 in = s.tank_in;
-        s.tank_in = 0;
-        i32 sum = 0;
-        for (u32 k = 0; k < kSprings; ++k) {
-            Spring& sp = s.spring[k];
-            i32* line = springs + k * kSpringLine;
-            const u32 back = sp.write >= kSpringDelay[k] ? sp.write - kSpringDelay[k] : sp.write + kSpringLine - kSpringDelay[k];
-            const i32 out = line[back];
-            sp.damp += mul(kDamp, out - sp.damp);
-            i32 v = in + mul(kSpringGain[k], sp.damp);
-            // The chirp: a spring's dispersion, the highs arriving after the
-            // lows, from first-order all-passes of one multiply each: y = a(x - y') + x'.
-            i32* state = chirps + k * kStages * 2;
-            const i32 a = kChirp[k];
-            for (u32 st = 0; st < kStages; ++st, state += 2) {
-                const i32 y = mul(a, v - state[1]) + state[0];
-                state[0] = v;
-                state[1] = y;
-                v = y;
-            }
-            line[sp.write] = v;
-            sp.write = sp.write + 1 == kSpringLine ? 0 : sp.write + 1;
-            sum += mul(out, kThird);
-        }
+        t.phase = 0;
+        ring(t);
+        return add(x, mul(spring_mix, add(t.last, -x)));
+    }
+    __attribute__((noinline)) void ring(TankMemory& t) const {
+        const i32 in = t.in;
+        t.in = 0;
+        const i32 sum = mul(spring_line<0>(in), kThird) + mul(spring_line<1>(in), kThird) + mul(spring_line<2>(in), kThird);
         s.tone_low += mul(kTilt, sum - s.tone_low);
         const i32 tilted = mul(s.tone_low, tone_low) + mul(sum - s.tone_low, tone_high);
-        s.tank_last = s.tank_out;
-        s.tank_out = add(add(tilted, tilted), add(tilted, tilted));  // back to full scale
-        return add(x, mul(spring_mix, add(s.tank_last, -x)));
+        t.last = t.out;
+        t.out = add(add(tilted, tilted), add(tilted, tilted));  // back to full scale
+    }
+    // One spring: its line's output, as it takes the tank's input into its loop.
+    template <u32 k> i32 spring_line(i32 in) const {
+        Spring& sp = s.spring[k];
+        i32* line = springs + k * kSpringLine;
+        const i32 out = line[(sp.write - kSpringDelay[k]) & (kSpringLine - 1)];  // a power of two
+        sp.damp += mul(kDamp, out - sp.damp);
+        i32 v = in + mul(kSpringGain[k], sp.damp);
+        // The chirp: a spring's dispersion, the highs arriving after the
+        // lows, from first-order all-passes, y = a(x - y') + x'. Stage n's
+        // input is stage n - 1's output, so its x' is the y' just read: only
+        // the first stage's input (c[0]) and each output (c[2n + 1]) are kept.
+        i32* c = chirps + k * kStages * 2;
+        const i32 a = kChirp[k];
+        i32 before = c[0];
+        c[0] = v;
+        static_assert(kStages == 10, "the chirp's stages are written out: GCC gives their loop no hardware loop");
+        v = chirp(a, v, c[1], before), v = chirp(a, v, c[3], before), v = chirp(a, v, c[5], before);
+        v = chirp(a, v, c[7], before), v = chirp(a, v, c[9], before), v = chirp(a, v, c[11], before);
+        v = chirp(a, v, c[13], before), v = chirp(a, v, c[15], before), v = chirp(a, v, c[17], before);
+        v = chirp(a, v, c[19], before);
+        line[sp.write] = v;
+        sp.write = (sp.write + 1) & (kSpringLine - 1);
+        return out;
     }
 
-    // What sits in the echo's feedback loop, if anything.
-    i32 inserted(i32 x) {
-        if (loop == kLoopTape) return tape2.run(x, s.tape[1]);
-        if (loop == kLoopPhaser) return phaser(x);
-        if (loop == kLoopSpring) return spring(x);
-        return x;
+    // Each section runs over the whole block, out of line, so that its loop
+    // has the registers to itself, its memory in locals.
+    __attribute__((noinline)) void saturate(const Saturation& sat, Tape& tape, i32* x) const {
+        const Saturation t = sat;
+        Tape held = tape;
+        for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = t.run(x[i], held);
+        tape = held;
     }
-
-    i32 tap(u32 age) const {
-        if (age > s.echo_written) return 0;
-        return echo[s.echo_write >= age ? s.echo_write - age : s.echo_write + kEchoLine - age] >> 8;
+    __attribute__((noinline)) void phaser_block(i32* x) const {
+        PhaserMemory m(s);
+        for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = phaser(x[i], m);
+        m.save(s);
     }
-
-    i32 echo_section(i32 x) {
-        s.echo_delay += (echo_target - s.echo_delay) / 1024;  // about 23 ms: the time glides like tape
-        const u32 whole = static_cast<u32>(s.echo_delay) >> 8, part = static_cast<u32>(s.echo_delay) & 255;
-        const i32 out = tap(whole) * static_cast<i32>(256 - part) + tap(whole + 1) * static_cast<i32>(part);
-        // The loop: darker as the PT2399's clock slows, its lows let go.
-        s.echo_dark = add(s.echo_dark, mul(echo_dark, add(out, -s.echo_dark)));
-        s.echo_low += mul(kEchoLow, (s.echo_dark >> 1) - (s.echo_low >> 1)) * 2;
-        // The loop's gain is the feedback's alone: at most 0.75 to the knee,
-        // and past it Madness runs away from what is played, up to the limit.
-        const i32 back = echo_feedback.apply(inserted(add(s.echo_dark, -s.echo_low)));
-        // The chip's converter: coarser as its clock slows, which is its grit.
-        echo[s.echo_write] = add(limit(add(x, back)), ~echo_grit >> 1) & echo_grit;
-        s.echo_write = s.echo_write + 1 == kEchoLine ? 0 : s.echo_write + 1;
-        if (s.echo_written < kEchoLine) ++s.echo_written;
-        // The hiss rides on the wet, outside the loop, so it never builds up.
-        s.noise = s.noise * 1664525u + 1013904223u;
-        const i32 hiss = static_cast<i32>(s.noise) >> echo_hiss;
-        return add(x, mul(echo_mix, add(add(out, hiss), -x)));
+    __attribute__((noinline)) void spring_block(i32* x) const {
+        TankMemory t(s);
+        if (t.phase) {
+            // Never: the tank turns 64 times a block, wherever it runs, so
+            // every block starts it at phase 0.
+            for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = spring(x[i], t);
+            t.save(s);
+            return;
+        }
+        // Four samples at a time: three interpolated, then the tank rings.
+        const Gain gain = spring_gain;
+        const i32 mix = spring_mix;
+        for (i32* q = x; q < x + opxy::block_frames; q += 4) {
+            const u32 step = static_cast<u32>((t.out >> 2) - (t.last >> 2));
+            const u32 wet = static_cast<u32>(t.last);  // last + step * phase, which wraps as before
+            t.in += soft(gain.apply(q[0])) >> 4;
+            q[0] = add(q[0], mul(mix, add(static_cast<i32>(wet + step), -q[0])));
+            t.in += soft(gain.apply(q[1])) >> 4;
+            q[1] = add(q[1], mul(mix, add(static_cast<i32>(wet + step + step), -q[1])));
+            t.in += soft(gain.apply(q[2])) >> 4;
+            q[2] = add(q[2], mul(mix, add(static_cast<i32>(wet + step + step + step), -q[2])));
+            t.in += soft(gain.apply(q[3])) >> 4;
+            ring(t);
+            q[3] = add(q[3], mul(mix, add(t.last, -q[3])));
+        }
+        t.save(s);
     }
-
-    i32 section(u32 which, i32 x) {
-        if (which == kTape1) return tape1_on ? tape1.run(x, s.tape[0]) : x;
-        if (which == kPhaser) return phaser_on && loop != kLoopPhaser ? phaser(x) : x;
-        if (which == kEchoSection) return echo_on ? echo_section(x) : x;
-        return spring_on && loop != kLoopSpring ? spring(x) : x;
+    // The echo, in three passes, each light enough for a hardware loop: its
+    // taps, its loop (with what sits in it, if anything: Tape 2, the phaser
+    // or the springs) and its wet. The shortest time is 132 samples, so no
+    // tap reads a word this block writes: reading them all first changes nothing.
+    void echo_block(i32* x) const {
+        i32 out[opxy::block_frames];
+        // Once the line is full, every tap the time can reach is written (it
+        // never reaches past kEchoLine - 2 samples: process clamps its
+        // target, and it glides between targets).
+        if (s.echo_written == kEchoLine && !marked) echo_taps<true>(out);
+        else echo_taps<false>(out);
+        if (loop == kLoopTape) echo_loop<kLoopTape>(x, out);
+        else if (loop == kLoopPhaser) echo_loop<kLoopPhaser>(x, out);
+        else if (loop == kLoopSpring) echo_loop<kLoopSpring>(x, out);
+        else echo_loop<kLoopOff>(x, out);
+        echo_wet(x, out);
+    }
+    // The line's next position, without a branch, which would cost the loop
+    // its hardware loop: write + 1, or 0 past the end.
+    static u32 next(u32 write) {
+        return (write + 1) & static_cast<u32>(static_cast<i32>(write - (kEchoLine - 1)) >> 31);
+    }
+    // A tap `age` samples back, when the line holds `written` words and has
+    // written `total` since initialize.
+    template <bool Full> i32 tap(u32 write, u32 age, u32 written, u32 total) const {
+        if (!Full && age > written) return 0;
+        // Index write - age, wrapped.
+        const i32 back = static_cast<i32>(write - age);
+        const i32 word = echo[back + (kEchoLine & (back >> 31))];
+        if (Full || !marked) return word >> 8;
+        // Words written before a fall are lowered as they're read: shifts add up.
+        u32 by = 0;
+        for (u32 k = 0; k < s.marks; ++k)
+            if (age > total - s.mark_at[k]) by += s.mark_by[k];
+        return (word >> by) >> 8;
+    }
+    template <bool Full> __attribute__((noinline)) void echo_taps(i32* out) const {
+        const i32 target = echo_target;
+        i32 delay = s.echo_delay;
+        u32 write = s.echo_write, written = s.echo_written, total = s.echo_total;
+        for (unsigned i = 0; i < opxy::block_frames; ++i) {
+            const i32 glide = target - delay;
+            delay += (glide + ((glide >> 31) & 1023)) >> 10;  // / 1024, about 23 ms: the time glides like tape
+            const u32 whole = static_cast<u32>(delay) >> 8, part = static_cast<u32>(delay) & 255;
+            const i32 a = tap<Full>(write, whole, written, total), b = tap<Full>(write, whole + 1, written, total);
+            // a (256 - part) + b part, which fits: wrapping sums give it exactly.
+            out[i] = static_cast<i32>((static_cast<u32>(a) << 8) + static_cast<u32>(b - a) * part);
+            write = next(write);
+            if (!Full && written < kEchoLine) ++written;
+            ++total;
+        }
+        s.echo_delay = delay;
+        s.echo_written = written;
+    }
+    template <u32 L> __attribute__((noinline)) void echo_loop(const i32* x, const i32* out) const {
+        i32* const line = echo;
+        const i32 dark_by = echo_dark, grit = echo_grit, round = ~echo_grit >> 1;
+        const Gain feedback = echo_feedback;
+        u32 write = s.echo_write;
+        i32 dark = s.echo_dark, low = s.echo_low;
+        Tape tape = s.tape[1];
+        PhaserMemory phase(s);
+        TankMemory tank(s);
+        for (unsigned i = 0; i < opxy::block_frames; ++i) {
+            // The loop: darker as the PT2399's clock slows, its lows let go.
+            dark = add(dark, mul(dark_by, add(out[i], -dark)));
+            low += mul(kEchoLow, (dark >> 1) - (low >> 1)) * 2;
+            i32 loop_out = add(dark, -low);
+            if (L == kLoopTape) loop_out = tape2.run(loop_out, tape);
+            if (L == kLoopPhaser) loop_out = phaser(loop_out, phase);
+            if (L == kLoopSpring) loop_out = spring(loop_out, tank);
+            // The loop's gain is the feedback's alone: at most 0.75 to the knee,
+            // and past it Madness runs away from what is played, up to the limit.
+            const i32 back = feedback.apply(loop_out);
+            // The chip's converter: coarser as its clock slows, which is its grit.
+            line[write] = add(limit(add(x[i], back)), round) & grit;
+            write = next(write);
+        }
+        s.echo_write = write;
+        s.echo_dark = dark, s.echo_low = low;
+        s.echo_total += opxy::block_frames;
+        if (L == kLoopTape) s.tape[1] = tape;
+        if (L == kLoopPhaser) phase.save(s);
+        if (L == kLoopSpring) tank.save(s);
+    }
+    // The hiss rides on the wet, outside the loop, so it never builds up.
+    __attribute__((noinline)) void echo_wet(i32* x, const i32* out) const {
+        u32 noise = s.noise;
+        const i32 mix = echo_mix, hiss_shift = echo_hiss;
+        for (unsigned i = 0; i < opxy::block_frames; ++i) {
+            noise = noise * 1664525u + 1013904223u;
+            const i32 hiss = static_cast<i32>(noise) >> hiss_shift;
+            x[i] = add(x[i], mul(mix, add(add(out[i], hiss), -x[i])));
+        }
+        s.noise = noise;
     }
 };
 }
@@ -268,7 +431,11 @@ const u32 kLift = 20;
 // Lowers everything the box holds by `by` bits, as its working level falls:
 // the echo's line, the springs' lines and chirps, and every filter's memory.
 void lower(State& s, i32* words, u32 by) {
-    for (u32 i = 0; i < kBufferWords; ++i) words[i] >>= by;
+    // The echo's line is lowered as it's read (Box::tap); the rest, small, at once.
+    s.mark_at[s.marks] = s.echo_total;
+    s.mark_by[s.marks] = static_cast<opxy::u8>(by);
+    ++s.marks;
+    for (u32 i = kEchoLine; i < kBufferWords; ++i) words[i] >>= by;
     i32* held[] = {&s.echo_dark, &s.echo_low, &s.phase_back, &s.tone_low, &s.tank_in, &s.tank_out, &s.tank_last};
     for (i32* value : held) *value >>= by;
     for (u32 i = 0; i < 4; ++i) {
@@ -282,6 +449,17 @@ void lower(State& s, i32* words, u32 by) {
         s.tape[t].dc_in >>= by;
         s.tape[t].dc_out >>= by;
     }
+}
+}
+
+namespace {
+// The block into and out of the working level, out of line: inside process,
+// GCC gives these loops no hardware loop.
+__attribute__((noinline)) void shift_up(i32* x, const i32* input, u32 lift) {
+    for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = input[i] << lift;
+}
+__attribute__((noinline)) void shift_down(i32* left, i32* right, const i32* x, u32 lift) {
+    for (unsigned i = 0; i < opxy::block_frames; ++i) left[i] = right[i] = x[i] >> lift;
 }
 }
 
@@ -319,12 +497,12 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     const i32 unipolar1 = (lfo1 >> 1) + (1 << 30), unipolar2 = (lfo2 >> 1) + (1 << 30);  // 0..1
 
     const i32 on = 21474836;  // 1%: below it a section is out of the circuit
-    Box box{state, buffer.words, springs, chirps};
+    Box box(state, buffer.words, springs, chirps);
     box.loop = loop;
-    box.tape1.set(c[kDust]);
+    box.tape1.set(c[kDust], state.divisions);
     box.tape1_on = c[kDust] > on;
     // Tape 2 sits last, or in the echo's loop, where it is on at type III when its control is down.
-    box.tape2.set(loop == kLoopTape && c[kTape2] <= on ? 1073741824 : c[kTape2]);
+    box.tape2.set(loop == kLoopTape && c[kTape2] <= on ? 1073741824 : c[kTape2], state.divisions + 3);
     box.tape2_on = c[kTape2] > on && loop != kLoopTape;
     // Phase: an optical phaser, its LFO lighting a lamp whose glow (the LFO's
     // power, lagging as a bulb does) sweeps the all-passes, exponentially, over
@@ -348,7 +526,8 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     box.echo_mix = echo < knee ? mul(echo, 1263225675) : 1073741824;  // echo / 0.85 * 0.5
     // Feedback in Q12: to 0.75 at the knee (echo / 0.85 * 0.75), then up to 1.15.
     box.echo_feedback.set(echo < knee ? mul(echo, 1894908926) >> 19
-                                      : 3072 + ((echo - knee) >> 19) * 1638 / ((kMaximum - knee) >> 19));
+                                      : 3072 + divide(((echo - knee) >> 19) * 1638, (kMaximum - knee) >> 19, state.divisions[6]),
+                          state.divisions[7]);
     i32 time = c[kTime];
     if (wobble == kWobbleTime) time = add(time, mul(lfo2, 53687091));  // +-2.5% of its travel: tape wow
     box.echo_target = curve(kEchoDelay, time);
@@ -365,7 +544,7 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     box.spring_on = spring > on || loop == kLoopSpring;
     i32 gain = 2048 + static_cast<i32>(((static_cast<u32>(control(spring)) >> 16) * 8192u) >> 15);  // 0.5..2.5, Q12
     if (wobble == kWobbleSpring) gain = ((gain * (unipolar2 >> 16)) >> 15) + 512;  // its input VCA, tremolo
-    box.spring_gain.set(gain);
+    box.spring_gain.set(gain, state.divisions[8]);
     box.spring_mix = mul(spring, 1288490189);  // up to 0.6
     // Tone tilts the tank: bass up and treble down to the left, the reverse to the right.
     box.tone_low = kUnit - mul(c[kTone], 1503238553);
@@ -389,12 +568,33 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
         lower(state, buffer.words, state.lift - fit);
         state.lift = fit;
     }
+    // Falls the line has since written over touch nothing it can read.
+    u32 kept = 0;
+    for (u32 k = 0; k < state.marks; ++k)
+        if (state.echo_total - state.mark_at[k] < kEchoLine) {
+            state.mark_at[kept] = state.mark_at[k];
+            state.mark_by[kept++] = state.mark_by[k];
+        }
+    state.marks = kept;
+    box.marked = kept != 0;
     const u32 lift = state.lift;
-    for (unsigned i = 0; i < opxy::block_frames; ++i) {
-        i32 x = input[i] << lift;
-        for (u32 n = 0; n < 4; ++n) x = box.section(kOrders[order][n], x);
-        if (box.tape2_on) x = box.tape2.run(x, state.tape[1]);
-        left[i] = right[i] = x >> lift;
+    // Each section runs over the whole block in turn: they run in series, and
+    // the only feedback, through the echo's loop, stays inside the echo.
+    i32 x[opxy::block_frames];
+    shift_up(x, input, lift);
+    for (u32 n = 0; n < 4; ++n) {
+        const u32 which = kOrders[order][n];
+        if (which == kTape1) {
+            if (box.tape1_on) box.saturate(box.tape1, state.tape[0], x);
+        } else if (which == kPhaser) {
+            if (box.phaser_on && loop != kLoopPhaser) box.phaser_block(x);
+        } else if (which == kEchoSection) {
+            if (box.echo_on) box.echo_block(x);
+        } else if (box.spring_on && loop != kLoopSpring) {
+            box.spring_block(x);
+        }
     }
+    if (box.tape2_on) box.saturate(box.tape2, state.tape[1], x);
+    shift_down(left, right, x, lift);
 }
 }
