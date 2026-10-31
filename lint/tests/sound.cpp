@@ -4,6 +4,7 @@
 // and Madness sustains.
 #include "../fx.cpp"
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <vector>
 
@@ -76,6 +77,37 @@ int main() {
         run(state, memory, words, 1378, true, &tail, 375);
         if (tail < 0.01) { std::printf("FAIL Madness does not sustain: %f\n", tail); ok = false; }
     }
-    if (ok) std::puts("PASS every routing bounded and sounding; the tank rings and decays; Madness sustains");
+    // A sustained tone rings the tank past its working level: more Spring is
+    // louder, without the steps its sums made when they wrapped.
+    {
+        const unsigned kBlocks = 2000;
+        double level[2], step[2];
+        const opxy::i32 springs[2] = {751619277, 1395864371};  // 35%, 65%
+        for (unsigned n = 0; n < 2; ++n) {
+            lint::State state;
+            lint::initialize(state);
+            const opxy::i32 words[12] = {0, 0, 0, springs[n], 0, kHalf, kHalf, kHalf, 0, 0, 0, 0};
+            double sum = 0, previous = 0;
+            step[n] = 0;
+            for (unsigned b = 0; b < kBlocks; ++b) {
+                opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+                for (unsigned i = 0; i < opxy::block_frames; ++i)
+                    left[i] = right[i] = static_cast<opxy::i32>(kHalf * std::sin(2 * 3.14159265358979 * 220 * (b * 64.0 + i) / 44100));
+                lint::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, left, right, words);
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    const double v = left[i] / 2147483648.0;
+                    if (b >= kBlocks / 2) {
+                        sum += v * v;
+                        if (std::abs(v - previous) > step[n]) step[n] = std::abs(v - previous);
+                    }
+                    previous = v;
+                }
+            }
+            level[n] = sum;
+        }
+        if (level[1] <= level[0]) { std::puts("FAIL a sustained tone falls as Spring rises: the tank wrapped"); ok = false; }
+        if (step[1] > 0.1) { std::printf("FAIL a sustained tone steps through the tank: %f\n", step[1]); ok = false; }
+    }
+    if (ok) std::puts("PASS every routing bounded and sounding; the tank rings and decays; Madness sustains; a tone stays clean");
     return ok ? 0 : 1;
 }

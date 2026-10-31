@@ -47,6 +47,11 @@ const i32 kEchoLow = 36403663;
 const i32 kLampOn = 541000632, kLampOff = 68151367;
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
+i32 twice(i32 a) { return add(a, a); }
+// Saturating, as add is, so no sum wraps however far Madness runs: a - b as
+// a + ~b + 1, which has an answer even at -kMinimum. Exact wherever the sum fits;
+// held at the rail where it doesn't, the negative one a step short of kMinimum.
+i32 sub(i32 a, i32 b) { return add(add(a, ~b), 1); }
 i32 mul(i32 a, i32 b) { return opxy::q31::multiply(a, b); }
 i32 control(i32 word) { return word < 0 ? 0 : word; }
 u32 choice(i32 word, u32 count) { return ((static_cast<u32>(control(word)) >> 16) * count) >> 15; }
@@ -67,16 +72,16 @@ struct Gain {
     void set(i32 gain, Kept& kept) {
         q12 = gain > 0 ? gain : 1;
         limit = divide(kMaximum, q12, kept);
-        floor = -limit - 1;
+        // The most negative high part whose product still fits: -(limit + 1) * q12
+        // only when q12 is a power of two, which lands exactly on kMinimum.
+        floor = q12 & (q12 - 1) ? -limit : -limit - 1;
         q24 = q12 << 12;  // every gain here is under 128 (2^19 in Q12)
         bottom = kMinimum;
     }
     // high * q12 + (low * q12 >> 12), saturated. Selects, not branches: GCC
     // predicts the saturation's branches taken. Bottom is kMinimum held in a
-    // member, so GCC doesn't branch to specialise what follows for it. The
-    // product wraps, as it always has, where high is floor and q12 no power of
-    // two. The low part is a fractional multiply, which gives it exactly:
-    // (low << 7) q24 / 2^31.
+    // member, so GCC doesn't branch to specialise what follows for it. The low
+    // part is a fractional multiply, which gives it exactly: (low << 7) q24 / 2^31.
     i32 apply(i32 x) const {
         const i32 high = x >> 12;
         const i32 low = static_cast<i32>((static_cast<u32>(x) << 7) & (4095u << 7));
@@ -157,13 +162,13 @@ struct Saturation {
         wet = control(type) >= 536870912 ? kUnit : control(type) << 2;
     }
     i32 run(i32 x, Tape& t) const {
-        t.bump += mul(kBump, (x >> 1) - (t.bump >> 1)) * 2;
+        t.bump = add(t.bump, twice(mul(kBump, (x >> 1) - (t.bump >> 1))));
         const i32 y = makeup.apply(shape(drive.apply(add(x, mul(t.bump, kBumpGain)))));
-        t.loss += mul(loss, (y >> 1) - (t.loss >> 1)) * 2;
-        const i32 centred = add(add(t.loss, -t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
+        t.loss = add(t.loss, twice(mul(loss, (y >> 1) - (t.loss >> 1))));
+        const i32 centred = add(sub(t.loss, t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
         t.dc_in = t.loss;
         t.dc_out = centred;
-        return add(x, mul(wet, add(centred, -x)));
+        return add(x, mul(wet, sub(centred, x)));
     }
 };
 
@@ -190,7 +195,7 @@ struct TankMemory {
 };
 // One first-order all-pass of one multiply: y = a(x - y') + x'.
 i32 allpass(i32 a, i32 v, i32& in, i32& out) {
-    const i32 y = mul(a, v - out) + in;
+    const i32 y = add(mul(a, sub(v, out)), in);
     in = v;
     out = y;
     return y;
@@ -200,7 +205,7 @@ i32 allpass(i32 a, i32 v, i32& in, i32& out) {
 // value, becomes this stage's last output, the next stage's.
 i32 chirp(i32 a, i32 v, i32& out, i32& before) {
     const i32 last = out;
-    out = mul(a, v - last) + before;
+    out = add(mul(a, sub(v, last)), before);
     before = last;
     return out;
 }
@@ -223,7 +228,7 @@ struct Box {
     u32 loop;
 
     // Four first-order all-passes, one multiply each (y = a(x - y') + x'),
-    // run at half scale: an all-pass's gain is one, so plain sums stay in range.
+    // run at half scale; a loud loop can still reach their sums, which saturate.
     // Their coefficient ramps across the block to where the lamp now sweeps it;
     // the wet's feedback sharpens the notches, and an even mix makes them deep.
     i32 phaser(i32 x, PhaserMemory& m) const {
@@ -235,28 +240,30 @@ struct Box {
         v = allpass(m.a, v, m.in3, m.out3);
         v = add(v, v);
         m.back = v;
-        return add(x, mul(phase_mix, add(v, -x)));
+        return add(x, mul(phase_mix, sub(v, x)));
     }
 
-    // The tank runs at a quarter rate and a quarter of full scale, so its sums
-    // need no saturation. Every fourth sample it takes the four's mean and
-    // rings once (ring); between, its output is interpolated.
+    // The tank runs at a quarter rate and a quarter of full scale, but a sustained
+    // tone can ring it past that, so its sums saturate. Every fourth sample it takes
+    // the four's mean and rings once (ring); between, its output is interpolated.
     i32 spring(i32 x, TankMemory& t) const {
         t.in += soft(spring_gain.apply(x)) >> 4;
         if (++t.phase < 4) {
-            const i32 wet = t.last + ((t.out >> 2) - (t.last >> 2)) * static_cast<i32>(t.phase);
-            return add(x, mul(spring_mix, add(wet, -x)));
+            // Between last and out, so it fits: wrapping sums give it exactly.
+            const u32 step = static_cast<u32>((t.out >> 2) - (t.last >> 2));
+            const i32 wet = static_cast<i32>(static_cast<u32>(t.last) + step * t.phase);
+            return add(x, mul(spring_mix, sub(wet, x)));
         }
         t.phase = 0;
         ring(t);
-        return add(x, mul(spring_mix, add(t.last, -x)));
+        return add(x, mul(spring_mix, sub(t.last, x)));
     }
     __attribute__((noinline)) void ring(TankMemory& t) const {
         const i32 in = t.in;
         t.in = 0;
         const i32 sum = mul(spring_line<0>(in), kThird) + mul(spring_line<1>(in), kThird) + mul(spring_line<2>(in), kThird);
-        s.tone_low += mul(kTilt, sum - s.tone_low);
-        const i32 tilted = mul(s.tone_low, tone_low) + mul(sum - s.tone_low, tone_high);
+        s.tone_low = add(s.tone_low, mul(kTilt, sub(sum, s.tone_low)));
+        const i32 tilted = add(mul(s.tone_low, tone_low), mul(sub(sum, s.tone_low), tone_high));
         t.last = t.out;
         t.out = add(add(tilted, tilted), add(tilted, tilted));  // back to full scale
     }
@@ -265,8 +272,8 @@ struct Box {
         Spring& sp = s.spring[k];
         i32* line = springs + k * kSpringLine;
         const i32 out = line[(sp.write - kSpringDelay[k]) & (kSpringLine - 1)];  // a power of two
-        sp.damp += mul(kDamp, out - sp.damp);
-        i32 v = in + mul(kSpringGain[k], sp.damp);
+        sp.damp = add(sp.damp, mul(kDamp, sub(out, sp.damp)));
+        i32 v = add(in, mul(kSpringGain[k], sp.damp));
         // The chirp: a spring's dispersion, the highs arriving after the
         // lows, from first-order all-passes, y = a(x - y') + x'. Stage n's
         // input is stage n - 1's output, so its x' is the y' just read: only
@@ -314,14 +321,14 @@ struct Box {
             const u32 step = static_cast<u32>((t.out >> 2) - (t.last >> 2));
             const u32 wet = static_cast<u32>(t.last);  // last + step * phase, which wraps as before
             t.in += soft(gain.apply(q[0])) >> 4;
-            q[0] = add(q[0], mul(mix, add(static_cast<i32>(wet + step), -q[0])));
+            q[0] = add(q[0], mul(mix, sub(static_cast<i32>(wet + step), q[0])));
             t.in += soft(gain.apply(q[1])) >> 4;
-            q[1] = add(q[1], mul(mix, add(static_cast<i32>(wet + step + step), -q[1])));
+            q[1] = add(q[1], mul(mix, sub(static_cast<i32>(wet + step + step), q[1])));
             t.in += soft(gain.apply(q[2])) >> 4;
-            q[2] = add(q[2], mul(mix, add(static_cast<i32>(wet + step + step + step), -q[2])));
+            q[2] = add(q[2], mul(mix, sub(static_cast<i32>(wet + step + step + step), q[2])));
             t.in += soft(gain.apply(q[3])) >> 4;
             ring(t);
-            q[3] = add(q[3], mul(mix, add(t.last, -q[3])));
+            q[3] = add(q[3], mul(mix, sub(t.last, q[3])));
         }
         t.save(s);
     }
@@ -390,9 +397,9 @@ struct Box {
         TankMemory tank(s);
         for (unsigned i = 0; i < opxy::block_frames; ++i) {
             // The loop: darker as the PT2399's clock slows, its lows let go.
-            dark = add(dark, mul(dark_by, add(out[i], -dark)));
-            low += mul(kEchoLow, (dark >> 1) - (low >> 1)) * 2;
-            i32 loop_out = add(dark, -low);
+            dark = add(dark, mul(dark_by, sub(out[i], dark)));
+            low = add(low, twice(mul(kEchoLow, (dark >> 1) - (low >> 1))));
+            i32 loop_out = sub(dark, low);
             if (L == kLoopTape) loop_out = tape2.run(loop_out, tape);
             if (L == kLoopPhaser) loop_out = phaser(loop_out, phase);
             if (L == kLoopSpring) loop_out = spring(loop_out, tank);
@@ -417,7 +424,7 @@ struct Box {
         for (unsigned i = 0; i < opxy::block_frames; ++i) {
             noise = noise * 1664525u + 1013904223u;
             const i32 hiss = static_cast<i32>(noise) >> hiss_shift;
-            x[i] = add(x[i], mul(mix, add(add(out[i], hiss), -x[i])));
+            x[i] = add(x[i], mul(mix, sub(add(out[i], hiss), x[i])));
         }
         s.noise = noise;
     }
