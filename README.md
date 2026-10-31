@@ -126,8 +126,9 @@ header shows:
 | Mosaic | warm, twin, slice, tilt | 20, 40, 60, -10 | 0, 33ms, .19s, 45 |
 | Static | fuzz, trem, cloud, radio | 20, 40, 45, 30 | -10, 0.8hz, 70, 20 |
 
-**CPU,** measured on an OP-XY at v1.4.1: 7.23% of the block budget on the default
-effects, and 10.76% on howl, swirl, cloud and cass with every control at full. That
+<!-- CPU: replace the two @@ figures with v1.7.0's, measured on the device, then remove this line. -->
+**CPU,** measured on an OP-XY at v1.7.0: @@% of the block budget on the default
+effects, and @@% on howl, swirl, cloud and cass with every control at full. That
 heaviest setting is enough that a busy project may drop audio, though no one has
 heard it do so yet.
 

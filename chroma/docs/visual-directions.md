@@ -89,6 +89,10 @@ control moves:
 - The rays now start on the prism's far face and follow it as it rocks.
 - Dark static bodies hide what's behind them, as Wane's do.
 
+Later, each group of rays' feet was lined up one above the other, so no outline can
+turn straight back on itself. With back, whose rays spread furthest along the face,
+that shows as short upright steps inside the prism.
+
 ![The bench as built, from the real display code](../screens.png)
 
 Every control at 0, 50 and 100 is in [controls-1x.png](controls-1x.png), and every
