@@ -17,7 +17,7 @@ opxy::i32 enum_word(unsigned choice, unsigned count) {
 struct Result { double peak, rms; };
 // A mono square in bursts, as notes on a send: some loud, some quiet.
 Result run(std::vector<opxy::i32>& memory, const opxy::i32* words, unsigned blocks, double scale) {
-    chroma::State state;
+    chroma::State state = chroma::State();
     chroma::initialize(state);
     const opxy::Transport transport = {1200, 0, true};
     opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
@@ -76,7 +76,7 @@ int main() {
                 }
     // A quiet send, then a far louder one: the working level falls and nothing jumps out of bounds.
     {
-        chroma::State state;
+        chroma::State state = chroma::State();
         chroma::initialize(state);
         const opxy::Transport transport = {1200, 0, true};
         const opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, 0, enum_word(1, 6), 0};
@@ -97,7 +97,7 @@ int main() {
     if (std::abs(chroma::blend(1717986918, -1073741824, 0x7fffffff) + 1073741824) > 4) { std::puts("FAIL a full blend leaves dry signal"); ok = false; }
     // A hot sweep through Howl, high in its range: it must not burst into high frequencies.
     {
-        chroma::State state;
+        chroma::State state = chroma::State();
         chroma::initialize(state);
         const opxy::Transport transport = {1200, 0, true};
         const opxy::i32 tilt = 1610612736;  // 75%
@@ -131,7 +131,7 @@ int main() {
     // Its tuning once overflowed on the device, not here, unless built with -fwrapv.
     for (double amount : {0.3, 0.6, 1.0})
         for (double tilt : {0.25, 0.5, 0.75, 1.0}) {
-            chroma::State state;
+            chroma::State state = chroma::State();
             chroma::initialize(state);
             const opxy::Transport transport = {1200, 0, true};
             opxy::i32 words[12] = {static_cast<opxy::i32>(amount * 2147483647.0), 0, 0, kWordHalf, static_cast<opxy::i32>(tilt * 2147483647.0), kWordHalf, kWordHalf, 0, enum_word(3, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
@@ -155,7 +155,7 @@ int main() {
     // Settings it was filmed screaming at on the device, about 5.4 kHz: Tilt +100, trem 97 at full rate, cloud 0,
     // press 0, Drift 54, and Amount turned up and down with no notes. It needed the turning to start.
     {
-        chroma::State state;
+        chroma::State state = chroma::State();
         chroma::initialize(state);
         const opxy::Transport transport = {1200, 0, true};
         opxy::i32 words[12] = {kWordHalf, static_cast<opxy::i32>(0.97 * 2147483647.0), 0, 0, 0x7fffffff, 0x7fffffff, static_cast<opxy::i32>(0.43 * 2147483647.0), static_cast<opxy::i32>(0.54 * 2147483647.0), enum_word(3, 6), enum_word(3, 6), enum_word(0, 6), enum_word(3, 8)};
@@ -178,7 +178,7 @@ int main() {
     }
     // Swell on a held saw chord: once it's open it stays open. And a new note still fades in.
     {
-        chroma::State state;
+        chroma::State state = chroma::State();
         chroma::initialize(state);
         const opxy::Transport transport = {1200, 0, true};
         const opxy::i32 words[12] = {0x7fffffff, 0, 0, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, enum_word(4, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
@@ -211,7 +211,7 @@ int main() {
         for (unsigned effect = 0; effect + 1 < chroma::kChoices[module]; ++effect) {
             // Not diffuse, whose repeats build slowly; twin, longer than the fade; pitch's grains; radio's noise, which jumps by design.
             if (module == 2 || (module == 1 && (effect == 1 || effect == 4)) || (module == 3 && effect == 6)) continue;
-            chroma::State state;
+            chroma::State state = chroma::State();
             chroma::initialize(state);
             const opxy::Transport transport = {1200, 0, true};
             opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, enum_word(5, 6), enum_word(5, 6), enum_word(5, 6), enum_word(7, 8)};
@@ -235,7 +235,7 @@ int main() {
             if (jump > kStartStep) { std::printf("FAIL module %u effect %u steps %.4f as it starts, at sample %d\n", module, effect, jump, at); ok = false; }
         }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
-    if (chroma::kBufferWords * 4 != 328280) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
+    if (chroma::kBufferWords * 4 != 328300) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");
     return ok ? 0 : 1;
 }

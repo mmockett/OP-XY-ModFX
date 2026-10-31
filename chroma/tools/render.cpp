@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
         words[8 + i] = static_cast<opxy::i32>(static_cast<unsigned>(std::atoi(argv[12 + i])) * bucket + bucket / 2);
     }
     std::vector<opxy::i32> memory(chroma::kBufferWords, 0x5a5a5a5a);
-    chroma::State state;
+    chroma::State state = chroma::State();
     chroma::initialize(state);
     const opxy::Transport transport = {1200, 0, true};
     float block[opxy::block_frames], frames[opxy::block_frames * 2];

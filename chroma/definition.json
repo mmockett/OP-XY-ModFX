@@ -242,7 +242,7 @@
     }
   },
   "resources": {
-    "bufferBytes": 328280,
+    "bufferBytes": 328300,
     "transport": 1,
     "display": {
       "stateBytes": 68,

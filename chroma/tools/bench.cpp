@@ -37,7 +37,7 @@ double lint_time(unsigned blocks) {
 }
 double chroma_time(unsigned blocks, unsigned a, unsigned b1, unsigned c, unsigned d, opxy::i32 amount) {
     std::vector<opxy::i32> memory(chroma::kBufferWords, 0);
-    chroma::State state;
+    chroma::State state = chroma::State();
     chroma::initialize(state);
     const opxy::Transport transport = {1200, 0, true};
     const opxy::i32 words[12] = {amount, amount, amount, amount, amount, amount, amount, amount,

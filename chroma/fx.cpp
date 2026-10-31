@@ -1022,6 +1022,7 @@ struct Box {
             module.gain = 0;
             module.cleared = 0;
             clear_state(which);
+            if (which != kCharacter) m.lower_left[which - 1] = 0;
         }
         const u32 frames = kFrames[which];
         // One module clears at a time, so a start's blocks stay no heavier than this.
@@ -1119,25 +1120,60 @@ struct Box {
 namespace {
 // Lowers everything the box holds by `by` bits, as its working level falls: all
 // of Audio, and the lines in use, frame by frame or, for the cloud, word by word.
+// The working level fell. What's held is lowered now. Cloud's ring is too, as its
+// lines write all through it. The other lines take blocks, oldest frames first,
+// staying ahead of their write points so nothing newly written is lowered: at once,
+// 81,920 words would cost more than a whole block. Until then an old frame reads
+// louder, for a few blocks, under the louder input that caused the fall.
 void lower(Memory& m, i32* lines, u32 by) {
     i32* held = reinterpret_cast<i32*>(&m.audio);
     for (u32 i = 0; i < sizeof(Audio) / 4; ++i) held[i] >>= by;
     for (u32 k = kMovement; k <= kTexture; ++k) {
-        if (!m.module[k].playing) continue;
+        const Module& module = m.module[k];
+        if (!module.playing) continue;
         i32* words = k == kMovement ? lines : k == kDiffusion ? lines + kMoveFrames : lines + kMoveFrames + kDiffuseFrames;
-        const u32 end = m.module[k].cleared;
-        if (k == kDiffusion && m.module[k].playing == kCloud) {
+        const u32 at = k - 1;
+        if (k == kDiffusion && module.playing == kCloud) {
+            const u32 end = module.cleared < 32768 ? module.cleared : 32768;
             for (u32 i = 0; i < end; ++i) words[i] >>= by;
+        } else if (module.cleared < kFrames[k]) {
+            for (u32 i = 0; i < module.cleared; ++i) words[i] = pack(high_half(words[i]) >> by, low_half(words[i]) >> by);
+        } else if (m.lower_left[at]) {
+            m.lower_by[at] += by;  // a second fall: what's left takes both
         } else {
-            for (u32 i = 0; i < end; ++i) words[i] = pack(high_half(words[i]) >> by, low_half(words[i]) >> by);
+            m.lower_at[at] = m.write[at];
+            m.lower_left[at] = kFrames[k];
+            m.lower_by[at] = by;
         }
+    }
+}
+
+// A block's share of that, before the block writes its 64 frames.
+void lowering(Memory& m, i32* lines) {
+    static const u32 kChunk[3] = {2048, 4096, 2048};
+    for (u32 at = 0; at < 3; ++at) {
+        const u32 left = m.lower_left[at];
+        if (!left) continue;
+        const u32 k = at + 1;
+        i32* words = k == kMovement ? lines : k == kDiffusion ? lines + kMoveFrames : lines + kMoveFrames + kDiffuseFrames;
+        const u32 mask = kFrames[k] - 1, by = m.lower_by[at], count = left < kChunk[at] ? left : kChunk[at];
+        u32 p = m.lower_at[at];
+        for (u32 i = 0; i < count; ++i, ++p) {
+            const i32 word = words[p & mask];
+            words[p & mask] = pack(high_half(word) >> by, low_half(word) >> by);
+        }
+        m.lower_at[at] = p;
+        m.lower_left[at] = left > count + 64 ? left - count - 64 : 0;
     }
 }
 }
 
 void initialize(State& state) {
     // An engine reset runs this again: the buffer's old contents are now unwritten.
+    const i32 last[2] = {state.last[0], state.last[1]};
     state = State();
+    state.last[0] = last[0];
+    state.last[1] = last[1];
     state.noise = 22222;
     state.lift = 20;
 }
@@ -1150,6 +1186,7 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
     }
     Memory& m = *reinterpret_cast<Memory*>(buffer.words);
     i32* const lines = buffer.words + kMemoryWords;
+    const bool fresh = !state.ready;
     if (!state.ready) {
         for (u32 i = 0; i < kMemoryWords; ++i) buffer.words[i] = 0;
         for (u32 i = 0; i < 8; ++i) state.smooth[i] = control(parameters[i]);
@@ -1174,6 +1211,7 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
         state.lift = fit;
         state.heard = 1;
     }
+    lowering(m, lines);
     const u32 lift = state.lift;
     for (unsigned i = 0; i < kN; ++i) {
         left[i] <<= lift;
@@ -1192,5 +1230,16 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
         left[i] = (a > kHalf ? kHalf : a < -kHalf ? -kHalf : a) >> lift;
         right[i] = (b > kHalf ? kHalf : b < -kHalf ? -kHalf : b) >> lift;
     }
+    // The first block after an engine reset fades out what it cut.
+    if (state.last[0] | state.last[1]) {
+        if (fresh)
+            for (unsigned i = 0; i < kN; ++i) {
+                const i32 fade = static_cast<i32>(kN - i) * (0x7fffffff / kN);
+                left[i] = add(left[i], mul(state.last[0], fade));
+                right[i] = add(right[i], mul(state.last[1], fade));
+            }
+    }
+    state.last[0] = left[kN - 1];
+    state.last[1] = right[kN - 1];
 }
 }

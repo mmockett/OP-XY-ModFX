@@ -11,7 +11,7 @@ const opxy::u32 kMoveFrames = 8192, kTextureFrames = 8192, kDiffuseFrames = 6553
 // working level falls. Nothing but audio goes here.
 struct Audio {
     opxy::i32 split[2], post[2], dc_in[2], dc_out[2], ap[4], band[2], low[2], level;  // character
-    opxy::i32 swirl[1][8][2], swirl_back[2];                                          // movement
+    opxy::i32 swirl[1][6][2], swirl_back[2];                                          // movement
     opxy::i32 echo_low[2], echo_high[2], echo_out[2];                                 // diffusion
     opxy::i32 cloud_pass[2], cloud_back[2], cloud_damp[2], cloud_last[2], cloud_now[2], cloud_in[2];
     opxy::i32 filter_low[2], filter_band[2], tape_loss[2], tape_bump[2], press, crush[2], radio_level;  // texture
@@ -52,6 +52,8 @@ struct Memory {
     opxy::i32 swell_gain[2];
     opxy::i32 last_time, bend;       // Time's last value, and the bend its turning puts on a slice
     opxy::u32 hold_count, drop[2];   // radio: frames left of its held sample and its dropouts
+    // Lines being lowered after the working level fell: each one's next frame, frames still to do, and by how much.
+    opxy::u32 lower_at[3], lower_left[3], lower_by[3];
 };
 
 struct State {
@@ -60,6 +62,7 @@ struct State {
     opxy::u32 heard;                 // audio has come in since initialize, so lines hold something
     opxy::u32 noise;                 // the generator behind drift, hiss and static
     opxy::i32 smooth[8];             // the eight controls, gliding
+    opxy::i32 last[2];               // the last output, for an engine reset to fade from
 };
 const opxy::u32 kMemoryWords = (sizeof(Memory) + 3) / 4;
 const opxy::u32 kBufferWords = kMemoryWords + kMoveFrames + kDiffuseFrames + kTextureFrames;  // definition.json: bufferBytes
