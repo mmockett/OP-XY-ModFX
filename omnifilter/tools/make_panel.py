@@ -12,8 +12,11 @@ turns with attack and the engraved scale ring with release, each through
 
 Nodes (display.h): 0 the iris opening, 1 and 2 the seams between blades
 (four each, joined along the iris housing so each is one closed outline),
-3 the focus ring, 4 the scale ring. Everything else is fixed artwork. Every
-outline is closed and its points distinct, so every outline encloses area."""
+3 to 5 the focus ring's knurling, 6 to 9 the scale ring's engraving, each
+part one comb of strokes on the ring's inner edge. The rings' edges, being
+circles, need not turn, so they are fixed artwork with the rest. Every
+outline is closed and its points distinct, so every outline encloses area,
+and every path is one outline of at most 64 points (docs/display.md)."""
 import math
 import pathlib
 
@@ -43,6 +46,7 @@ def num(v):
 
 
 def outline(points):
+    assert 2 <= len(points) <= 64, len(points)
     return "M" + " L".join(f"{num(x)},{num(y)}" for x, y in points) + " Z"
 
 
@@ -50,7 +54,7 @@ def polar(r, degrees, cx=0, cy=0):
     return (cx + r * math.cos(math.radians(degrees)), cy + r * math.sin(math.radians(degrees)))
 
 
-def circle(r, steps=96, cx=0, cy=0):
+def circle(r, steps=64, cx=0, cy=0):
     return [polar(r, 360 * i / steps, cx, cy) for i in range(steps)]
 
 
@@ -63,10 +67,22 @@ def band(r0, r1, a0, a1, steps, cx=0, cy=0):
     return arc(r1, a0, a1, steps, cx, cy) + arc(r0, a1, a0, steps, cx, cy)
 
 
-def tick(r0, r1, degrees, width=RIBBON):
-    """A radial tick as a thin closed quadrilateral."""
-    half = math.degrees(width / 2 / ((r0 + r1) / 2))
-    return [polar(r0, degrees - half), polar(r1, degrees - half), polar(r1, degrees + half), polar(r0, degrees + half)]
+def comb(radius, ticks):
+    """Radial ticks on a thin arc, as one outline: each out from `radius` to its
+    tip and back, then the arc home at the ring's edge, where the fixed edge
+    hides where one comb ends and the next begins. Ticks are (degrees, tip, width)."""
+    half = lambda width, r: math.degrees(width / 2 / r)
+    points = []
+    for degrees, tip, width in ticks:
+        points += [polar(radius + RIBBON, degrees - half(width, radius)), polar(tip, degrees - half(width, tip)),
+                   polar(tip, degrees + half(width, tip)), polar(radius + RIBBON, degrees + half(width, radius))]
+    a0, a1 = ticks[0][0] - half(ticks[0][2], radius), ticks[-1][0] + half(ticks[-1][2], radius)
+    return points + arc(radius, a1, a0, 11)
+
+
+def combs(radius, ticks, parts):
+    """The ticks as `parts` combs, as evenly as they go."""
+    return [comb(radius, ticks[len(ticks) * i // parts:len(ticks) * (i + 1) // parts]) for i in range(parts)]
 
 
 def hline(x0, x1, y):
@@ -112,30 +128,23 @@ def seams(first, cutoff):
 
 
 def focus_ring():
-    """Inner and outer edges, knurling all round but a 60-degree gap at the top
-    with a dot in it: the ring's position reads at a glance."""
+    """Knurling all round but a 60-degree gap at the top: the ring's position
+    reads at a glance."""
     r0, r1 = FOCUS
-    shapes = [circle(r0), circle(r1)]
-    for i in range(48):
-        deg = -90 + 7.5 * i
-        if abs(((deg + 90 + 180) % 360) - 180) > 30:
-            shapes.append(tick(r0 + 2, r1 - 2, deg))
-    return shapes
+    ticks = [(-90 + 7.5 * i, r1 - 2, RIBBON) for i in range(48) if abs(((7.5 * i + 180) % 360) - 180) > 30]
+    return combs(r0, ticks, 3)
 
 
 def scale_ring():
-    """Inner and outer edges and a scale engraved counter-clockwise from the
-    top over 270 degrees: the index mark reads it as the ring turns clockwise."""
+    """A scale engraved counter-clockwise from the top over 270 degrees, ending
+    in a wide tick: the index mark reads it as the ring turns clockwise."""
     r0, r1 = SCALE
-    shapes = [circle(r0), circle(r1)]
+    ticks = []
     for i in range(28):
-        deg = -90 - 10 * i
         long = i % 3 == 0
-        shapes.append(tick(r0 + 2, r1 - (2 if long else 6), deg, 0.9 if long else RIBBON))
-    shapes.append(band(r0 + 2, r1 - 2, -90 - 270 - 1.2, -90 - 270 + 1.2, 2))  # the scale's end
+        ticks.append((-90 - 10 * i, r1 - (2 if long else 6), (3 if i == 27 else 0.9 if long else RIBBON)))
     dot = polar((r0 + r1) / 2, -90 + 9)
-    shapes.append(circle(1.6, 12, *dot))  # the scale's start, beside its first tick
-    return shapes
+    return combs(r0, ticks, 3) + [circle(1.6, 12, *dot)]  # the scale's start, beside its first tick
 
 
 def body():
@@ -148,16 +157,13 @@ def body():
     shapes += [rounded(34, 54, 96, 86, 3), rounded(38, 58, 92, 82, 2)]       # viewfinder
     shapes += [rounded(384, 54, 446, 86, 3), circle(10, 32, 415, 70)]       # rangefinder window
     shapes += [rounded(x0 - 6, 60, x0, 74, 2), rounded(x1, 60, x1 + 6, 74, 2)]  # strap lugs
-    shapes += [circle(FLANGE, 96, CX, CY), circle(FLANGE - 2, 96, CX, CY)]  # lens mount
+    shapes += [circle(FLANGE, 64, CX, CY), circle(FLANGE - 2, 64, CX, CY)]  # lens mount
     shapes.append([(CX - 4, CY - FLANGE - 7), (CX + 4, CY - FLANGE - 7), (CX, CY - FLANGE - 1)])  # index
-    shapes.append(circle(HOUSING + 2, 96, CX, CY))  # iris housing
+    shapes.append(circle(HOUSING + 2, 64, CX, CY))  # iris housing
+    shapes += [circle(r, 64, CX, CY) for r in (*FOCUS, *SCALE)]  # the rings' edges
     # The front glass's reflections, over the iris.
     shapes += [band(44, 45, 200, 236, 8, CX, CY), band(48.5, 49.3, 206, 224, 6, CX, CY)]
     return shapes
-
-
-def path(shapes):
-    return " ".join(outline(s) for s in shapes)
 
 
 def fragment():
@@ -170,8 +176,8 @@ def fragment():
     lines.append(f'  <text {FONT} font-size="8" fill="#5a5a5a" transform="matrix(1 0 0 1 384 104)">1:1.4  8 tracks</text>')
     for i, points in enumerate(nodes):
         lines.append(f'  <path id="{ID}_node_{i}" d="{outline(points)}" {lens} fill="none" stroke="#e6e6e6" stroke-width="1"/>')
-    lines.append(f'  <path id="{ID}_node_3" d="{path(focus_ring())}" {lens} fill="none" stroke="#b4b4b4" stroke-width="1"/>')
-    lines.append(f'  <path id="{ID}_node_4" d="{path(scale_ring())}" {lens} fill="none" stroke="#b4b4b4" stroke-width="1"/>')
+    for i, points in enumerate(focus_ring() + scale_ring()):
+        lines.append(f'  <path id="{ID}_node_{3 + i}" d="{outline(points)}" {lens} fill="none" stroke="#b4b4b4" stroke-width="1"/>')
     for i, (fill, stroke) in enumerate((("#000000", "#e6e6e6"), ("#000000", "#b4b4b4"))):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
     lines.append('</g>')

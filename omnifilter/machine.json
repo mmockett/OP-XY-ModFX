@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sdk": "1.8",
+  "sdk": "1.9",
   "kind": "synth",
-  "description": "An aux module: one filter and envelope for every instrument track, set from an aux track"
+  "description": "A global mod: one filter and envelope for every instrument track, set from aux track 12 (CV)"
 }

@@ -77,8 +77,8 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         frame.paths[p].key = open;
         seams(frame.paths[p], cutoff, p - 1);
     }
-    for (u32 i = 0; i < 5; ++i) place(frame, i, kCentreX * unit, kCentreY * unit, unit, i < 3 ? 0 : 1, stroke);
-    turn(frame, 3, rotation(state.shown[2] * 2700 >> 15));
-    turn(frame, 4, rotation(state.shown[3] * 2700 >> 15));
+    for (u32 i = 0; i < kNodes; ++i) place(frame, i, kCentreX * unit, kCentreY * unit, unit, i < 3 ? 0 : 1, stroke);
+    for (u32 i = 3; i < kScaleNode; ++i) turn(frame, i, rotation(state.shown[2] * 2700 >> 15));
+    for (u32 i = kScaleNode; i < kNodes; ++i) turn(frame, i, rotation(state.shown[3] * 2700 >> 15));
 }
 }

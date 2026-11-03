@@ -3,9 +3,9 @@
 Mods and effects for the Teenage Engineering OP-XY, built with the
 [Open-XY SDK](https://github.com/etcetc000/open-xy):
 
-- **Omnifilter**, an aux module: a global mod that sits on one of the OP-XY's
-  aux tracks instead of an instrument track. It takes no instrument slot, and
-  its controls steer every instrument track at once.
+- **Omnifilter**, a global mod: it sits on track 12 (CV) instead of an
+  instrument track. It takes no instrument slot, and its controls steer every
+  instrument track at once.
 - **Lint**, a send effect: a 1970s box of effects on FX I or II, with its own
   page on the send.
 - **Chroma**, a send effect: an ethereal stereo console of four modules on FX I
@@ -16,10 +16,22 @@ Mods and effects for the Teenage Engineering OP-XY, built with the
 ## Omnifilter
 
 One filter and one envelope for the whole OP-XY. Omnifilter's four controls
-set cutoff, resonance, attack and release on all eight instrument tracks. Each
-setting is stored on every track exactly as if that track's own encoder had
-been turned. Because the controls belong to an aux track, they can also be
-locked on steps, so the whole mix opens and closes with the pattern.
+scale cutoff, resonance, attack and release on all eight instrument tracks,
+so each track keeps its own sound and they all move together:
+
+- **cutoff** closes every track's own cutoff in proportion: at 100% each
+  track is as you set it, at 50% each track's cutoff is halved.
+- **reso** and **attack** push every track's own value toward full: at 0%
+  each track is as you set it.
+- **release** is centred: at 50% each track is as you set it; below, every
+  release shortens toward nothing, and above, it lengthens toward full.
+
+Each track's own settings stay underneath, saved with the project, and come
+back when you give track 12 back to `cv`. Because the controls belong to an
+aux track, they can also be locked on steps, so the whole mix opens and closes
+with the pattern. A parameter lock on an instrument track's own cutoff,
+resonance, attack or release plays as written for its step, untouched by
+Omnifilter.
 
 **Controls:** cutoff, reso, attack, release
 
@@ -36,30 +48,35 @@ Nothing moves unless a control does.
 
 ### Using it
 
-![Shift and M1 on aux 4 list cv and omnifilter; M1 shows Omnifilter's page; Shift and aux 4 list its presets](docs/screens/flow.png)
+![Shift and M1 on track 12 list cv and omnifilter; M1 shows Omnifilter's page; Shift and track 12 list its presets](docs/screens/flow.png)
 
-An aux track takes Omnifilter the way an instrument track takes an engine:
+Track 12 (CV) takes Omnifilter the way an instrument track takes an engine:
 
-1. Select an aux track (aux 1 to 6), hold **Shift** and press **M1**.
-2. Choose `omnifilter` from the list, titled "aux" under the track's number.
+1. Select track 12, hold **Shift** and press **M1**.
+2. Choose `omnifilter` from the list, titled "engine" under the track's number.
 3. Press **M1** to see its page, and turn the encoders.
-4. Hold **Shift** and press the track's key for its presets: open, warm,
-   dark, acid, pluck and swell. A preset moves all eight tracks at once.
+4. Hold **Shift** and press the track's key for its presets: the `omnifilter`
+   folder holds open, warm, dark, acid, pluck and swell. A preset moves all
+   eight tracks at once, and `open` gives every track back its own settings. Your own go in `aux_presets/<folder>/` over MTP.
 
-To put the track's own module back, choose it from the same Shift and M1 list
-(`brain`, `punch-in`, `midi`, `cv`, `audio` or `tape`).
+To give the track back, choose `cv` from the same Shift and M1 list, or the
+`cv` folder's `init` preset.
 
-### How a module shares its track
+### How it shares the track
 
-- **Saved with the project.** The aux track keeps Omnifilter the way an
-  instrument track keeps its engine, so it's still there after a restart.
-- **MIDI and CV play on.** On aux 3 (MIDI) or aux 4 (CV), the track's own
-  notes still go to your external gear, and its M2 and M3 CCs still go out.
-  Turning Omnifilter sends no CC.
-- **The other stock modules go quiet.** On aux 1, 2, 5 and 6 (brain, punch-in,
-  audio, tape), the track's own notes start nothing, and the brain transposes
-  no routed track, since their controls are hidden behind Omnifilter's page.
-- M2 to M4 stay the track's stock pages.
+- **Per pattern, saved with the project.** Each of track 12's patterns holds
+  Omnifilter or `cv`, as an instrument track's patterns hold an engine, so
+  chained patterns and songs can switch between them. It's still there after
+  a restart, and a new project starts with `cv`.
+- **CV goes quiet.** While Omnifilter holds the track, its CV output and gate
+  stay silent; `cv` gets its own settings back with the track.
+- **M2 and M3 keep Omnifilter's page**, since CV's own pages have nothing to
+  do while it holds the track.
+- **M4 is the track's LFO**, and it can move Omnifilter itself: its
+  destinations are cutoff, reso, attack and release, so one LFO sweeps every
+  track's filter or envelope together.
+- **Muting track 12** gives every track its own settings back until you
+  unmute it.
 
 The screen's artwork and the iris's tables come from
 [`omnifilter/tools/make_panel.py`](omnifilter/tools/make_panel.py); rerun it
@@ -136,19 +153,12 @@ heard it do so yet.
 
 ## Status: experimental
 
-Each machine needs SDK changes still in review, and builds against its own
-branch until they merge:
-
-- **Omnifilter** needs aux modules (SDK 1.8),
-  [etcetc000/open-xy#221](https://github.com/etcetc000/open-xy/pull/221):
-  branch `sdk/aux-modules`.
-- **Lint** needs effect pages, shift rows and effect screens (SDK 1.7),
-  [etcetc000/open-xy#230](https://github.com/etcetc000/open-xy/pull/230):
-  branch `sdk/effect-screens`.
-- **Chroma** needs the same (SDK 1.7), on the same branch.
+Each machine builds against the SDK's `staging` branch: Omnifilter needs
+machines on aux tracks (SDK 1.9), Lint and Chroma effect pages, shift rows and
+effect screens (SDK 1.7).
 
 ```bash
-git clone -b sdk/effect-screens https://github.com/mmockett/open-xy
+git clone -b staging https://github.com/etcetc000/open-xy
 ```
 
 ```bash

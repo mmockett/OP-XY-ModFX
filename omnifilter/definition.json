@@ -2,24 +2,24 @@
   "schema": 1,
   "id": "omnifilter",
   "name": "Omnifilter",
-  "aux": {"macro": ["cutoff", "resonance", "attack", "release"]},
   "parameters": [
     {"id":"cutoff","label":"Cutoff","default":1,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
     {"id":"resonance","label":"Reso","default":0,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
     {"id":"attack","label":"Attack","default":0,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"},
-    {"id":"release","label":"Release","default":0.3,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"}
+    {"id":"release","label":"Release","default":0.5,"mapping":{"kind":"linear","minimum":0,"maximum":1},"display":"percent"}
   ],
   "presets": {
-    "open":{"cutoff":1.0,"resonance":0.0,"attack":0.0,"release":0.3},
-    "warm":{"cutoff":0.62,"resonance":0.15,"attack":0.05,"release":0.4},
-    "dark":{"cutoff":0.3,"resonance":0.1,"attack":0.1,"release":0.5},
-    "acid":{"cutoff":0.35,"resonance":0.8,"attack":0.0,"release":0.2},
-    "pluck":{"cutoff":0.5,"resonance":0.3,"attack":0.0,"release":0.08},
-    "swell":{"cutoff":0.55,"resonance":0.2,"attack":0.7,"release":0.8}
+    "open":{"cutoff":1.0,"resonance":0.0,"attack":0.0,"release":0.5},
+    "warm":{"cutoff":0.7,"resonance":0.1,"attack":0.03,"release":0.6},
+    "dark":{"cutoff":0.4,"resonance":0.05,"attack":0.08,"release":0.7},
+    "acid":{"cutoff":0.45,"resonance":0.7,"attack":0.0,"release":0.3},
+    "pluck":{"cutoff":0.6,"resonance":0.25,"attack":0.0,"release":0.15},
+    "swell":{"cutoff":0.65,"resonance":0.15,"attack":0.5,"release":0.85}
   },
   "resources": {
     "voiceBytes":4,"voiceAlignment":4,"voiceCapacity":1,"sharedBytes":0,
     "outputPeakQ31":1073741824,
-    "display":{"stateBytes":20,"stateAlignment":4,"paths":3,"points":64,"nodes":5,"texts":0,"palette":2}
+    "display":{"stateBytes":20,"stateAlignment":4,"paths":3,"points":64,"nodes":10,"texts":0,"palette":2},
+    "trackControl":{"stateBytes":4,"stateAlignment":4,"unique":true,"aux":[12],"sharedLfo":true}
   }
 }
