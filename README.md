@@ -37,6 +37,10 @@ Omnifilter.
 
 **Presets:** open, warm, dark, acid, pluck, swell
 
+**CPU,** measured on an OP-XY at v1.9.0: 0.80% of the block budget at any
+setting. It makes no sound, so that is all its silent voice costs; its controls
+steer the tracks from outside the audio.
+
 **The screen** is the front of a rangefinder camera, and its lens is the
 filter every track plays through. The iris has eight blades, one per track:
 - **cutoff** opens and closes the iris.
