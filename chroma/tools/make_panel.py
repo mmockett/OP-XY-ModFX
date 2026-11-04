@@ -29,12 +29,26 @@ XS = [60, 180, 300, 420]      # under each header column
 R = 40                        # a facet's radius
 ARC_R = [10, 15, 20, 25, 30]  # Diffuse's arcs, before Time scales them
 EFFECTS = ["cloud", "dusk", "tape", "slice", "back"]
-# Palette: a facet's ring, quiet, then lit in each knob's tone while Shift is held.
-PALETTE = [(GUIDE, FINE)] + [(t, SECOND) for t in TONES]
+
+
+def grey(hexs, f):
+    g = max(0, min(255, round(int(hexs[1:3], 16) * f)))
+    return f"#{g:02x}{g:02x}{g:02x}"
+
+
+# Each facet's ground, a dark step of its tone; Character's plate a step up; Diffuse's
+# echoes stepping darker as they fade.
+GROUNDS = [grey(t, 0.22) for t in TONES]
+RINGS = [grey(t, 0.5) for t in TONES]
+PLATE = grey(TONES[0], 0.42)
+ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
+# Palette: each facet lit in its knob's tone while Shift is held (its ground kept).
+PALETTE = [(GROUNDS[i], TONES[i], 1.2) for i in range(4)]
 SHAPES = ["wave", "left_sway", "right_sway", "band"]
-NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in"] +
+NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
-         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + [f"bar_{i}" for i in range(8)])
+         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + ["puck_left", "puck_right", "exit_left", "exit_right"] +
+         [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
 
@@ -68,8 +82,16 @@ def arc(r, a0, a1, n=14):
     return ribbon([(r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)])
 
 
+def crescent(r, a0, a1, thick=3.2, n=12):
+    """A filled crescent: the outer arc out, the inner back, its ends drawn in."""
+    outer = [(r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)]
+    ri = r - thick
+    inner = [(ri * math.cos(math.radians(a0 + 4 + (a1 - a0 - 8) * j / (n - 1))), ri * math.sin(math.radians(a0 + 4 + (a1 - a0 - 8) * j / (n - 1)))) for j in range(n)]
+    return outer + inner[::-1]
+
+
 def arcs(effect):
-    """Diffuse's five arcs for an effect, centred at the facet's left."""
+    """Diffuse's five echoes for an effect, filled crescents centred at the facet's left."""
     out = []
     for k, r in enumerate(ARC_R):
         if effect == "dusk":     # each echo on the other side
@@ -81,7 +103,7 @@ def arcs(effect):
             a1 = a0 + 26
         else:                    # cloud, back: whole
             a0, a1 = -60, 60
-        out.append(arc(r, a0, a1))
+        out.append(crescent(r + 1.6, a0, a1))
     return out
 
 
@@ -111,30 +133,37 @@ def main():
             x, y, fill, size = 65 + 120 * col, 33, "#707070", "13px"
         lines.append(f'  <text id="{ID}_text_{i}" transform="matrix(1 0 0 1 {num(x)} {num(y)})" fill="{fill}" {FONT} font-size="{size}">-</text>')
 
-    def put(name, points, stroke, width, x=0, y=0):
+    def put(name, points, stroke, width, x=0, y=0, fill="none"):
         check(points, name)
-        lines.append(f'  <path id="{ID}_node_{nodes[name]}" transform="matrix(1 0 0 1 {num(x)} {num(y)})" d="{outline(points)}" fill="none" stroke="{stroke}" stroke-width="{width}"/>')
+        paint = f'stroke="{stroke}" stroke-width="{width}"' if stroke != "none" else 'stroke="none"'
+        lines.append(f'  <path id="{ID}_node_{nodes[name]}" transform="matrix(1 0 0 1 {num(x)} {num(y)})" d="{outline(points)}" fill="{fill}" {paint}/>')
 
     # The output's two sides, named once.
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y - 22})" fill="{GUIDE}" {FONT} font-size="10px">L</text>')
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y + 30})" fill="{GUIDE}" {FONT} font-size="10px">R</text>')
+    # Solid grounds, static except when Shift lights their rings.
     for i, x in enumerate(XS):
-        put(f"facet_{i}", circle(R), GUIDE, FINE, x, Y)
-    put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)]), GUIDE, SECOND, 0, Y)
+        put(f"facet_{i}", circle(R - 1), RINGS[i], SECOND, x, Y, GROUNDS[i])
+    # Character's plate: the facet's lower half, turned with Tilt.
+    put("plate", [((R - 4) * math.cos(math.pi * k / 31), (R - 4) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
+    put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
     gap = XS[1] - XS[0] - 2 * R - 6
     for k in range(1, 4):
         for s in ("left", "right"):
-            put(f"{s}_{k}", ribbon([(0, 0), (gap, 0)]), TONES[k - 1], SECOND, XS[k - 1] + R + 3, Y)
+            put(f"{s}_{k}", [(0, -1), (gap, -1), (gap, 1), (0, 1)], "none", 0, XS[k - 1] + R + 3, Y, TONES[k - 1])
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
-            put(f"arc_{e}_{k}", a, TONES[2], SECOND if k < 3 else 0.7, XS[2] - 20, Y)
-    # The reshaping outlines: placeholders the display replaces every frame.
+            put(f"arc_{e}_{k}", a, "none", 0, XS[2] - 20, Y, ECHOES[k])
+    # The reshaping outlines: placeholders the display replaces every frame. Always hollow.
     homes = {"wave": 0, "left_sway": 1, "right_sway": 1, "band": 3}
     for name in SHAPES:
         tone = homes[name]
-        put(name, ribbon([(-30 + 2 * k, 0) for k in range(32)]), TONES[tone], MAIN, XS[tone], Y)
-    for i, (stroke, width) in enumerate(PALETTE):
-        lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="#000000" stroke="{stroke}" stroke-width="{width}"/>')
+        put(name, ribbon([(-30 + 2 * k, 0) for k in range(32)]), TONES[tone], 1.6 if name == "band" else 1.4, XS[tone], Y)
+    # Filled marks: where each side of Movement is now, and where each side leaves Texture.
+    for name, tone in (("puck_left", 1), ("puck_right", 1), ("exit_left", 3), ("exit_right", 3)):
+        put(name, circle(4.2, 20), "none", 0, XS[tone], Y, TONES[tone])
+    for i, (fill, stroke, width) in enumerate(PALETTE):
+        lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>')
     lines.append("</g>")
     art = "\n".join(lines) + "\n"
     assert len(art.encode()) <= 65536
@@ -149,9 +178,10 @@ def main():
          "namespace chroma { namespace panel {",
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = {nodes['facet_0']}, "
-         f"kNodeIn = {nodes['in']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, kNodeBars = {nodes['bar_0']} }};",
-         "// Palette: a facet's ring, quiet; then lit in each encoder's tone.",
-         "enum Shade { kQuiet = 0, kLit = 1 };",
+         f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
+         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeBars = {nodes['bar_0']} }};",
+         "// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept.",
+         "enum Shade { kLit = 0 };",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
          f"const opxy::i32 kArcX = {XS[2] - 20};",

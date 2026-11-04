@@ -3,10 +3,12 @@
 
 namespace chroma {
 // Four facets in a row (tools/make_panel.py draws them), one under each header
-// column and in its encoder's tone, as the OP-XY's knobs run from dark grey to
-// white: Character's one cycle of the wave, leaning with Tilt; Movement's sway on
-// each side over the last 1.25 s, so Rate reads as how many sways; Diffuse's
-// echoes as arcs, more with Amount and wider apart with Time; and Texture's band,
+// column on a solid ground in its encoder's tone, as the OP-XY's knobs run from
+// dark grey to white: Character's one cycle of the wave on a plate leaning with
+// Tilt; Movement's sway on
+// each side over the last 1.25 s, so Rate reads as how many sways, a puck where
+// each side is now; Diffuse's echoes as filled crescents fading in steps, more
+// with Amount and wider apart with Time; and Texture's band,
 // its upper edge the left side's response and its lower edge the right's. Between
 // them the sound passes as two lines, left above and right below, as far apart as
 // it is wide so far. A send's page hears no notes, so only what moves the sound
@@ -167,15 +169,18 @@ i32 response(u32 effect, i32 amount, i32 drift, i32 u, u32 clock) {
     return w;
 }
 
-// A thin closed outline along a line of 32 points, its edges 1/5 px either side
+// A thin closed outline along a line of 32 points, its edges 0.3 px either side
 // of it across `normal` (a unit vector, Q10): out along one edge, back along the other.
 void ribbon(Frame::path_type& path, const Point (&line)[32], i32 nx, i32 ny) {
-    const i32 ox = nx * 205 >> 10, oy = ny * 205 >> 10;
+    const i32 ox = nx * 307 >> 10, oy = ny * 307 >> 10;
     for (u32 k = 0; k < 32; ++k) {
         path.points[k] = Point{line[k].x + ox, line[k].y + oy};
         path.points[63 - k] = Point{line[k].x - ox, line[k].y - oy};
     }
 }
+
+// Q10 to the nearest whole pixel, still Q10.
+i32 whole(i32 q10) { return floor_q10(q10 + 512) * unit; }
 
 // Sets a path's key from its points, so it redraws only when it changes.
 void sign(Frame::path_type& path) {
@@ -282,14 +287,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 w3 = w2 + (da ? px(2) + share(share(px(10), da), 16384 + (v[kTime] >> 1)) : 0);
     const i32 widths[4] = {0, w1, w2, w3};
 
-    // --- The facets' rings: quiet, lit in their knob's tone while Shift is held. ---
+    // --- The facets' solid grounds, their rings lit in their knob's tone while Shift is held. ---
     for (u32 i = 0; i < 4; ++i)
-        place(frame, kNodeFacets + i, px(kX[i]), px(kY), unit, input.shift ? kLit + i : kQuiet, stroke);
+        place(frame, kNodeFacets + i, px(kX[i]), px(kY), unit, input.shift ? kLit + i : 0, input.shift ? fill_and_stroke : keep);
     // --- Between them the sound: one line in, then left above and right below. ---
     place(frame, kNodeIn, 0, px(kY), unit, 0, keep);
     for (u32 k = 1; k < 4; ++k) {
-        place(frame, kNodeLines + 2 * (k - 1), px(kX[k - 1] + kR + 3), px(kY) - widths[k], unit, 0, keep);
-        place(frame, kNodeLines + 2 * (k - 1) + 1, px(kX[k - 1] + kR + 3), px(kY) + widths[k], unit, 0, keep);
+        place(frame, kNodeLines + 2 * (k - 1), px(kX[k - 1] + kR + 3), px(kY) - widths[k] - unit, unit, 0, keep);
+        place(frame, kNodeLines + 2 * (k - 1) + 1, px(kX[k - 1] + kR + 3), px(kY) + widths[k] + unit, unit, 0, keep);
     }
 
     // --- Character: one cycle as shaped, leaning with Tilt (howl's tilt is in its shape). ---
@@ -304,6 +309,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             line[k] = Point{((x >> 5) * c - (y >> 5) * s) >> 5, ((x >> 5) * s + (y >> 5) * c) >> 5};
         }
         place(frame, kNodeWave, px(kX[0]), px(kY), unit, 0, keep);
+        // The plate it stands on leans with it, a whole degree at a time, so its fill redraws only as Tilt turns.
+        place(frame, kNodePlate, px(kX[0]), px(kY), unit, 0, keep);
+        turn(frame, kNodePlate, rotation((tenths + (tenths < 0 ? -5 : 5)) / 10 * 10));
         ribbon(frame.paths[kNodeWave], line, -s, c);
         sign(frame.paths[kNodeWave]);
     }
@@ -330,6 +338,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
         place(frame, n, px(kX[1]), px(kY), unit, 0, keep);
         ribbon(frame.paths[n], line, 0, 1024);
+        // Where this side is now: a filled puck at the newest end, on whole pixels.
+        place(frame, kNodePucks + (side > 0 ? 0 : 1), px(kX[1]) + whole(line[31].x), px(kY) + whole(line[31].y), unit, 0, keep);
         sign(frame.paths[n]);
     }
 
@@ -375,6 +385,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             frame.paths[kNodeBand].points[63 - k] = Point{x, w + down};
         }
         place(frame, kNodeBand, px(kX[3]), px(kY), unit, 0, keep);
+        // Where each side leaves: a filled puck at the band's high end.
+        place(frame, kNodeExits, px(kX[3]) + whole(frame.paths[kNodeBand].points[31].x), px(kY) + whole(frame.paths[kNodeBand].points[31].y), unit, 0, keep);
+        place(frame, kNodeExits + 1, px(kX[3]) + whole(frame.paths[kNodeBand].points[32].x), px(kY) + whole(frame.paths[kNodeBand].points[32].y), unit, 0, keep);
         sign(frame.paths[kNodeBand]);
     }
 }

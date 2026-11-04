@@ -4,10 +4,10 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 48, kTexts = 16, kPalette = 5;
-enum Node { kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = 4, kNodeIn = 8, kNodeLines = 9, kNodeArcs = 15, kNodeBars = 40 };
-// Palette: a facet's ring, quiet; then lit in each encoder's tone.
-enum Shade { kQuiet = 0, kLit = 1 };
+const opxy::u32 kNodes = 53, kTexts = 16, kPalette = 4;
+enum Node { kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = 4, kNodeIn = 8, kNodePlate = 9, kNodeLines = 10, kNodeArcs = 16, kNodePucks = 41, kNodeExits = 43, kNodeBars = 45 };
+// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept.
+enum Shade { kLit = 0 };
 const opxy::i32 kY = 130, kR = 40, kGap = 34;
 const opxy::i32 kX[4] = {60, 180, 300, 420};
 const opxy::i32 kArcX = 280;
