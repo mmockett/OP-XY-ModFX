@@ -153,7 +153,7 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
         if (ch.movement == kVibe) out += (7 * ma * sine(lobes * th) >> 10) * sine(phase) >> 10;
         else if (ch.movement == kSwirl) out += (8 * ma * sine(lobes * th - phase) >> 10) * held >> 10;
         else if (ch.movement == kTrem) out -= ((6 * ma * sine(phase) >> 10) * s >> 10) - ((ma * 3 / 2) * sine(lobes * th) >> 10);
-        else if (ch.movement == kPitch) out += ((((v[kRate] - 16384) >> 4) * ma >> 10) * 14) * held >> 10;
+        else if (ch.movement == kPitch) out += ((((v[kRate] - 16384) >> 4) * ma >> 10) * 8) * held >> 10;
     } else if (stage > 1 && ch.movement == kVibe) {
         out += ((ma * 2) * sine(3 * th) >> 10) * sine(phase) >> 10;
     } else if (stage > 1 && ch.movement == kSwirl) {
@@ -443,8 +443,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 place(frame, n, px(kArcX + jitter), px(kY), room_scale, 0, keep);
             }
         const i32 room = kRoom * room_scale;
-        place(frame, kNodeWalls, px(kWallX), px(kY) - room, unit, 0, keep);
-        place(frame, kNodeWalls + 1, px(kWallX), px(kY) + room, unit, 0, keep);
+        // The walls are solid slabs whose inner faces are where the ripples reach.
+        place(frame, kNodeWalls, px(kWallX), px(kY) - room - 2048, unit, 0, keep);
+        place(frame, kNodeWalls + 1, px(kWallX), px(kY) + room + 2048, unit, 0, keep);
         place(frame, kNodeDrop, px(kArcX), px(kY), unit, 0, keep);
     }
 
@@ -536,11 +537,12 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
         place(frame, kNodePosts, px(kX[0] - kSpan - 1), px(kY), unit, 0, keep);
         place(frame, kNodePosts + 1, px(kX[0] + kSpan + 1), px(kY), unit, 0, keep);
-        place(frame, kNodeStops, px(kX[0]), px(kY) - top - px(2), unit, 0, keep);
-        place(frame, kNodeStops + 1, px(kX[0]), px(kY) + bottom + px(2), unit, 0, keep);
+        // The stops are solid pads; their faces are where the string's edge lies when pressed.
+        place(frame, kNodeStops, px(kX[0]), px(kY) - top - 3482, unit, 0, keep);
+        place(frame, kNodeStops + 1, px(kX[0]), px(kY) + bottom + 3482, unit, 0, keep);
     }
     {
-        // Movement: two metronome pendulums, L and R, on one plinth. Rate sets the weights: high
+        // Movement: two metronome pendulums, L and R, before one solid case. Rate sets the weights: high
         // on the rod is slow, low is fast. vibe swings them against each other, swirl a quarter
         // apart, trem together while each weight grows and shrinks with its side's level; twin
         // leaves R late behind L by the delay; pitch sets both weights lower (up) or higher (down).
@@ -549,7 +551,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 mq = ma >> 5, phase = static_cast<i32>(state.swing >> 16) * 3600 >> 16;
         const i32 amp = 180 * mq >> 10;                              // tenths: up to 18 degrees
         i32 angle[2] = {0, 0}, size[2] = {unit, unit};
-        i32 reach = px(14) + share(px(22), 32767 - v[kRate]);
+        i32 reach = px(14) + share(px(18), 32767 - v[kRate]);
         bool swings = false;
         u32 offset = 0;                                              // R's phase behind L's
         if (movement == kVibe) {
@@ -601,7 +603,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                   state.glint[i] ? kGlint : kWeight, fill_and_stroke);
             turn(frame, kNodeBobs + i, rotation(angle[i]));
         }
-        place(frame, kNodeBase, px(kX[1]), px(kY + kPivotY) + 2355, unit, 0, keep);
+        place(frame, kNodeCase, px(kX[1]), px(kY), unit, 0, keep);
     }
     {
         // Noise: where the sound has grit or hiss (fuzz in Character; tape in Diffuse; cass, worn
@@ -697,7 +699,6 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         turn(frame, kNodeBlades, rotation(turn_top + wobble));
         place(frame, kNodeBlades + 1, px(kX[3]), half(px(kY + kBladeY) - in + sag), unit, 0, keep);
         turn(frame, kNodeBlades + 1, rotation(turn_bottom + wobble));
-        place(frame, kNodePath, px(kX[3]), px(kY), unit, 0, keep);
     }
 
     // --- The rims: each facet's own shape, and the qualities handed on to it, with the

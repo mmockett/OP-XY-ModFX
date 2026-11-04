@@ -64,12 +64,13 @@ RIMS = [f"rim_{k}" for k in range(4)]
 LINKS = 16
 SPAN = 32                     # the string's half length; posts just beyond
 STOP = 14                     # the stops' distance from the string at rest
-# Movement: two metronome pendulums on one plinth.
-PIVOT_X, PIVOT_Y, ROD = 18, 22, 42
+# Movement: a metronome's case, solid, with two pendulums before it, L and R.
+PIVOT_X, PIVOT_Y, ROD = 16, 22, 42
 # Diffuse: a drop, its ripples and the room's two walls, all scaled together by Time.
 DROP_X = -20
 ARC_R = [7, 11.5, 16, 20.5, 25]   # the ripples' radii before Time scales them
 ROOM = 16                     # the walls' distance from the drop, before Time scales it
+BEYOND = 22                   # where the line leaves the room, past the furthest ripple
 WALL_X, WALL = -3, 17         # the walls' centre, from the facet's, and half length
 # Texture: two blades the sound passes between.
 BLADE, BLADE_Y = 24, 17
@@ -79,8 +80,8 @@ BLADE, BLADE_Y = 24, 17
 SPECKS, SPECK_FACETS = 6, [0, 2, 3]
 SPECK_GREYS = [grey(TONES[k], 0.5) for k in SPECK_FACETS]
 OBJECTS = ([f"speck_{f}_{i}" for f in range(3) for i in range(SPECKS)] + [f"link_{i}" for i in range(2 * LINKS)] + ["post_left", "post_right", "stop_top", "stop_bottom"] +
-           ["rod_left", "rod_right", "bob_left", "bob_right", "base"] + ["wall_top", "wall_bottom", "drop"] +
-           ["blade_top", "blade_bottom", "path"])
+           ["case", "rod_left", "rod_right", "bob_left", "bob_right"] + ["wall_top", "wall_bottom", "drop"] +
+           ["blade_top", "blade_bottom"])
 NODES = (RIMS + [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + OBJECTS +
          [f"halo_{k}_{j}" for k in range(4) for j in range(2)] +
          [f"bar_{i}" for i in range(8)])
@@ -178,6 +179,23 @@ def upright(half_length, half_width):
     return [(y, x) for x, y in capsule(half_length, half_width)][::-1]
 
 
+def knife(hx, hy, upper):
+    """A solid blade, its edge facing the middle ground keen: the long side toward the gap is
+    bevelled in at both ends (below the upper blade, above the lower)."""
+    t, b = (-hy, hy) if upper else (hy, -hy)    # its back, then its edge
+    pts = [(-hx + 0.6, t), (hx - 0.6, t), (hx, t + (0.6 if upper else -0.6)), (hx, b - (1.6 if upper else -1.6)), (hx - 3, b), (-hx + 3, b), (-hx, b - (1.6 if upper else -1.6)), (-hx, t + (0.6 if upper else -0.6))]
+    return pts if upper else pts[::-1]
+
+
+def block(hx, hy, r=0.6):
+    """A solid block, hx by hy either side of its centre, its corners eased by r."""
+    return [(-hx + r, -hy), (hx - r, -hy), (hx, -hy + r), (hx, hy - r), (hx - r, hy), (-hx + r, hy), (-hx, hy - r), (-hx, -hy + r)]
+
+
+# The metronome's case: a pyramid, its top cut flat, its foot a little wider than its body.
+CASE = [(-8, -24), (8, -24), (9.2, -23), (22.5, 21), (24, 21), (24, 25), (-24, 25), (-24, 21), (-22.5, 21), (-9.2, -23)]
+
+
 def weight():
     """A metronome's sliding weight: a small block, wider at the foot, its corners eased."""
     w0, w1, h = 5.6, 4.2, 3.6
@@ -223,39 +241,51 @@ def main():
     # The specks, behind everything inside the rims; the display places them.
     for f in range(3):
         for i in range(SPECKS):
-            put(f"speck_{f}_{i}", circle(1.1, 10), "none", 0, 640, 320, SPECK_GREYS[f])
+            put(f"speck_{f}_{i}", [(-1.2, -1.2), (1.2, -1.2), (1.2, 1.2), (-1.2, 1.2)], "none", 0, 640, 320, SPECK_GREYS[f])
     # Diffuse: the room's walls, the ripples between them and the drop they spread from.
     # The sound's line: in from the screen's edge, between neighbouring rims, out to the other
     # edge. Each rim is held still where it meets the line, so the line is fixed artwork,
     # ending at the middle of each rim's stroke.
+    # Inside each rim it runs on as the drawing's spine, through each mechanism, as a beam
+    # through a lens: into the string's bridges, behind the metronome's case, to the drop (it
+    # spreads from there as ripples, and leaves beyond them), and between the blades.
     stops = [0] + [v for x in XS for v in (x - RIM_R, x + RIM_R)] + [480]
-    for a, b in zip(stops[::2], stops[1::2]):
+    spans = list(zip(stops[::2], stops[1::2]))
+    spans += [(XS[0] - RIM_R, XS[0] - SPAN - 1), (XS[0] + SPAN + 1, XS[0] + RIM_R)]
+    spans += [(XS[1] - RIM_R, XS[1] + RIM_R)]
+    spans += [(XS[2] - RIM_R, XS[2] + DROP_X - 3.6), (XS[2] + BEYOND, XS[2] + RIM_R)]
+    spans += [(XS[3] - RIM_R, XS[3] + RIM_R)]
+    for a, b in spans:
         lines.append(f'  <path d="{outline([(a, Y - WIRE_W / 2), (b, Y - WIRE_W / 2), (b, Y + WIRE_W / 2), (a, Y + WIRE_W / 2)])}" fill="{WIRE}" stroke="none"/>')
     echoes = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
             put(f"arc_{e}_{k}", a, "none", 0, XS[2] + DROP_X, Y, echoes[k])
     for name, y in (("wall_top", -ROOM), ("wall_bottom", ROOM)):
-        put(name, capsule(WALL, HALVES[2]), "none", 0, XS[2] + WALL_X, Y + y, grey(TONES[2], 0.62))
-    put("drop", circle(3.2, 16), "none", 0, XS[2] + DROP_X, Y, TONES[2])
+        put(name, block(WALL, 2, 0.6), "none", 0, XS[2] + WALL_X, Y + y, grey(TONES[2], 0.55))
+    put("drop", circle(3.6, 16), "none", 0, XS[2] + DROP_X, Y, TONES[2])
     # Character: the string's links (each a short bar the display lays along its shape), its
     # posts, and the stops that catch its swing.
     for i in range(2 * LINKS):
         put(f"link_{i}", capsule(SPAN / LINKS + 1.2, HALVES[0]), "none", 0, XS[0], Y, TONES[0])
     for name, x in (("post_left", -SPAN - 1), ("post_right", SPAN + 1)):
-        put(name, upright(6, HALVES[0]), "none", 0, XS[0] + x, Y, grey(TONES[0], 0.85))
+        put(name, block(1.8, 7.5), "none", 0, XS[0] + x, Y, grey(TONES[0], 0.85))
     for name in ("stop_top", "stop_bottom"):
-        put(name, capsule(8, HALVES[0]), "none", 0, XS[0], Y, grey(TONES[0], 0.7))
+        put(name, block(10, 2.4, 1.0), "none", 0, XS[0], Y, grey(TONES[0], 0.62))
     # Movement: two pendulums on a plinth, rods pivoting at their foot, a sliding weight on each.
-    put("base", capsule(PIVOT_X + 3, HALVES[1]), "none", 0, XS[1], Y + PIVOT_Y + 2, grey(TONES[1], 0.6))
+    # The case: a metronome's pyramid, solid and dark, standing on its foot; the line passes
+    # behind it. It never moves.
+    put("case", CASE, "none", 0, XS[1], Y, grey(TONES[1], 0.36))
+    # One tell of its material: the right face of the pyramid catches the light.
+    face = [(8, -24), (9.2, -23), (22.5, 21), (24, 21), (24, 25), (17.5, 25), (5.5, -20.5)]
+    lines.append(f'  <path transform="matrix(1 0 0 1 {XS[1]} {Y})" d="{outline(face)}" fill="{grey(TONES[1], 0.5)}" stroke="none"/>')
     for name, x in (("rod_left", -PIVOT_X), ("rod_right", PIVOT_X)):
         put(name, [(px_, py_ - ROD / 2) for px_, py_ in upright(ROD / 2, HALVES[1])], "none", 0, XS[1] + x, Y + PIVOT_Y, TONES[1])
     for name, x in (("bob_left", -PIVOT_X), ("bob_right", PIVOT_X)):
         put(name, weight(), "none", 0, XS[1] + x, Y, TONES[1])
     # Texture: the sound's path through it, quiet, and the two blades it passes between.
-    put("path", capsule(28, 0.6), "none", 0, XS[3], Y, grey(TONES[3], 0.3))
     for name, y in (("blade_top", -BLADE_Y), ("blade_bottom", BLADE_Y)):
-        put(name, capsule(BLADE, 1.1), "none", 0, XS[3], Y + y, TONES[3])
+        put(name, knife(BLADE, 2.2, y < 0), "none", 0, XS[3], Y + y, TONES[3])
 
     # The rims: the reshaping outlines, placeholders the display replaces every frame. Always hollow.
     for k in range(4):
@@ -277,8 +307,8 @@ def main():
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeRims = 0, "
          f"kNodeArcs = {nodes['arc_cloud_0']}, kNodeLinks = {nodes['link_0']}, kNodePosts = {nodes['post_left']}, kNodeStops = {nodes['stop_top']}, "
-         f"kNodeRods = {nodes['rod_left']}, kNodeBobs = {nodes['bob_left']}, kNodeBase = {nodes['base']}, kNodeWalls = {nodes['wall_top']}, kNodeDrop = {nodes['drop']}, "
-         f"kNodeBlades = {nodes['blade_top']}, kNodePath = {nodes['path']}, kNodeSpecks = {nodes['speck_0_0']}, "
+         f"kNodeRods = {nodes['rod_left']}, kNodeBobs = {nodes['bob_left']}, kNodeCase = {nodes['case']}, kNodeWalls = {nodes['wall_top']}, kNodeDrop = {nodes['drop']}, "
+         f"kNodeBlades = {nodes['blade_top']}, kNodeSpecks = {nodes['speck_0_0']}, "
          f"kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
          "// Palette: a rim as drawn, thin or thick in its knob's tone, a facet each; lit while Shift",
          "// is held; Texture's dimmed; a metronome's weight, and its glint.",
@@ -292,10 +322,10 @@ def main():
          f"const opxy::i32 kArcX = {XS[2] + DROP_X}, kWallX = {XS[2] + WALL_X};",
          "// How far each part reaches from its node's origin, Q10 px, round ends included: the screen",
          "// test keeps every one inside its rim.",
-         f"const opxy::i32 kReachLink = {round((SPAN / LINKS + 1.2 + HALVES[0]) * 1024)}, kReachPost = {round((6 + HALVES[0]) * 1024)}, kReachStop = {round((8 + HALVES[0]) * 1024)};",
-         f"const opxy::i32 kReachRod = {round((ROD + HALVES[1]) * 1024)}, kReachBase = {round((PIVOT_X + 3 + HALVES[1]) * 1024)}, kWeightX = {round(5.6 * 1024)}, kWeightY = {round(3.6 * 1024)};",
-         f"const opxy::i32 kReachWall = {round((WALL + HALVES[2]) * 1024)}, kReachRipple = {round((ARC_R[-1] + 1.2) * 1024)};",
-         f"const opxy::i32 kReachBlade = {round((BLADE + 1.1) * 1024)}, kReachPath = {round(28.6 * 1024)};",
+         f"const opxy::i32 kReachLink = {round((SPAN / LINKS + 1.2 + HALVES[0]) * 1024)}, kReachPost = {round(7.5 * 1024)}, kReachStop = {round(10 * 1024)};",
+         f"const opxy::i32 kReachRod = {round((ROD + HALVES[1]) * 1024)}, kWeightX = {round(5.6 * 1024)}, kWeightY = {round(3.6 * 1024)};",
+         f"const opxy::i32 kReachWall = {round(WALL * 1024)}, kWallHalf = {round(2 * 1024)}, kCaseX = {round(24 * 1024)}, kCaseTop = {round(24 * 1024)}, kCaseFoot = {round(25 * 1024)}, kReachRipple = {round((ARC_R[-1] + 1.2) * 1024)};",
+         f"const opxy::i32 kReachBlade = {round(BLADE * 1024)}, kBladeHalf = {round(2.2 * 1024)};",
          "// The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.",
          "// A squircle's reach beyond its circle, Q10 of the radius, from 0 to 90 degrees in 32 steps:",
          "// nothing on the axes, most at 45 degrees. It makes a side squarer while the axis point holds.",

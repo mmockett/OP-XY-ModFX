@@ -136,24 +136,27 @@ bool parts_inside() {
     for (unsigned i = 0; i < 2 * kLinks; ++i)
         if (!ends_inside(0, kNodeLinks + i, kReachLink)) return stray = "the string", false;
     for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(0, kNodePosts + i, 0, kReachPost) || !ends_inside(0, kNodeStops + i, kReachStop)) return stray = "a post or stop", false;
+        if (!ends_inside(0, kNodePosts + i, 1638, kReachPost) || !ends_inside(0, kNodeStops + i, kReachStop, 1638)) return stray = "a post or stop", false;
     for (unsigned i = 0; i < 2; ++i) {
         // A rod reaches from its pivot up (its node's origin is the pivot), so only its tip.
         const opxy::draw::Node& d = frame.nodes[kNodeRods + i];
         if (!inside(1, d.x / 1024.0 + kReachRod / 1024.0 * d.sin / 1024.0, d.y / 1024.0 - kReachRod / 1024.0 * d.cos / 1024.0)) return stray = "a rod", false;
         if (!ends_inside(1, kNodeBobs + i, kWeightX, kWeightY)) return stray = "a weight", false;
     }
-    if (!ends_inside(1, kNodeBase, kReachBase)) return stray = "the plinth", false;
+    {
+        // The case: its foot's corners and its top's.
+        const double x = kX[1], y = kY, w = kCaseX / 1024.0, f = kCaseFoot / 1024.0, t = kCaseTop / 1024.0;
+        if (!inside(1, x - w, y + f) || !inside(1, x + w, y + f) || !inside(1, x - 9.2, y - t) || !inside(1, x + 9.2, y - t)) return stray = "the case", false;
+    }
     for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(2, kNodeWalls + i, kReachWall)) return stray = "a wall", false;
+        if (!ends_inside(2, kNodeWalls + i, kReachWall, kWallHalf)) return stray = "a wall", false;
     for (unsigned e = 0; e < 25; ++e) {
         const opxy::draw::Node& d = frame.nodes[kNodeArcs + e];
         if (d.x >= opxy::draw::hidden_x * opxy::draw::unit) continue;
         if (!inside(2, d.x / 1024.0 + kReachRipple / 1024.0 * d.scale / 1024.0, d.y / 1024.0)) return stray = "a ripple", false;
     }
     for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(3, kNodeBlades + i, kReachBlade)) return stray = "a blade", false;
-    if (!ends_inside(3, kNodePath, kReachPath)) return stray = "the path", false;
+        if (!ends_inside(3, kNodeBlades + i, kReachBlade, kBladeHalf)) return stray = "a blade", false;
     // The noise specks: inside their rims, clear of the outline by their own size and more.
     static const unsigned kFacets[3] = {0, 2, 3};
     for (unsigned f = 0; f < 3; ++f)
