@@ -10,9 +10,9 @@ namespace chroma {
 // it; Texture flattens, narrows or sags it), and on top of that the qualities the
 // modules before it hand on; a faint ring outside it is its blur or its echo.
 // One line carries the sound in from the left edge, from rim to rim and out at the
-// right; each stretch is drawn out of the rim it leaves, so it meets the next rim
-// wherever that rim's edge has moved. Inside each rim, a mechanism behaves as its
-// module does. A send's page hears no notes, so only what moves the sound on its
+// right: fixed artwork, as every rim is held still where it meets it. Inside each
+// rim, a mechanism behaves as its module does, with faint specks where the sound
+// has grit or hiss. A send's page hears no notes, so only what moves the sound on its
 // own moves the screen: Movement's LFO, Drift's wander and a turn of a control.
 using opxy::i32;
 using opxy::u32;
@@ -98,14 +98,26 @@ void sign(Frame::path_type& path);
 // Q10 to the nearest half pixel, still Q10.
 i32 half(i32 q10) { return floor_q10(2 * q10 + 512) * unit / 2; }
 
+// A squircle's reach beyond the circle at an angle (tenths), Q10 of the radius: nothing on
+// the axes, most at 45 degrees.
+i32 squircle(i32 th) {
+    i32 q = ((th % 900) + 900) % 900;
+    const i32 at = q * 32 / 900, part = (q * 32 % 900) * 1024 / 900;
+    return at >= 32 ? 0 : kSquircle[at] + ((kSquircle[at + 1] - kSquircle[at]) * part >> 10);
+}
+
 // The shape of facet `stage`'s rim at an angle (tenths): how far out from the plain
 // circle, Q10 px. Its own module draws its shape; the modules before it hand on only
 // their qualities (roughness as a fine ripple, wobble as a slow wave, trem's level as a
 // breath). Every term is smooth in the angle, so the rim stays one closed, continuous
-// outline. Upper half L, lower R; for Texture, the left of the disc is low and the right high.
+// outline, and every term is nothing at 0 and 180 degrees, where the sound's line meets
+// the rim: sines of whole multiples of the angle, shapes that grow as the square of its
+// sine, and anything that turns round the rim faded to nothing there. So the line is
+// fixed, and the rim is never pinched to meet it. Upper half L, lower R; for Texture,
+// the left of the disc is low and the right high.
 i32 shape(const Chain& ch, u32 stage, i32 th) {
     const i32* v = ch.v;
-    const i32 c = sine(th + 900), s = sine(th);
+    const i32 c = sine(th + 900), s = sine(th), held = s * s >> 10;   // held: 0 on the line, 1024 top and bottom
     const i32 phase = static_cast<i32>(ch.swing >> 16) * 3600 >> 16;  // the LFO, tenths
     const i32 slow = static_cast<i32>(ch.clock % 7200u) / 2;           // a slow turn, tenths
     const i32 a = (ch.character == kCharacterOff ? 0 : v[kCharacterAmount]) >> 5;
@@ -113,35 +125,39 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
     const i32 da = (ch.diffusion == kDiffusionOff ? 0 : v[kDiffusionAmount]) >> 5, tm = v[kTime] >> 5;
     i32 out = 0;
     if (stage == 0) {
-        // Character: warm swells it, drive clips it flat top and bottom, fuzz ripples it
-        // finely, howl scallops it (Tilt: three to five lobes), swell leaves it growing;
-        // Tilt leans it.
-        if (ch.character == kWarm) out = px(1) + 8 * a;
+        // Character: warm swells it taller, drive clips it flat top and bottom, fuzz dents it
+        // finely all round, howl scallops it (Tilt: four, six or eight scallops), swell leaves
+        // its left (the start of each note) smaller; Tilt leans it. Each is mirrored top to
+        // bottom, as nothing here parts the sides.
+        if (ch.character == kWarm) out = (px(1) + 8 * a) * held >> 10;
         else if (ch.character == kDrive) {
             const i32 e = clamp((magnitude(s) - 512) * 2, 0, 1024);
             out = -(a * 11 * (e * e >> 10) >> 10);
-        } else if (ch.character == kFuzz) out = (a * 5 / 2) * sine(10 * th) >> 10;
-        else if (ch.character == kHowl) out = 5 * a * sine((3 + ((v[kTilt] * 2 + 16384) >> 15)) * th + 900) >> 10;
-        else if (ch.character == kSwell) out = -(7 * a * (1024 - c) >> 11);
+        } else if (ch.character == kFuzz) out = -((a * 5 / 2) * (1024 - sine(8 * th + 900)) >> 11);
+        else if (ch.character == kHowl) out = -(6 * a * (1024 - sine((4 + 2 * ((v[kTilt] * 2 + 16384) >> 15)) * th + 900)) >> 11);
+        else if (ch.character == kSwell) out = -((9 * a * (1024 - c) >> 11) * held >> 10);
         // Tilt leans the rim into an oval, one way for lows and the other for highs (howl's
         // Tilt sets its lobes instead).
         if (ch.character != kHowl && ch.character != kCharacterOff) out += (((v[kTilt] - 16384) >> 4) * 7) * sine(2 * th) >> 10;
     } else if (ch.character == kDrive || ch.character == kFuzz) {
         const i32 rough = ch.character == kFuzz ? a : a >> 1;
-        out += (rough * 3 / 2) * sine(10 * th) >> 10;
+        // Carried on, fading by the line, so it never stacks a crest on a later rim's own corner there.
+        out -= ((rough * 3 / 2) * (1024 - sine(8 * th + 900)) >> 11) * held >> 10;
     }
-    // Movement's lobes: two to seven round the rim as Rate rises, as many sways as fit the window.
-    const i32 lobes = 2 + ((v[kRate] * 5 + 16384) >> 15);
+    // Movement's lobes: two to six round the rim as Rate rises, as many sways as fit the window.
+    const i32 lobes = 2 + ((v[kRate] * 4 + 16384) >> 15);
     if (stage == 1 && ma) {
-        // Movement: vibe breathes the lobes in place; swirl sends them round; trem pulses the
-        // upper (left) half against the lower (right); twin's echo is its halo, further out
-        // with Rate; pitch stretches it wide or tall.
+        // Movement: vibe breathes the lobes in place; swirl sends them round (fading where
+        // the line meets the rim); trem pulses the upper (left) half against the lower (right);
+        // twin's echo is its halo, further out with Rate; pitch makes it taller or flatter.
         if (ch.movement == kVibe) out += (7 * ma * sine(lobes * th) >> 10) * sine(phase) >> 10;
-        else if (ch.movement == kSwirl) out += 6 * ma * sine(lobes * th - phase) >> 10;
+        else if (ch.movement == kSwirl) out += (8 * ma * sine(lobes * th - phase) >> 10) * held >> 10;
         else if (ch.movement == kTrem) out -= ((6 * ma * sine(phase) >> 10) * s >> 10) - ((ma * 3 / 2) * sine(lobes * th) >> 10);
-        else if (ch.movement == kPitch) out += ((((v[kRate] - 16384) >> 4) * ma >> 10) * 9) * sine(2 * th + 900) >> 10;
-    } else if (stage > 1 && (ch.movement == kVibe || ch.movement == kSwirl)) {
-        out += (ma * 2) * sine(3 * th + phase) >> 10;
+        else if (ch.movement == kPitch) out += ((((v[kRate] - 16384) >> 4) * ma >> 10) * 14) * held >> 10;
+    } else if (stage > 1 && ch.movement == kVibe) {
+        out += ((ma * 2) * sine(3 * th) >> 10) * sine(phase) >> 10;
+    } else if (stage > 1 && ch.movement == kSwirl) {
+        out += ((ma * 3) * sine(3 * th + phase) >> 10) * held >> 10;
     } else if (stage > 1 && ch.movement == kTrem) {
         // Trem's level, swinging between the sides, reaches the rims after it: each breathes,
         // its left half against its right.
@@ -150,9 +166,9 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
     if (stage == 2 && da) {
         // Diffuse: cloud swells it a little (its blur is the halo); dusk smears it along a
         // diagonal; tape wobbles it slowly; slice facets it, six or eight sides with Time.
-        if (ch.diffusion == kCloud) out += 2 * da;
+        if (ch.diffusion == kCloud) out += 3 * da * held >> 10;
         else if (ch.diffusion == kDusk) out -= (da * (3072 + 3 * tm) >> 10) * sine(2 * th) >> 10;
-        else if (ch.diffusion == kTape) out += 3 * da * sine(3 * th + slow) >> 10;
+        else if (ch.diffusion == kTape) out += (4 * da * sine(3 * th + slow) >> 10) * held >> 10;
         else if (ch.diffusion == kSlice) {
             const i32 sides = tm < 512 ? 8 : 6, step = 3600 / sides;
             const i32 off = ((th % step) + step) % step - step / 2;
@@ -160,23 +176,26 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
             out += facet * da >> 10;
         }
     } else if (stage > 2 && ch.diffusion == kTape) {
-        out += 2 * da * sine(3 * th + slow) >> 10;
+        out += (3 * da * sine(3 * th + slow) >> 10) * held >> 10;
     }
     if (stage == 3) {
         // Texture: tilt flattens L's high side and R's low side (below the middle it swells
-        // them); low and high flatten one side; press flattens it top and bottom; cass gives
-        // it a wow; worn sags it; radio narrows it to a band. Drift wanders it.
+        // them); low squares off the high (right) side and high the low (left) side; press
+        // flattens it top and bottom; cass gives it a wow; worn sags it; radio narrows it to
+        // a band. Drift wanders it.
         const i32 ta = v[kTextureAmount] >> 5, s2 = (v[kTextureAmount] - 16384) >> 4;
         const i32 diag = clamp(-sine(2 * th), 0, 1024);  // the upper right and the lower left
         if (ch.texture == kBalance) out -= (8 * s2 * diag >> 10) * diag >> 10;
-        else if (ch.texture == kLow) out -= (8 * ta * clamp(c, 0, 1024) >> 10) * clamp(c, 0, 1024) >> 10;
-        else if (ch.texture == kHigh) out -= (8 * ta * clamp(-c, 0, 1024) >> 10) * clamp(-c, 0, 1024) >> 10;
+        else if (ch.texture == kLow && c > 0) out += (px(kRimR) * squircle(th) >> 10) * ta >> 10;
+        else if (ch.texture == kHigh && c < 0) out += (px(kRimR) * squircle(th) >> 10) * ta >> 10;
         else if (ch.texture == kPress) out -= (8 * ta * s >> 10) * s >> 10;
-        else if (ch.texture == kCass) out += 2 * ta * sine(2 * th + slow) >> 10;
+        else if (ch.texture == kCass) out += (3 * ta * sine(2 * th + slow) >> 10) * held >> 10;
         else if (ch.texture == kWorn) out += 4 * ta * s >> 10;
         else if (ch.texture == kRadio) out -= (13 * ta * s >> 10) * s >> 10;
-        out += (3 * (v[kDrift] >> 5)) * sine(2 * th + slow * 2) >> 10;
+        out += ((4 * (v[kDrift] >> 5)) * sine(2 * th + slow * 2) >> 10) * held >> 10;
     }
+    // Held where the line meets it, whatever rounding left.
+    if (th % 1800 == 0) return 0;
     return clamp(out, -px(12), px(9));
 }
 
@@ -196,10 +215,10 @@ Look look(const Chain& ch, u32 stage) {
     const i32 ta = v[kTextureAmount] >> 5;
     Look l = {1, false, false, 0};
     i32 blur = 0, echo = 0;
-    if (ch.character == kWarm && a > 154) l.weight = 2;          // warmth: heavier, carried on
+    if (ch.character == kWarm && a > 512) l.weight = 2;          // warmth past half: heavier, carried on
     if (ch.character == kDrive && a > 307) l.weight = 0;         // drive: harder, thinner, carried on
     if (ch.character == kFuzz) blur += a * 820 >> 10;            // fuzz: a blur, carried on
-    if (ch.character == kWarm && stage == 0) blur += a * 600 >> 10;  // warmth glows, in its own facet
+    if (ch.character == kWarm && stage == 0 && a > 360) blur += (a - 360) * 900 >> 10;  // warmth glows, in its own facet
     if (stage >= 1 && ch.movement == kTwin) echo += ma * (512 + (v[kRate] >> 6)) >> 10;  // a late copy, further with Rate
     if (stage >= 2) {
         if (ch.diffusion == kCloud || ch.diffusion == kTape) blur += da * (410 + tm) >> 10;
@@ -223,44 +242,19 @@ Point at_angle(i32 r, i32 th) { return Point{(r >> 5) * sine(th + 900) >> 5, (r 
 // Each facet's radius at an angle, Q10 px.
 i32 radius(const Chain& ch, u32 k, i32 th) { return px(kRimR) + shape(ch, k, th); }
 
-// The sound's line, drawn out of a rim along the centre line: a thin closed ribbon from
-// the rim's edge at `root` to `end` (x, Q10 px, relative to the rim's centre), its edges
-// a little over a quarter pixel apart, so it reads as one line in the rim's own weight.
-// `left` runs it out of the rim's left side, in the outline's direction there.
-const i32 kSpur = 160;  // half the ribbon's width, Q10 px
-Point* spur(Point* out, i32 root, i32 end, bool left) {
-    const i32 y = left ? kSpur : -kSpur;
-    *out++ = Point{root, y};
-    *out++ = Point{(root + end) / 2, y};
-    *out++ = Point{end, y};
-    *out++ = Point{end, -y};
-    *out++ = Point{root, -y};
-    return out;
-}
-
-// Facet k's rim: its shape round 56 angles, one closed outline of 64 points, with the
-// sound's line drawn out of both sides along the centre line to its column's edges, where
-// the neighbouring rim's line meets it end to end (and the screen's edges, for the first
-// and last). Each half starts on the rim's own edge, so the line meets the rim exactly
-// however it distorts. (One rim can't reach the next: a path's points stay within 64 px.)
-const i32 kReach = 60;  // px from a facet's centre to its column's edges
+// Facet k's rim: its shape round 64 angles, one closed outline, starting where the sound's
+// line meets it on the right (0 degrees) and passing where it meets it on the left (180),
+// both held still, so the line (fixed artwork) always meets it there.
 void put_rim(Frame& frame, const Chain& ch, u32 k, bool lit) {
     Frame::path_type& path = frame.paths[kNodeRims + k];
-    const i32 count = 56;
     i32 most = 0, least = px(kRimR * 2);
-    Point* out = path.points;
-    for (i32 j = 1; j < count; ++j) {
-        const i32 th = j * 3600 / count;
+    for (i32 j = 0; j < 64; ++j) {
+        const i32 th = j * 3600 / 64;
         const i32 r = radius(ch, k, th);
         if (r > most) most = r;
         if (r < least) least = r;
-        if (j == count / 2) out = spur(out, at_angle(r, 1800).x, -px(kReach), true);
-        else *out++ = at_angle(r, th);
+        path.points[j] = at_angle(r, th);
     }
-    const i32 r0 = radius(ch, k, 0);
-    if (r0 > most) most = r0;
-    if (r0 < least) least = r0;
-    spur(out, at_angle(r0, 0).x, px(kReach), false);
     sign(path);
     const Look l = look(ch, k);
     const u32 n = kNodeRims + k;
@@ -297,6 +291,7 @@ i32 length(i32 dx, i32 dy) {
     return (most * 983 >> 10) + (least * 407 >> 10);
 }
 const i32 kFine = 48;
+const i32 kEase = 200;  // how far round the pluck's corner is eased, Q10 of the string's rise
 // From a link's centre to its tip, Q10 px (make_panel.py: half its length and its round end),
 // so an end link's tip sits on its post.
 const i32 kLinkHalf = kSpan * unit / static_cast<i32>(kLinks) + 2253;
@@ -324,6 +319,10 @@ void display_reset(DisplayState& state) {
     state.ring = 0;
     state.ring_phase = 0;
     state.glint[0] = state.glint[1] = 0;
+    state.still = 0;
+    state.signature = 0;
+    state.grain_clock = 0;
+    for (u32 i = 0; i < 18; ++i) state.specks[i] = 0;
     state.plucked_ready = 0;
 }
 
@@ -427,6 +426,18 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                     hide(frame, n);
                     continue;
                 }
+                // Worn tape drops out: with Drift, now and then one of its later echoes is missing
+                // for a moment (a quarter second), more often the more it's worn.
+                if (diffusion == kTape && k > 0 && (v[kDrift] >> 5) > 200) {
+                    u32 h = ((state.grain_clock / 240) * 0x9e3779b1u) ^ (static_cast<u32>(k) * 0x85ebca77u);
+                    h ^= h >> 15;
+                    h *= 0x2c1b3c6du;
+                    h ^= h >> 13;
+                    if (static_cast<i32>(h % 1024) < ((v[kDrift] >> 5) - 200) / 8) {
+                        hide(frame, n);
+                        continue;
+                    }
+                }
                 // Tape's heads wander with Drift, a whole pixel at a time.
                 const i32 jitter = diffusion == kTape ? ((s10(clock * 9878u + static_cast<u32>(k) * 0x4ccccccdu) * (v[kDrift] >> 5) >> 10) * 2 >> 10) : 0;
                 place(frame, n, px(kArcX + jitter), px(kY), room_scale, 0, keep);
@@ -466,7 +477,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 a = ca >> 5, tilt = v[kTilt] >> 5;
         const i32 peak = 256 + (tilt >> 1);                         // where it's plucked, Q10 along it
         const i32 ringing = 1024 + (state.ring ? state.ring * s10(state.ring_phase) >> 10 : 0);
-        const i32 lift_amount = (px(7) + 19 * a) * ringing >> 10;   // Q10 px
+        const i32 lift_amount = (px(6) + 20 * a) * ringing >> 10;   // Q10 px
         i32 top = px(kStop), bottom = px(kStop);                     // the stops' distances
         if (character == kDrive) top = bottom = px(kStop - 1);
         else if (character == kFuzz) top = px(kStop - 4);
@@ -481,7 +492,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             Point fine[kFine + 1];
             for (i32 i = 0; i <= kFine; ++i) {
                 const i32 u = i * 1024 / kFine;
-                const i32 rise = u < peak ? sine(900 * u / peak) : sine(900 * (1024 - u) / (1024 - peak));
+                // Plucked, a string swings within the triangle it was pulled to and its mirror,
+                // the pluck's corner eased a little.
+                const i32 up = u * 1024 / peak, down = (1024 - u) * 1024 / (1024 - peak);
+                const i32 near = magnitude(up - down) < kEase ? kEase - magnitude(up - down) : 0;
+                const i32 rise = (up < down ? up : down) - near * near / (4 * kEase);
                 i32 y = lift_amount * rise >> 10;
                 if (character == kWarm) y = y * (2 * stop) / (2 * stop + y);  // soft stops, further off
                 else if (character == kDrive) y = press(y, stop, knee);
@@ -529,11 +544,12 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         // on the rod is slow, low is fast. vibe swings them against each other, swirl a quarter
         // apart, trem together while each weight grows and shrinks with its side's level; twin
         // leaves R late behind L by the delay; pitch sets both weights lower (up) or higher (down).
-        // Each weight glints as it reaches the end of a swing, where a metronome ticks.
+        // Each weight glints as it reaches the end of a swing, where a metronome ticks, once the
+        // controls have been left alone for a moment and it has settled into its beat.
         const i32 mq = ma >> 5, phase = static_cast<i32>(state.swing >> 16) * 3600 >> 16;
         const i32 amp = 180 * mq >> 10;                              // tenths: up to 18 degrees
         i32 angle[2] = {0, 0}, size[2] = {unit, unit};
-        i32 reach = px(16) + share(px(24), 32767 - v[kRate]);
+        i32 reach = px(14) + share(px(22), 32767 - v[kRate]);
         bool swings = false;
         u32 offset = 0;                                              // R's phase behind L's
         if (movement == kVibe) {
@@ -554,16 +570,25 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         } else if (movement == kTwin) {
             angle[1] = -clamp((share(250, v[kRate]) + 50) * mq >> 10, 0, 180);
         } else if (movement == kPitch) {
-            reach = px(28) - (((v[kRate] - 16384) >> 4) * mq >> 10) * 12;
+            reach = px(25) - (((v[kRate] - 16384) >> 4) * mq >> 10) * 11;
         } else {
-            reach = px(28);
+            reach = px(25);
+        }
+        u32 signature = 2166136261u;
+        for (u32 i = 0; i < 8; ++i) signature = (signature ^ static_cast<u32>(input.slots[i])) * 16777619u;
+        for (u32 i = 0; i < 4; ++i) signature = (signature ^ input.choices[i]) * 16777619u;
+        if (signature != state.signature) {
+            state.signature = signature;
+            state.still = 0;
+        } else if (state.still < 60000) {
+            state.still += elapsed;
         }
         // The ticks: each end of a swing passed since the last frame lights its weight for
         // 70 ms. Past 4 Hz they would blur into a constant light, so they stop.
         const u32 before = state.swing - static_cast<u32>(hz) * elapsed * 4194u;
         for (u32 i = 0; i < 2; ++i) {
             const u32 was = (before - (i ? offset : 0) + 0x40000000u) >> 31, now = (state.swing - (i ? offset : 0) + 0x40000000u) >> 31;
-            if (swings && mq > 100 && hz < 4096 && was != now) state.glint[i] = 70;
+            if (swings && mq > 100 && hz < 4096 && state.still >= 1500 && was != now) state.glint[i] = 70;
             else state.glint[i] = state.glint[i] > elapsed ? state.glint[i] - elapsed : 0;
             if (!swings) state.glint[i] = 0;
         }
@@ -571,12 +596,78 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             const i32 foot_x = px(kX[1] + (i ? kPivotX : -kPivotX)), foot_y = px(kY + kPivotY);
             place(frame, kNodeRods + i, foot_x, foot_y, unit, 0, keep);
             turn(frame, kNodeRods + i, rotation(angle[i]));
-            const i32 r = clamp(reach, px(14), px(42));
+            const i32 r = clamp(reach, px(12), px(36));
             place(frame, kNodeBobs + i, foot_x + ((r >> 5) * sine(angle[i]) >> 5), foot_y - ((r >> 5) * sine(angle[i] + 900) >> 5), size[i],
                   state.glint[i] ? kGlint : kWeight, fill_and_stroke);
             turn(frame, kNodeBobs + i, rotation(angle[i]));
         }
         place(frame, kNodeBase, px(kX[1]), px(kY + kPivotY) + 2355, unit, 0, keep);
+    }
+    {
+        // Noise: where the sound has grit or hiss (fuzz in Character; tape in Diffuse; cass, worn
+        // and radio in Texture, and Drift's instability there), a few faint specks just inside
+        // the rim, as many as the amount calls for, up to six. Each is renewed every 240 ms, a
+        // few at a time (about 12 Hz), while anything moves; at rest they hold still. A speck sits
+        // 4 to 6.5 px inside the rim where it's placed, away from the line, and goes out if the
+        // rim moves in on it.
+        const i32 drift = v[kDrift] >> 5, ta = v[kTextureAmount] >> 5;
+        i32 noise[3] = {character == kFuzz ? ca >> 5 : 0, diffusion == kTape ? (da >> 5) * (600 + (drift * 424 >> 10)) >> 10 : 0, 0};
+        if (texture == kCass) noise[2] = ta * 700 >> 10;
+        else if (texture == kWorn) noise[2] = ta * 600 >> 10;
+        else if (texture == kRadio) noise[2] = ta;
+        if (texture != kTextureOff) noise[2] = clamp(noise[2] + (drift * 400 >> 10), 0, 1024);
+        const bool moving = (ma && (movement == kVibe || movement == kSwirl || movement == kTrem)) || drift || (diffusion == kTape && da) ||
+                            ((texture == kCass || texture == kWorn) && ta) || state.still < 400;
+        if (moving) state.grain_clock += elapsed;
+        const Chain ch = {v, character, movement, diffusion, texture, hz, state.swing, clock};
+        static const u32 kFacets[3] = {0, 2, 3};
+        for (u32 f = 0; f < 3; ++f) {
+            const u32 k = kFacets[f];
+            const i32 count = (noise[f] * static_cast<i32>(kSpecks) + 600) >> 10;
+            for (u32 i = 0; i < kSpecks; ++i) {
+                u32& mark = state.specks[f * kSpecks + i];
+                const u32 node = kNodeSpecks + f * kSpecks + i;
+                if (static_cast<i32>(i) >= count) {
+                    mark = 0;
+                    hide(frame, node);
+                    continue;
+                }
+                const u32 epoch = ((state.grain_clock + i * 80 + f * 27) / 240) & 0xff;
+                if (!mark || (mark >> 24) != epoch) {
+                    // A new place: an angle away from the line, a little inside the rim, clear of
+                    // the other specks; three tries, or it waits for the next.
+                    mark = epoch << 24;
+                    for (u32 attempt = 0; attempt < 3; ++attempt) {
+                        u32 h = (k * 0x9e3779b1u) ^ (i * 0x85ebca77u) ^ (epoch * 0xc2b2ae3du) ^ (attempt * 0x27d4eb2fu) ^ (state.grain_clock / 240 >> 8) * 0x165667b1u;
+                        h ^= h >> 15;
+                        h *= 0x2c1b3c6du;
+                        h ^= h >> 12;
+                        const i32 th = 300 + static_cast<i32>(h % 1200) + ((h >> 12) & 1 ? 1800 : 0);   // 30..150 or 210..330 degrees
+                        const i32 depth = 4096 + static_cast<i32>((h >> 16) % 2560);                    // 4..6.5 px
+                        const i32 rho = radius(ch, k, th) - depth;
+                        const Point at = at_angle(rho, th);
+                        bool clear = true;
+                        for (u32 o = 0; o < kSpecks; ++o) {
+                            const opxy::draw::Node& other = frame.nodes[kNodeSpecks + f * kSpecks + o];
+                            if (o == i || other.x >= hidden_x * unit) continue;
+                            const i32 dx = (other.x - px(kX[k])) - at.x, dy = (other.y - px(kY)) - at.y;
+                            if (magnitude(dx) < 3584 && magnitude(dy) < 3584) clear = false;
+                        }
+                        if (clear) {
+                            mark = epoch << 24 | 1u << 23 | static_cast<u32>(th) << 10 | static_cast<u32>(rho >> 7);
+                            break;
+                        }
+                    }
+                }
+                const i32 th = static_cast<i32>(mark >> 10 & 0x1fff), rho = static_cast<i32>(mark & 0x3ff) << 7;
+                if (!(mark >> 23 & 1) || radius(ch, k, th) - rho < 3584) {
+                    hide(frame, node);
+                    continue;
+                }
+                const Point at = at_angle(rho, th);
+                place(frame, node, px(kX[k]) + at.x, px(kY) + at.y, unit, 0, keep);
+            }
+        }
     }
     {
         // Texture: two blades the sound passes between, low (left) to high (right), the upper

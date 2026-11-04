@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 namespace {
 chroma::Frame frame, last;
@@ -44,70 +45,64 @@ bool outline_ok(const chroma::Frame::path_type& path) {
     return true;
 }
 
-// The sound's line, drawn out of each rim: its two halves (left and right) start on the rim's
-// own edge where it crosses the centre line, as the rim's shape puts it, run straight along
-// the centre line without crossing the rim again, and meet the next rim's half end to end;
-// the first starts at the screen's left edge and the last ends at its right. Within half a pixel.
+// The sound's line is fixed artwork (make_panel.py): in from the screen's left edge, between
+// neighbouring rims and out to the right edge, ending at kRimR either side of each facet's
+// centre. Each rim must pass exactly there (within half a pixel), at 0 and 180 degrees, and no
+// other part of it may cross the centre line beyond that point, onto the line. Nor may it be
+// pinched to meet it.
 const int kHalf = 512;  // half a pixel, Q10
-bool line_ok(const opxy::draw::Input& input) {
-    const unsigned character = input.choices[0] < 6 ? input.choices[0] : 0, movement = input.choices[1] < 6 ? input.choices[1] : 0;
-    const unsigned diffusion = input.choices[2] < 6 ? input.choices[2] : 0, texture = input.choices[3] < 8 ? input.choices[3] : 0;
-    const chroma::Chain ch = {state.shown, character, movement, diffusion, texture, 0, state.swing, state.clock};
-    int ends[4][2];  // each rim's line ends, screen x, Q10: left and right
+double pinch = 0;       // the sharpest a rim turns where it meets the line, degrees
+bool line_ok(const opxy::draw::Input&) {
+    using chroma::panel::kRimR;
+    const int r = kRimR * opxy::draw::unit;
     for (unsigned k = 0; k < 4; ++k) {
         const chroma::Frame::path_type& path = frame.paths[k];
-        const int cx = frame.nodes[k].x, cy = frame.nodes[k].y;
-        for (int side = 0; side < 2; ++side) {
-            // The line's points: those on the centre line, on this side.
-            int root = side ? 1 << 30 : -(1 << 30), end = 0, count = 0, root_at = -1;
-            for (unsigned i = 0; i < chroma::Frame::point_count; ++i) {
-                const opxy::draw::Point& q = path.points[i];
-                if (q.y < -kHalf || q.y > kHalf || (side ? q.x < 0 : q.x > 0)) continue;
-                ++count;
-                if (side ? q.x < root : q.x > root) { root = q.x; root_at = static_cast<int>(i); }
-                if (side ? q.x > end : q.x < end) end = q.x;
-            }
-            if (count < 4) return false;
-            // It starts on the rim: the rim's edge on the centre line, as its shape has it ...
-            const int edge = side ? chroma::radius(ch, k, 0) : -chroma::radius(ch, k, 1800);
-            if (root - edge > kHalf || edge - root > kHalf) return false;
-            // ... where the outline really passes, from one side of the centre line to the other ...
-            const opxy::draw::Point& before = path.points[(root_at + chroma::Frame::point_count - 1) % chroma::Frame::point_count];
-            const opxy::draw::Point& after = path.points[(root_at + 1) % chroma::Frame::point_count];
-            const opxy::draw::Point& outer = (before.y > -kHalf && before.y < kHalf) ? after : before;
-            if (outer.y > -kHalf && outer.y < kHalf) return false;
-            // ... and no other part of the rim crosses the line further out.
-            for (unsigned i = 0; i < chroma::Frame::point_count; ++i) {
-                const opxy::draw::Point& a = path.points[i];
-                const opxy::draw::Point& b = path.points[(i + 1) % chroma::Frame::point_count];
-                if ((a.y > kHalf && b.y > kHalf) || (a.y < -kHalf && b.y < -kHalf)) continue;
-                if ((a.y >= -kHalf && a.y <= kHalf) && (b.y >= -kHalf && b.y <= kHalf)) continue;  // the line itself
-                if (a.y == b.y) continue;
-                const int x = a.x + static_cast<int>(static_cast<double>(b.x - a.x) * (0 - a.y) / (b.y - a.y));
-                if (side ? x > root + kHalf : x < root - kHalf) return false;
-            }
-            ends[k][side] = cx + end;
-            if (cy != chroma::panel::kY * opxy::draw::unit) return false;
+        if (frame.nodes[k].x != chroma::panel::kX[k] * opxy::draw::unit || frame.nodes[k].y != chroma::panel::kY * opxy::draw::unit) return false;
+        const opxy::draw::Point& right = path.points[0];
+        const opxy::draw::Point& left = path.points[chroma::Frame::point_count / 2];
+        if (right.x - r > kHalf || r - right.x > kHalf || right.y > kHalf || right.y < -kHalf) return false;
+        if (left.x + r > kHalf || -r - left.x > kHalf || left.y > kHalf || left.y < -kHalf) return false;
+        for (unsigned i = 0; i < chroma::Frame::point_count; ++i) {
+            const opxy::draw::Point& p = path.points[i];
+            const opxy::draw::Point& q = path.points[(i + 1) % chroma::Frame::point_count];
+            if ((p.y > 0 && q.y > 0) || (p.y < 0 && q.y < 0) || p.y == q.y) continue;
+            const int x = p.x + static_cast<int>(static_cast<double>(q.x - p.x) * (0 - p.y) / (q.y - p.y));
+            if (x > r + kHalf || x < -r - kHalf) return false;
+        }
+        // Not pinched: where the line meets it the rim turns no more sharply than 25 degrees
+        // between its neighbouring points (a plain circle turns 5.6), or than it turns anywhere
+        // else, a corner there perhaps falling between two points (slice's facets have corners all round).
+        double turns[chroma::Frame::point_count], elsewhere = 0;
+        for (unsigned at = 0; at < chroma::Frame::point_count; ++at) {
+            const opxy::draw::Point& o = path.points[(at + chroma::Frame::point_count - 1) % chroma::Frame::point_count];
+            const opxy::draw::Point& p = path.points[at];
+            const opxy::draw::Point& q = path.points[(at + 1) % chroma::Frame::point_count];
+            const double ax = p.x - o.x, ay = p.y - o.y, bx = q.x - p.x, by = q.y - p.y;
+            turns[at] = std::atan2(std::fabs(ax * by - ay * bx), ax * bx + ay * by) * 180 / 3.14159265358979;
+        }
+        // A corner elsewhere may fall between two points and turn across both.
+        for (unsigned at = 1; at + 1 < chroma::Frame::point_count; ++at)
+            if (at != chroma::Frame::point_count / 2 && at + 1 != chroma::Frame::point_count / 2 && turns[at] + turns[at + 1] > elsewhere)
+                elsewhere = turns[at] + turns[at + 1];
+        for (unsigned at : {0u, chroma::Frame::point_count / 2}) {
+            const double over = turns[at] - (elsewhere > 25 ? elsewhere : 25);
+            if (turns[at] > pinch) pinch = turns[at];
+            if (over > 8) return false;  // a few degrees for a corner elsewhere that roughness has rounded
         }
     }
-    for (unsigned k = 0; k + 1 < 4; ++k) {
-        const int gap = ends[k + 1][0] - ends[k][1];
-        if (gap > kHalf || gap < -kHalf) return false;
-    }
-    return ends[0][0] <= 0 && ends[3][1] >= 480 * opxy::draw::unit;
+    return true;
 }
 
 // Every mechanism stays inside its rim, clear of its outline by 1.5 px (the rim's stroke and a
 // little air), however the rim distorts: each part's furthest reaches, from its node's place and
-// turn, must lie inside the rim's outline (less the line's ribbon) and not near it.
-bool inside(unsigned k, double x, double y) {
+// turn, must lie inside the rim's outline and not near it.
+bool inside(unsigned k, double x, double y, double clearance = 1.5) {
     const chroma::Frame::path_type& path = frame.paths[k];
     const double cx = frame.nodes[k].x / 1024.0, cy = frame.nodes[k].y / 1024.0;
     double px_[64], py_[64];
     int n = 0;
     for (unsigned i = 0; i < chroma::Frame::point_count; ++i) {
         const opxy::draw::Point& q = path.points[i];
-        if (q.y >= -kHalf && q.y <= kHalf) continue;  // the line
         px_[n] = cx + q.x / 1024.0;
         py_[n++] = cy + q.y / 1024.0;
     }
@@ -122,7 +117,7 @@ bool inside(unsigned k, double x, double y) {
         const double d = std::sqrt(ex * ex + ey * ey);
         if (d < nearest) nearest = d;
     }
-    return in && nearest >= 1.5;
+    return in && nearest >= clearance;
 }
 // A part's two ends, `along` (Q10 px) either way from its node's origin along its turn, times its scale.
 bool ends_inside(unsigned k, unsigned node, int along, int across = 0) {
@@ -159,6 +154,16 @@ bool parts_inside() {
     for (unsigned i = 0; i < 2; ++i)
         if (!ends_inside(3, kNodeBlades + i, kReachBlade)) return stray = "a blade", false;
     if (!ends_inside(3, kNodePath, kReachPath)) return stray = "the path", false;
+    // The noise specks: inside their rims, clear of the outline by their own size and more.
+    static const unsigned kFacets[3] = {0, 2, 3};
+    for (unsigned f = 0; f < 3; ++f)
+        for (unsigned i = 0; i < kSpecks; ++i) {
+            const opxy::draw::Node& d = frame.nodes[kNodeSpecks + f * kSpecks + i];
+            if (d.x >= opxy::draw::hidden_x * opxy::draw::unit) continue;
+            if (!inside(kFacets[f], d.x / 1024.0, d.y / 1024.0, 2.6)) return stray = "a noise speck", false;
+            const double dy = d.y / 1024.0 - kY, dx = d.x / 1024.0 - kX[kFacets[f]];
+            if (dy * dy < 0.2 * (dx * dx + dy * dy)) return stray = "a noise speck by the line", false;
+        }
     return true;
 }
 
@@ -302,7 +307,8 @@ int main() {
             if (n > turn_peak) turn_peak = n;
         }
     }
-    std::printf("%u frames checked; churn at the heaviest: mean %.1f, peak %u nodes a frame; turning a control: peak %u\n", checked, most_mean, most_peak, turn_peak);
+    std::printf("%u frames checked; where they meet the line the rims turn at most %.0f degrees; churn at the heaviest: mean %.1f, peak %u nodes a frame; turning a control: peak %u\n",
+                checked, pinch, most_mean, most_peak, turn_peak);
     if (most_mean > 15 || most_peak > 25 || turn_peak > 30) {
         std::puts("FAIL too many nodes change a frame");
         ok = false;
