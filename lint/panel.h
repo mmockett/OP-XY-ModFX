@@ -11,13 +11,13 @@ enum Shade { kShadeGlow0 = 0, kShadeGlow1 = 1, kShadeGlow2 = 2, kShadeGlow3 = 3,
 const opxy::i32 kY = 132, kNorth = 47, kSouth = 206, kHalf = 57, kT2X = 465;
 const opxy::i32 kCX[4] = {57, 171, 285, 399};
 // Dust's head and rollers; its rest and lift Q10 below and above the cable.
-const opxy::i32 kHeadR = 26, kHeadH = 56, kHeadRest = 2560, kHeadLift = 20480, kRollerX = 41;
-const opxy::i32 kGritN = 8, kGritPitch = 6656, kGritGap = 1;  // kGritPitch Q10
+const opxy::i32 kHeadR = 28, kHeadH = 54, kHeadRest = 2560, kHeadLift = 20480, kRollerX = 41;
+const opxy::i32 kGritN = 8, kGritPitch = 7168, kGritGap = 1;  // kGritPitch Q10
 const opxy::i32 kGlassY = -45, kBeamY = -25, kGlows = 8, kRollerR = 10;
 // The echo's drum; its heads' reach from the centre (Q10); the playback cable's run; the playback head's travel, tenths of a degree.
-const opxy::i32 kDrumR = 30, kHeadFoot = 32256, kHeadTip = 45568, kCableR = 49;
-const opxy::i32 kPlayFrom = 2160, kPlaySpan = 1800, kRepeats = 6, kRepeatStep = 260, kRepeatLast = 5000;
-const opxy::i32 kCoilX = 32;
+const opxy::i32 kDrumR = 25, kHeadFoot = 27136, kHeadTip = 38400, kCableR = 43;
+const opxy::i32 kPlayFrom = 2160, kPlaySpan = 1800, kRepeats = 6, kRepeatStep = 300, kRepeatLast = 5100;
+const opxy::i32 kCoilX = 30;
 const opxy::i32 kT2Ends = 9, kT2R = 7, kT2H = 24, kT2Rest = 2560, kT2Lift = 9216, kT2LoopBase = 196;
 // The loop's cable from the echo at position e to position t (4: tape 2), by what is patched: phase, spring, tape; -1 for none.
 const opxy::i32 kLane[4][5][3] = {{{-1, -1, -1}, {41, 42, -1}, {43, 44, -1}, {45, 46, -1}, {-1, -1, 47}}, {{48, 49, -1}, {-1, -1, -1}, {50, 51, -1}, {52, 53, -1}, {-1, -1, 54}}, {{55, 56, -1}, {57, 58, -1}, {-1, -1, -1}, {59, 60, -1}, {-1, -1, 61}}, {{62, 63, -1}, {64, 65, -1}, {66, 67, -1}, {-1, -1, -1}, {-1, -1, 68}}};

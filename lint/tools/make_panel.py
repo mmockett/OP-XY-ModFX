@@ -58,25 +58,25 @@ WALL_W, WALL_R, JACK = 3, 6, 5   # the walls' width, their outer corner radius, 
 HOP_IN, BEND = 7, 6        # how far into a module the hop rises, the cables' bend radius
 
 # Dust: the head and its rollers, about the module's centre on the cable.
-HEAD_R, HEAD_H, HEAD_REST, HEAD_LIFT = 26, 56, 2.5, 20   # crown radius, length, crown below the cable at rest, travel
+HEAD_R, HEAD_H, HEAD_REST, HEAD_LIFT = 28, 54, 2.5, 20   # crown radius, length, crown below the cable at rest, travel
 ROLLER_X, ROLLER_R = 41, 10   # the guides, on the far side of the tape from the head
 NOTCH_W, NOTCH_D = 2.4, 6  # the head's gap
-GRIT_N, GRIT_W, GRIT_GAP = 8, 5.5, 1
-GRIT_H = [6, 10, 7, 12, 8, 11, 5, 9]
+GRIT_N, GRIT_W, GRIT_GAP = 8, 6, 1   # 8 blocks of 6 with gaps of 1 span the head's 56
+GRIT_H = [5, 9, 6, 11, 7, 10, 4, 8]
 # Phase: the cell on the cable, the lamp over it.
-CELL_R = 14
+CELL_R = 16
 GLASS_R, GLASS_Y, NECK_W, NECK_TOP = 18, -45, 7, -69   # the bulb: its glass round, its neck up to the cap
-BASE = (-8, -79.5, 8, -70.5)      # the lamp's cap, x0 y0 x1 y1
-BEAM = (-11, -25, -7, -16)        # its light: top half-width and y (it hangs from there), bottom half-width and y
+BASE = (-9, -79.5, 9, -70.5)      # the lamp's cap, x0 y0 x1 y1
+BEAM = (-11, -25, -7, -18)        # its light: top half-width and y (it hangs from there), bottom half-width and y
 # Echo: the drum, its heads outside the rim, the cable round them.
-DRUM_R = 30
-HEAD_IN, HEAD_OUT, HEAD_W = 1.5, 14.5, 7     # a head's reach from the rim, its half-width
-CABLE_R = DRUM_R + 19      # the playback cable's run round the drum
+DRUM_R = 25
+HEAD_IN, HEAD_OUT, HEAD_W = 1.5, 12.5, 6     # a head's reach from the rim, its half-width
+CABLE_R = DRUM_R + 18      # the playback cable's run round the drum
 PLAY_FROM, PLAY_SPAN = 2160, 1800            # the playback head: tenths of a degree (the record head is at 1800), across time
-REPEATS, REPEAT_STEP, REPEAT_LAST = 6, 260, 5000   # repeats ride this far apart after it, never past 140 degrees past east
-RISER_X = -38              # the loop's cable leaves the record head here
+REPEATS, REPEAT_STEP, REPEAT_LAST = 6, 300, 5100   # repeats ride this far apart after it, never past 150 degrees past east
+RISER_X = -32              # the loop's cable leaves the record head here
 # Spring: two transducers and the spring between them.
-TRANS_X, TRANS_W, TRANS_H = 40, 16, 48
+TRANS_X, TRANS_W, TRANS_H = 38, 16, 48
 COIL_X = TRANS_X - TRANS_W // 2           # where the spring meets each transducer
 # Tape 2: its head, under the cable at rest, or down by the loop's cable.
 T2_R, T2_H, T2_REST, T2_LIFT = 7, 24, 2.5, 9
@@ -222,7 +222,7 @@ def head_block(scale=1.0):
 solid("rec_head", head_block(), G[2])
 solid("play_head", head_block(), G[2])
 REPEAT_GREYS = ["#AFAFAF", "#969696", "#7D7D7D", "#646464", "#4B4B4B", "#3C3C3C"]
-REPEAT_SCALE = [0.8, 0.72, 0.64, 0.56, 0.5, 0.44]
+REPEAT_SCALE = [0.72, 0.62, 0.53, 0.45, 0.39, 0.34]
 for k in range(REPEATS):
     solid(f"repeat_{k}", head_block(REPEAT_SCALE[k]), REPEAT_GREYS[k])
 wire("echo_in", [(-HALF, 0), (-(DRUM_R + HEAD_OUT), 0)])

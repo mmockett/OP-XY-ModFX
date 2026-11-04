@@ -367,9 +367,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         place(frame, kNodeRollerL, cx[kD], y - guide, unit, 0, keep);
         place(frame, kNodeRollerR, cx[kD], y - guide, unit, 0, keep);
         for (i32 k = 0; k < kGritN; ++k) {
-            const i32 grown = clamp((v[kDust] - 9830 - 2100 * k) * 10, 0, 32767);   // from 0.3, a block each 0.065
+            // From 0.3 the blocks step out together, a third grown at once, full by 0.7.
+            const i32 rough = clamp((v[kDust] - 9830) * 5 / 2, 0, 32767);
+            const i32 grown = v[kDust] > 9830 ? 11469 + share(21298, rough) : 0;
             const i32 x = cx[kD] - px(kHeadR) + kGritPitch * k + kGritPitch / 2;
-            if (grown < 2048) hide(frame, kNodeGrit + static_cast<u32>(k));
+            if (!grown) hide(frame, kNodeGrit + static_cast<u32>(k));
             else place(frame, kNodeGrit + static_cast<u32>(k), x, crown + px(kHeadH + kGritGap), grown >> 5, 0, keep);
         }
         place(frame, kNodeTape, cx[kD], y, unit, 0, keep);
@@ -429,9 +431,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 feedback = madness ? 4 * 32768 + (v[kEcho] - 27853) * 13 : v[kEcho] * 20 / 17 * 4;   // Q15 repeats: four by 85%, six by 100%
         for (i32 k = 0; k < kRepeats; ++k) {
             const i32 a = play + kRepeatStep * (k + 1);
-            const i32 up = clamp(feedback - (k << 15), 0, 32767);
-            if (a > kRepeatLast || up < 3277) hide(frame, kNodeRepeats + static_cast<u32>(k));
-            else on_rim(frame, kNodeRepeats + static_cast<u32>(k), cx[kE], a, up >> 5);
+            const i32 up = clamp(feedback - (k << 15), 0, 32767);   // it rises from half its height, never a speck
+            if (a > kRepeatLast || up < 1639) hide(frame, kNodeRepeats + static_cast<u32>(k));
+            else on_rim(frame, kNodeRepeats + static_cast<u32>(k), cx[kE], a, (16384 + (up >> 1)) >> 5);
         }
         place(frame, kNodeEchoIn, cx[kE], y, unit, 0, keep);
         // The playback head's cable: out from its tip, round the drum to the east, and on.
