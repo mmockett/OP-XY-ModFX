@@ -82,6 +82,13 @@ further by time, as many as the feedback holds, outgrowing it past Madness.
 Spring pushes the rows apart and makes the grain finer and brighter, or
 coarser and darker, with tone. Tape 2 bands the rows of the last scope.
 
+A change travels: turn a control and the material passes along the order a
+scope at a time, each taking it a moment after the one before. As it arrives,
+dust's grain judders, harder the more it drives; the echo's copies step out
+one at a time at the echo's time; the spring's rows ring, longer the harder it
+is driven; tape 2's banding wavers. The lamp drifts the gaps at its rate and in
+its shape, and LFO 2 moves what it wobbles. Otherwise the screen is still.
+
 Under each scope is its place in the order; a bar joins neighbours the order
 runs straight through. A section patched into the echo's loop loses its place,
 the loop reaches it from under the echo, and it works on the echo's copies.
