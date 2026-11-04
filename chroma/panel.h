@@ -4,18 +4,13 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 84, kTexts = 18, kPalette = 8;
-enum Node { kNodeRayUp = 0, kNodeRayUpFar = 1, kNodeRayDown = 2, kNodeRayDownFar = 3, kNodeMaskA = 12, kNodeMaskB = 13, kNodeCard = 37, kNodeBeamTop = 38, kNodeBeamBottom = 39, kNodePrism = 40, kNodePrismSide = 41, kNodePrismGlint = 42, kNodeGhost = 43, kNodeShutter = 47, kNodeStopA = 48, kNodeStopB = 49, kNodeBob = 50, kNodeStraight = 64 };
-const opxy::u32 kNodeLines = 14, kNodeCracks = 20, kNodeStatics = 25, kNodeInners = 44, kNodeHalos = 65, kNodeMotes = 68, kNodeBars = 76;
-const opxy::u32 kNodeScreen = 4, kScreenParts = 8;
-// Where each of the lamp's five glyphs starts, and where the last one ends.
-const opxy::u32 kGlyphFirst[6] = {51, 53, 54, 57, 62, 64};
-enum Text { kTextLeft = 16, kTextRight = 17 };
-// Palette: each a stroke's grey and its width, which a node's scale multiplies.
-enum Shade { kPrismOn = 0, kPrismOff = 1, kRayNear = 2, kRayFar = 3, kBeamOn = 4, kBeamOff = 5, kMoteBright = 6, kMoteSoft = 7 };
-const opxy::i32 kAxis = 116, kRail = 196, kLampX = 56, kCardX = 130, kPrismX = 214, kPrismY = 118, kPrismR = 42;
-const opxy::i32 kScreenNear = 300, kScreenFar = 430, kScreenH = 66, kBobLow = 181, kBobTravel = 16;
-const opxy::u32 kTeeth = 6, kTooth = 5;
+const opxy::u32 kNodes = 48, kTexts = 16, kPalette = 5;
+enum Node { kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = 4, kNodeIn = 8, kNodeLines = 9, kNodeArcs = 15, kNodeBars = 40 };
+// Palette: a facet's ring, quiet; then lit in each encoder's tone.
+enum Shade { kQuiet = 0, kLit = 1 };
+const opxy::i32 kY = 130, kR = 40, kGap = 34;
+const opxy::i32 kX[4] = {60, 180, 300, 420};
+const opxy::i32 kArcX = 280;
 // The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.
 const opxy::i32 kRateHz[33] = {82, 96, 112, 131, 153, 179, 210, 245, 287, 335, 392, 459, 536, 627, 734, 858, 1003, 1173, 1372, 1605, 1877, 2195, 2567, 3002, 3511, 4106, 4802, 5617, 6569, 7682, 8984, 10507, 12288};
 const opxy::i32 kTwinMs[33] = {9216, 9993, 10836, 11749, 12740, 13814, 14979, 16241, 17611, 19096, 20706, 22451, 24344, 26397, 28622, 31035, 33652, 36489, 39566, 42902, 46519, 50441, 54694, 59305, 64305, 69727, 75606, 81980, 88892, 96387, 104514, 113325, 122880};

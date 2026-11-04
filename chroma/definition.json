@@ -245,13 +245,13 @@
     "bufferBytes": 328300,
     "transport": 1,
     "display": {
-      "stateBytes": 68,
+      "stateBytes": 64,
       "stateAlignment": 4,
       "paths": 4,
       "points": 64,
-      "nodes": 84,
-      "texts": 18,
-      "palette": 8
+      "nodes": 48,
+      "texts": 16,
+      "palette": 5
     }
   }
 }
