@@ -179,6 +179,209 @@ void ribbon(Frame::path_type& path, const Point (&line)[32], i32 nx, i32 ny) {
     }
 }
 
+// --- The grain: a field in each facet that carries what each module does to the
+// sound, and passes it on. Facet k shows it after modules 0..k. ---
+
+// A fixed hash per grain and purpose: Q10, -1024..1023.
+i32 hash(u32 i, u32 k) {
+    u32 x = i * 2654435761u ^ (k + 1) * 2246822519u;
+    x ^= x >> 15;
+    x *= 2246822519u;
+    x ^= x >> 13;
+    return static_cast<i32>((x >> 8) & 2047) - 1024;
+}
+
+// sin of radians given in Q10, Q10 (57.3 degrees a radian: tenths = q10 * 573 / 1024).
+i32 sinr(i32 radians_q10) { return sine(radians_q10 * 573 >> 10); }
+
+struct Grain {
+    i32 x, y, dy;        // Q10 px: across, the row's place, the displacement on it
+    i32 angle, scale;    // tenths of a degree; Q10
+    u32 weight;          // 0 thin, 1 thick
+    bool dim, shown;
+};
+
+struct Chain {
+    const i32* v;
+    u32 character, movement, diffusion, texture;
+    i32 hz;
+    u32 swing, clock;
+};
+
+// One grain of facet `stage`: the field after Character, then Movement, Diffuse and Texture, as far as `stage`.
+Grain grain(const Chain& ch, u32 j, u32 stage) {
+    const i32* v = ch.v;
+    const i32 side = kGrid[j][0], d = kGrid[j][1], col = kGrid[j][2];
+    const i32 row = side > 0 ? d : 3 + d;
+    Grain g = {px(-30 + col * 10) + hash(j, 11) * 3 / 2, -side * px(6 + 11 * d), hash(j, 12) * 3 / 2, 0, unit, 0, false, true};
+    g.dy = g.dy >> 10 << 10;
+    g.x = floor_q10(g.x) * unit;
+    const i32 alt = (row + col) & 1 ? -1 : 1;
+
+    // Character: warm rounds and thickens the grain, drive hardens it into alternate angles,
+    // fuzz makes it jagged and unequal between the sides, howl bands it, swell builds its density.
+    const i32 ca = ch.character == kCharacterOff ? 0 : v[kCharacterAmount];
+    const i32 lean = (v[kTilt] - 16384) * 350 >> 14;
+    if (ch.character == kWarm) {
+        g.weight = ca > 3932 ? 1 : 0;
+        g.scale = unit - (410 * ca >> 15);
+        g.angle = lean;
+    } else if (ch.character == kDrive) {
+        g.angle = lean + alt * (320 * ca >> 15);
+        g.scale = unit + (358 * ca >> 15);
+    } else if (ch.character == kFuzz) {
+        g.angle = alt * (250 + (450 * ca >> 15));
+        g.scale = unit + ((461 * ca >> 15) * (side > 0 ? 1024 : 410) >> 10);
+    } else if (ch.character == kHowl) {
+        const i32 period = 2 + ((v[kTilt] * 3 + 16384) >> 15);
+        const bool on = col % period == 0;
+        g.weight = on ? 1 : 0;
+        g.dim = !on && ca > 6554;
+        g.angle = on ? clamp(1350 * (ca >> 5) >> 10, 0, 900) : 0;
+        g.scale = on ? unit + (358 * ca >> 15) : unit;
+    } else if (ch.character == kSwell) {
+        const i32 ramp = (col * 171 + 102) * 1024 / (ca > 3932 ? ca >> 5 : 122);  // Q10
+        g.scale = clamp(ramp, 461, unit);
+        g.shown = ramp > 307;
+    }
+
+    // Movement: vibe waves it, the sides apart; swirl turns it; trem pulses it; twin doubles
+    // it with a late copy; pitch stretches or squeezes it.
+    const i32 ma = ch.movement == kMovementOff ? 0 : v[kMovementAmount];
+    if (stage >= 1 && ma) {
+        const i32 back = (6 - col) * 1250 / 6;  // ms
+        if (ch.movement == kTwin) {
+            if (d & 1) {
+                g.x += side * share(px(3) + share(px(9), v[kRate]), ma);
+                g.dim = true;
+            }
+        } else if (ch.movement == kPitch) {
+            const i32 bend = ((v[kRate] - 16384) >> 4) * (ma >> 5) >> 10;  // Q10, -1..1
+            g.x = clamp((g.x >> 5) * (unit + (bend * 430 >> 10)) >> 5, -px(45), px(45));
+            g.angle += bend * 300 >> 10;
+            g.dy -= side * (col & 1) * 3 * (ma >> 5);
+        } else {
+            const u32 phase = ch.swing - static_cast<u32>(ch.hz) * static_cast<u32>(back) * 4194u;
+            const i32 m = sway(ch.movement, ma, v[kDrift], phase, ch.clock - static_cast<u32>(back), side);
+            if (ch.movement == kVibe) {
+                g.dy -= m * 9;
+            } else if (ch.movement == kSwirl) {
+                g.angle += m * 700 >> 10;
+                g.dy -= m * 3;
+            } else if (ch.movement == kTrem) {
+                g.scale = g.scale * (unit + (461 * m >> 10)) >> 10;
+                if (m < -(461 * (ma >> 5) >> 10)) g.dim = true;
+            }
+        }
+    }
+
+    // Diffuse: cloud scatters it, further with Time; dusk smears it across the sides; tape
+    // wobbles it and drops a few; slice chops it into panned blocks; back reverses it.
+    const i32 da = ch.diffusion == kDiffusionOff ? 0 : v[kDiffusionAmount], tm = v[kTime];
+    if (stage >= 2 && da) {
+        if (ch.diffusion == kCloud) {
+            g.x += hash(j, 1) * share(3 + share(12, tm), da);
+            g.dy += hash(j, 2) * share(2 + share(9, tm), da);
+            if (hash(j, 3) > 1024 - (820 * (da >> 5) >> 10)) g.dim = true;
+        } else if (ch.diffusion == kDusk) {
+            if (((col & 1) == 0) == (side > 0)) {
+                g.scale = g.scale * (unit + ((717 * (da >> 5) >> 10) * (512 + (tm >> 5)) >> 10)) >> 10;
+                g.angle = g.angle * 3 / 10;
+            } else {
+                g.dim = true;
+            }
+        } else if (ch.diffusion == kTape) {
+            g.dy += sinr(col * 1331 + row * 1024) * share(3, da);
+            if (hash(j, 4) > 1024 - (256 * (da >> 5) >> 10)) g.shown = false;
+        } else if (ch.diffusion == kSlice) {
+            const i32 block = col / (tm < 16384 ? 2 : 3);
+            g.dy += (block & 1 ? -1 : 1) * share(px(8), da);
+            g.x += block * share(px(3), da) - share(px(6), da);
+        } else if (ch.diffusion == kBack) {
+            g.x = -g.x;
+            if ((6 - col) * 32768 < 6 * da * 6 / 10) g.dim = true;
+        }
+    }
+
+    // Texture: tilt thins the highs on the left and the lows on the right; low and high
+    // drop one end; press squeezes it even; cass bands it; worn drops it out and sags it;
+    // radio leaves a strip. Drift, on the same knob, unsettles what leaves.
+    if (stage >= 3) {
+        const i32 ta = v[kTextureAmount], a = ta >> 5;
+        const i32 u = clamp((g.x * 13 / 10 + px(39)) / 78, 0, 1024);  // low .. high, Q10
+        if (ch.texture == kBalance) {
+            const i32 s = (ta - 16384) >> 4;  // Q10 -1..1
+            const i32 cut = side > 0 ? u : 1024 - u;
+            const i32 shrink = s > 0 ? (s * cut >> 10) * 614 >> 10 : -((-s * cut >> 10) * 410 >> 10);
+            g.scale = g.scale * (unit - shrink) >> 10;
+            if (s > 0 && cut > 1024 - (s * 922 >> 10)) {
+                g.weight = 0;
+                if (cut > 1024 - (s * 461 >> 10)) g.shown = false;
+            } else if (s < 0 && cut > 1024 + (s * 922 >> 10)) {
+                g.weight = 1;
+            }
+        } else if (ch.texture == kLow) {
+            if (u > 1024 - (a >> 1)) g.shown = false;
+            else if (u > 1024 - a) g.dim = true;
+            g.scale = g.scale * (unit - (a >> 2)) >> 10;
+            if (a > 512) g.weight = 1;
+        } else if (ch.texture == kHigh) {
+            if (u < (a >> 1)) g.shown = false;
+            else if (u < a) g.dim = true;
+            if (a > 410) g.weight = 0;
+        } else if (ch.texture == kPress) {
+            g.dy = g.dy * (1024 - (614 * a >> 10)) >> 10;
+            g.y = -side * (px(6) + px(11) * d * (1024 - (461 * a >> 10)) / 1024);
+            g.angle = g.angle * (1024 - a) >> 10;
+        } else if (ch.texture == kCass) {
+            if ((d & 1) && a > 307) g.dim = true;
+            g.dy += sinr(col * 922 + static_cast<i32>(ch.clock % 5236u) * 1229 / 1000) * (a * 5 >> 1) >> 10;
+        } else if (ch.texture == kWorn) {
+            if (hash(j, 6) > 1024 - (820 * a >> 10)) g.shown = false;
+            g.dy += (a * 4) * (sine((u * 1800) >> 10)) >> 10;
+        } else if (ch.texture == kRadio) {
+            if ((u > 512 ? u - 512 : 512 - u) > (614 * (1024 - (614 * a >> 10)) >> 10)) g.shown = false;
+            if (hash(j, 7) > 1024 - (358 * a >> 10)) g.dim = true;
+        }
+        const i32 dr = v[kDrift] >> 5;
+        if (dr) {
+            g.dy += (hash(j, 21) * dr >> 10) * 6 * sinr(static_cast<i32>(ch.clock % 5712u) * 1229 / 1000 + static_cast<i32>(j) * 1024) >> 10;
+            g.x += (hash(j, 22) * dr >> 10) * 5;
+            g.angle += (hash(j, 23) * dr >> 10) * 600 >> 10;
+        }
+    }
+    return g;
+}
+
+// A whole-number square root.
+i32 root(i32 n) {
+    i32 r = 0;
+    for (i32 bit = 1 << 14; bit; bit >>= 1)
+        if ((r + bit) * (r + bit) <= n) r += bit;
+    return r;
+}
+
+// Places grain j of facet k, kept inside its disc, on whole pixels and whole steps.
+void put_grain(Frame& frame, const Chain& ch, u32 k, u32 j) {
+    const u32 n = kNodeGrains + k * kGrains + j;
+    const Grain g = grain(ch, j, k);
+    if (!g.shown) {
+        hide(frame, n);
+        return;
+    }
+    i32 x = floor_q10(g.x + 512), y = floor_q10(g.y + g.dy + 512);
+    const i32 r2 = x * x + y * y;
+    if (r2 > 35 * 35) {
+        const i32 r = root(r2);
+        x = x * 35 / r;
+        y = y * 35 / r;
+    }
+    const i32 scale = clamp((g.scale + 64) >> 7 << 7, 512, 2048);
+    const u32 shade = g.dim ? kGrainDim + k : (g.weight ? kGrainThick : kGrainThin) + k;
+    place(frame, n, px(kX[k] + x), px(kY + y), scale, shade, stroke);
+    turn(frame, n, rotation((g.angle + (g.angle < 0 ? -10 : 10)) / 20 * 20));
+}
+
 // Q10 to the nearest whole pixel, still Q10.
 i32 whole(i32 q10) { return floor_q10(q10 + 512) * unit; }
 
@@ -214,6 +417,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         state.swing += static_cast<u32>(hz) * elapsed * 4194u;
         state.clock += elapsed;
     }
+    const bool fresh = !state.ready;
     state.ready = 1;
     const u32 clock = state.clock;
 
@@ -389,6 +593,28 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         place(frame, kNodeExits, px(kX[3]) + whole(frame.paths[kNodeBand].points[31].x), px(kY) + whole(frame.paths[kNodeBand].points[31].y), unit, 0, keep);
         place(frame, kNodeExits + 1, px(kX[3]) + whole(frame.paths[kNodeBand].points[32].x), px(kY) + whole(frame.paths[kNodeBand].points[32].y), unit, 0, keep);
         sign(frame.paths[kNodeBand]);
+    }
+
+    // --- The grain, refreshed a few at a time so a moving LFO never redraws the whole field:
+    // 12 a frame through facets 2-4 while only time moves, 40 a frame through all four while a
+    // control turns, every one on the first frame. ---
+    {
+        const Chain ch = {v, character, movement, diffusion, texture, hz, state.swing, clock};
+        u32 key = character | movement << 3 | diffusion << 6 | texture << 9;
+        for (u32 i = 0; i < 8; ++i) key = key * 31 + static_cast<u32>(v[i]);
+        const u32 total = 4 * kGrains;
+        if (fresh) {
+            for (u32 n = 0; n < total; ++n) put_grain(frame, ch, n / kGrains, n % kGrains);
+            state.sweep = 0;
+        } else {
+            const bool turned = key != state.key;
+            for (u32 step = 0; step < (turned ? 40u : 12u); ++step) {
+                if (!turned && state.sweep < kGrains) state.sweep = kGrains;
+                put_grain(frame, ch, state.sweep / kGrains, state.sweep % kGrains);
+                state.sweep = state.sweep + 1 < total ? state.sweep + 1 : 0;
+            }
+        }
+        state.key = key;
     }
 }
 }

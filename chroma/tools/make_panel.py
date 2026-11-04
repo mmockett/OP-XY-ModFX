@@ -42,12 +42,36 @@ GROUNDS = [grey(t, 0.22) for t in TONES]
 RINGS = [grey(t, 0.5) for t in TONES]
 PLATE = grey(TONES[0], 0.42)
 ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
-# Palette: each facet lit in its knob's tone while Shift is held (its ground kept).
-PALETTE = [(GROUNDS[i], TONES[i], 1.2) for i in range(4)]
+# The grain inside each facet, a step below its readouts: thin, thick, or dimmed.
+GRAIN_TONES = [grey(t, 0.62) for t in TONES]
+GRAIN_DIMS = [grey(t, 0.34) for t in TONES]
+# Palette: each facet lit in its knob's tone while Shift is held (its ground kept);
+# then the grain's paints, which lend their widths: thin, thick and dim, a facet each.
+PALETTE = ([(GROUNDS[i], TONES[i], 1.2) for i in range(4)] + [("#000000", GRAIN_TONES[i], 1.2) for i in range(4)] +
+           [("#000000", GRAIN_TONES[i], 2.5) for i in range(4)] + [("#000000", GRAIN_DIMS[i], 1.4) for i in range(4)])
 SHAPES = ["wave", "left_sway", "right_sway", "band"]
+
+
+def grain_grid():
+    """Each facet's grain: rows 6, 17 and 28 px either side of the centre, columns 10 px
+    apart, those inside the disc. Upper rows are the left side, lower the right."""
+    out = []
+    for side in (1, -1):
+        for d in range(3):
+            y = -side * (6 + d * 11)
+            for col in range(7):
+                x = -30 + col * 10
+                if x * x + y * y <= 35 * 35:
+                    out.append((side, d, col))
+    return out
+
+
+GRID = grain_grid()
+GRAINS = len(GRID)
 NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
          [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + ["puck_left", "puck_right", "exit_left", "exit_right"] +
+         [f"grain_{k}_{j}" for k in range(4) for j in range(GRAINS)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
@@ -146,6 +170,10 @@ def main():
         put(f"facet_{i}", circle(R - 1), RINGS[i], SECOND, x, Y, GROUNDS[i])
     # Character's plate: the facet's lower half, turned with Tilt.
     put("plate", [((R - 4) * math.cos(math.pi * k / 31), (R - 4) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
+    # The grain, over the grounds and the plate and under every readout; the display places each.
+    for k in range(4):
+        for j in range(GRAINS):
+            put(f"grain_{k}_{j}", ribbon([(-2.6, 0), (2.6, 0)], 0.25), GRAIN_TONES[k], 1.2, XS[k], Y)
     put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
     gap = XS[1] - XS[0] - 2 * R - 6
     for k in range(1, 4):
@@ -179,9 +207,12 @@ def main():
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = {nodes['facet_0']}, "
          f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
-         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeBars = {nodes['bar_0']} }};",
-         "// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept.",
-         "enum Shade { kLit = 0 };",
+         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeGrains = {nodes['grain_0_0']}, kNodeBars = {nodes['bar_0']} }};",
+         "// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept; then the grain's thin, thick and dim paints, a facet each.",
+         "enum Shade { kLit = 0, kGrainThin = 4, kGrainThick = 8, kGrainDim = 12 };",
+         f"const opxy::u32 kGrains = {GRAINS};",
+         "// Each grain's side (+1 left, -1 right), row out from the centre and column.",
+         "const opxy::i32 kGrid[" + str(GRAINS) + "][3] = {" + ", ".join("{%d, %d, %d}" % g for g in GRID) + "};",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
          f"const opxy::i32 kArcX = {XS[2] - 20};",
