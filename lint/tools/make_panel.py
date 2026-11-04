@@ -41,7 +41,7 @@ p = Panel()
 
 # The rims' greys keep the encoders' order, dark to white; the darker ones are
 # drawn heavier, so all four read as equally present.
-RIMS = [("#8a8a8a", 2.0), ("#acacac", 1.8), ("#d0d0d0", 1.6), ("#f4f4f4", 1.5)]
+RIMS = [("#8a8a8a", 2.0), ("#acacac", 1.8), ("#d0d0d0", 1.6), ("#f4f4f4", 1.4)]
 WIRE = "#6c6c6c"      # the signal's lines
 G = "#5c5c5c"         # quiet structure inside the scopes: the channel, the floor, the posts
 K = R0 / 40           # the objects were drawn for a rim of 40
@@ -62,6 +62,36 @@ def sym_ribbon(line, width=0.5):
     return a + b[::-1]
 
 
+def capsule(line, width=0.6, cap=3):
+    """A line as a thin closed outline with round ends: every free end in the
+    artwork is rounded, so all the strokes finish alike."""
+    n = len(line)
+    a, b = [], []
+    for i, (x, y) in enumerate(line):
+        p0 = line[max(i - 1, 0)]
+        p1 = line[min(i + 1, n - 1)]
+        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+        L = math.hypot(dx, dy) or 1
+        a.append((x - dy / L * width / 2, y + dx / L * width / 2))
+        b.append((x + dy / L * width / 2, y - dx / L * width / 2))
+
+    def end(pt, toward, start):
+        (x, y), (qx, qy) = pt, toward
+        L = math.hypot(qx - x, qy - y) or 1
+        ux, uy = (x - qx) / L, (y - qy) / L          # pointing out of the line
+        nx, ny = -uy, ux
+        r = width / 2
+        out = []
+        for j in range(1, cap):
+            t = math.pi * j / cap
+            out.append((x + r * (math.cos(t) * nx + math.sin(t) * ux), y + r * (math.cos(t) * ny + math.sin(t) * uy)))
+        return out
+    # a: left side out, cap at the far end, b back, cap at the start
+    far = end(line[-1], line[-2], False)
+    near = end(line[0], line[1], True)
+    return a + far + b[::-1] + near
+
+
 def stadium(w, h, n=40):
     r = w / 2
     pts = []
@@ -72,6 +102,10 @@ def stadium(w, h, n=40):
         a = math.pi * j / (n // 2 - 1)
         pts.append((r * math.cos(a), (h / 2 - r) + r * math.sin(a)))
     return pts
+
+
+def arc(r, a0, a1, n, cx=0, cy=0):
+    return [(cx + r * math.cos(a0 + (a1 - a0) * k / (n - 1)), cy + r * math.sin(a0 + (a1 - a0) * k / (n - 1))) for k in range(n)]
 
 
 # --- the scopes -----------------------------------------------------------
@@ -88,11 +122,11 @@ p.node("channel", stadium(16, 66, 40), (CX[0], CY), G, 1.2)
 
 def stop(sign):
     pts = [(-11 + 22 * j / 11, sign * 2.4 * (1 - ((-11 + 22 * j / 11) / 11) ** 2)) for j in range(12)]
-    return normal_ribbon(pts, 0.8)
+    return capsule(pts, 0.6)
 
 
-p.node("stop_top", stop(1), (640, 320), "#8a8a8a", 2.2)
-p.node("stop_bottom", stop(-1), (640, 320), "#8a8a8a", 2.2)
+p.node("stop_top", stop(1), (640, 320), "#8a8a8a", 1.8)
+p.node("stop_bottom", stop(-1), (640, 320), "#8a8a8a", 1.8)
 p.node("ball", circle(5.2, 20), (640, 320), "#8a8a8a", 2.0)
 
 # Phase: the optical phaser's lamp. Its filament glows first, then its light
@@ -105,22 +139,21 @@ bulb += [(5.6, 12), (5.6, 19.5), (-5.6, 19.5), (-5.6, 12)]
 p.node("bulb", bulb, (CX[1], CY), "#acacac", 1.8)
 p.node("bulb_base", [(-5.6, 23.5), (5.6, 23.5), (5.6, 25.2), (-5.6, 25.2)], (CX[1], CY), "#acacac", 1.4)
 fil = [(-7 + 14 * j / 15, -7 + 3.2 * math.sin(math.pi * 3 * j / 15)) for j in range(16)]
-p.node("filament", ribbon(fil, 0.6), (640, 320), "#acacac", 1.6)
+p.node("filament", capsule(fil, 0.6), (640, 320), "#acacac", 1.6)
 GLOW_R = (20.5, 25, 29.5)
 for k, r in enumerate(GLOW_R):
-    p.node(f"glow_{k}", arc_ribbon(r, math.radians(-128), math.radians(-52), 16, 0.7), (640, 320), "#acacac", 1.6)
+    p.node(f"glow_{k}", capsule(arc(r, math.radians(-128), math.radians(-52), 16), 0.6), (640, 320), "#acacac", 1.6)
 
 # Echo: a ball bouncing along a floor; each bounce a repeat, spaced by the echo's
 # time and lower by its feedback, rising past Madness. The ball rests at the end
 # of its trail and runs it again as a change arrives.
-FLOOR_Y, FLOOR_W = 22, 25
-p.node("floor", [(-FLOOR_W + 2 * FLOOR_W * j / 11, FLOOR_Y + 1.0 * math.sin(math.pi * j / 11)) for j in range(12)]
-       + [(FLOOR_W - 2 * FLOOR_W * j / 11, FLOOR_Y + 0.8 + 1.0 * math.sin(math.pi * (11 - j) / 11)) for j in range(12)], (CX[2], CY), G, 1.2)
+FLOOR_Y, FLOOR_W = 16, 27
+p.node("floor", capsule([(-FLOOR_W + 2 * FLOOR_W * j / 11, FLOOR_Y) for j in range(12)], 0.6), (CX[2], CY), G, 1.2)
 p.node("echo_ball", circle(4.4, 20), (640, 320), "#d0d0d0", 1.8)
 HOP_W, HOP_H = 14, 26
 hop = [(HOP_W * j / 15, -HOP_H * 4 * (j / 15) * (1 - j / 15)) for j in range(16)]
 for k in range(6):
-    p.node(f"bounce_{k}", normal_ribbon(hop, 0.6), (640, 320), "#d0d0d0", 1.6)
+    p.node(f"bounce_{k}", capsule(hop, 0.6), (640, 320), "#d0d0d0", 1.6)
 
 # Spring: a coil stretched between two posts, side on; the brighter the tone the
 # more turns it is wound with, the harder the drive the larger they are; it rings
@@ -128,21 +161,22 @@ for k in range(6):
 COIL_L = 42           # post to post
 for side in (-1, 1):
     x = side * (COIL_L / 2 + 8)
-    p.node(f"post_{'l' if side < 0 else 'r'}", [(x - 0.6, -8), (x + 0.6, -8), (x + 0.6, 8), (x - 0.6, 8)], (CX[3], CY), G, 1.2)
-loop = [(5 * math.cos(2 * math.pi * j / 24), 15 * math.sin(2 * math.pi * j / 24)) for j in range(24)]
+    p.node(f"post_{'l' if side < 0 else 'r'}", capsule([(x, -9 + 18 * j / 3) for j in range(4)], 0.6), (CX[3], CY), G, 1.2)
+loop = [(5 * math.cos(2 * math.pi * j / 24), 13.5 * math.sin(2 * math.pi * j / 24)) for j in range(24)]
 COILS = 11
 for k in range(COILS):
-    p.node(f"coil_{k}", loop, (640, 320), "#f4f4f4", 1.6)
+    p.node(f"coil_{k}", loop, (640, 320), "#e2e2e2", 1.0)
 
+TEAR_R, TEAR_D = 12.5, 17     # the tape loop: its round end's radius, and how far below the echo it hangs
 # Tape 2's guides: either side of dust's rim, the line threading between each
 # pair, closing in with its level.
 GUIDE_R = R0 + 8
 for name, mid in (("guide_lt", math.pi + 0.36), ("guide_lb", math.pi - 0.36), ("guide_rt", -0.36), ("guide_rb", 0.36)):
-    p.node(name, arc_ribbon(GUIDE_R, mid - 0.2, mid + 0.2, 10, 0.7), (640, 320), "#8a8a8a", 1.6)
+    p.node(name, capsule(arc(GUIDE_R, mid - 0.2, mid + 0.2, 10), 0.6), (640, 320), "#8a8a8a", 1.6)
 
 # ... or, with tape 2 in the echo's loop, either side of the loop of tape.
 for name, mid in (("tguide_l", math.pi), ("tguide_r", 0.0)):
-    p.node(name, arc_ribbon(15.5, mid - 0.5, mid + 0.5, 10, 0.7), (640, 320), "#8a8a8a", 1.6)
+    p.node(name, capsule(arc(TEAR_R + 5, mid - 0.5, mid + 0.5, 10), 0.6), (640, 320), "#8a8a8a", 1.6)
 
 # LFO 1: three beads riding the phase rim, spaced by its rate.
 for k in range(3):
@@ -150,9 +184,8 @@ for k in range(3):
     p.node(f"bead_{k}", circle(rr, 14), (640, 320), "#acacac", 0.6, fill="#acacac")
 
 # --- the signal path ------------------------------------------------------
-TEAR_R, TEAR_D = 11, 13     # the tape loop: its round end's radius, and how far below the echo it hangs
 PORT = {"L": (-R0, 0), "R": (R0, 0), "T": (0, -R0), "B": (0, R0)}
-H = {1: 15, 2: 32}      # how high (or low) an arch at each level runs past the rims
+H = {1: 17, 2: 37}      # the same over the scopes as under them      # how high (or low) an arch at each level runs past the rims
 
 
 def port(col, side):
@@ -174,20 +207,20 @@ def arch(a, b, s, h, slant=0.0, n=None):
     """From port a to port b, both on the rims' tops (s = +1) or bottoms (s = -1),
     an arch h px past them, leaving each port square to the rim (or leaning
     `slant` px toward the other end)."""
-    n = n or max(14, min(30, int(abs(b[0] - a[0]) / 9)))
+    n = n or max(12, min(22, int(abs(b[0] - a[0]) / 12)))
     k = 4 / 3 * h
     d = 1 if b[0] > a[0] else -1
     return bez(a, (a[0] + d * slant, a[1] - s * k), (b[0] - d * slant, b[1] - s * k), b, n)
 
 
-ARROW = 5.0
+ARROW = 7.0
 
 
 def arrowhead(tip, direction):
     dx, dy = direction
     nx, ny = -dy, dx
     back = (tip[0] - dx * ARROW, tip[1] - dy * ARROW)
-    w = ARROW * 0.5
+    w = ARROW * 0.45
     return [tip, (back[0] + nx * w, back[1] + ny * w), (back[0] - nx * w, back[1] - ny * w)]
 
 
@@ -327,7 +360,7 @@ for si, (sig, n) in enumerate(sorted(need.items(), key=lambda kv: str(kv[0]))):
         for k, (kind, pts, off) in enumerate(parts):
             name = f"wire_{si}x{inst}x{k}"
             if kind == "line":
-                p.node(name, sym_ribbon(pts, 0.5), (640, 320), WIRE, 0.9)
+                p.node(name, capsule(pts, 0.5), (640, 320), WIRE, 0.9)
             else:
                 p.node(name, pts, (640, 320), WIRE, 0.6, fill=WIRE)
             first_wire = first_wire or name
@@ -335,6 +368,25 @@ for si, (sig, n) in enumerate(sorted(need.items(), key=lambda kv: str(kv[0]))):
         insts.append(nodes)
     shape_nodes[sig] = insts
 last_wire = name
+
+# Dust's leads: as the rim squares it gives a little at its compass points (so it
+# keeps its size), and a short lead carries each line on from the compass point
+# to the rim. Each lies along its line, over its end.
+LEAD = 9
+for nm, (dx, dy) in (("lead_r", (1, 0)), ("lead_b", (0, 1)), ("lead_l", (-1, 0)), ("lead_t", (0, -1))):
+    p.node(nm, capsule([(dx * LEAD * j / 3, dy * LEAD * j / 3) for j in range(4)], 0.5), (640, 320), WIRE, 0.9)
+
+# Noise, where the sound has it: a faint, sparse static inside the rim, each mark
+# a short dash. Grit in dust's crush, hiss on the echo's repeats, tape 2's hiss
+# and wear on the rim it works on. Nothing at 0; still at rest.
+NOISE = (("grit", 7, "#5e5e5e"), ("hiss", 6, "#646464"), ("wear", 5, "#5e5e5e"))
+for nm, n, grey in NOISE:
+    for k in range(n):
+        p.node(f"{nm}_{k}", capsule([(-1.6, 0), (1.6, 0)], 0.5), (640, 320), grey, 0.9)
+
+# The spark: as the order or the loop changes, a spark runs the new path once,
+# in at the arrow, out at the other, unseen while it is inside a scope.
+p.node("spark", circle(1.6, 12), (640, 320), "#ffffff", 0.8, fill="#ffffff")
 
 # LFO shapes as smooth glyphs: LFO 1's beside the lamp, LFO 2's beside what it wobbles.
 mark = 7
@@ -344,7 +396,7 @@ def glyph(nm):
     f = {"sine": lambda x: math.sin(x),
          "triangle": lambda x: 2 / math.pi * math.asin(0.93 * math.sin(x)) / (2 / math.pi * math.asin(0.93)),
          "square": lambda x: math.tanh(3 * math.sin(x)) / math.tanh(3)}[nm]
-    return ribbon([(-mark + 2 * mark * j / 23, -3.2 * f(2 * math.pi * j / 23)) for j in range(24)], 0.6)
+    return capsule([(-mark + 2 * mark * j / 23, -3.2 * f(2 * math.pi * j / 23)) for j in range(24)], 0.6)
 
 
 for nm in ("sine", "triangle", "square"):
@@ -355,18 +407,17 @@ for nm in ("sine", "triangle", "square"):
 # --- palette --------------------------------------------------------------
 for t, (c, w) in zip(("t1", "t2", "t3", "t4"), RIMS):
     p.shade(t, c, w)
-p.shade("wire", WIRE, 0.9)
+p.shade("wire", WIRE, 0.9)          # also the lamp's filament, cold
 p.shade("wire_lit", "#b4b4b4", 1.1)
 p.shade("worn", "#a8a8a8", 1.1)      # tape 2's wear: the last rim thinner and a step dimmer
-p.shade("mad", "#e4e4e4", 2.4)       # the echo past Madness: its rim heavier
+p.shade("mad", "#ececec", 1.5)       # the echo past Madness: its doubled rim brighter and heavier than doubled
 p.shade("halo", "#2a2a2a", 3.4)      # dust's blur: a soft, wide, dim ring hugging the rim
 p.shade("trail", "#9a9a9a", 1.6)     # the echo ball's trail, a step under the ball
-p.shade("trail_mid", "#9a9a9a", 2.4)  # a bounce drawn small keeps its weight
-p.shade("trail_thin", "#9a9a9a", 3.6)
-p.shade("lamp_hot", "#ffffff", 1.7)  # the filament and light at full glow
-p.shade("lamp_warm", "#acacac", 1.6)
-p.shade("lamp_cold", "#5a5a5a", 1.4)
-p.shade("bead", "#acacac", 0.6)
+p.shade("trail_thin", "#9a9a9a", 2.8)  # a bounce drawn small keeps its weight
+p.shade("lamp_hot", "#ffffff", 1.7)  # the filament and light at full glow (warm: the rim's own grey)
+# A doubled rim: two lines in the rim's grey, each thinner, so the pair weighs about what one rim does.
+for t, (c, w) in zip(("t1d", "t2d", "t3d", "t4d"), RIMS):
+    p.shade(t, c, round(w * 0.55, 2))
 
 # --- constants for display.cpp ---------------------------------------------
 idx = p.node_index()
@@ -415,6 +466,65 @@ for key in range(24):
     tear = [e for e in els if e.kind == "tear"]
     tear_at.append(1 if tear and tear[0].side < 0 else -1 if tear else 0)
 p.const("#define LINT_ROUTE_ENDS 1")
+# The spark's path through each route: points about 8 px apart along every line
+# in the signal's order, {x / 2, y / 2}, {255, 255} where it passes through a
+# scope, {0, 0} after the end.
+def resample(line, step=8.0):
+    out = [line[0]]
+    carry = 0.0
+    for a, b in zip(line, line[1:]):
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        t = step - carry
+        while t <= L:
+            out.append((a[0] + (b[0] - a[0]) * t / L, a[1] + (b[1] - a[1]) * t / L))
+            t += step
+        carry = L - (t - step)
+    if math.hypot(out[-1][0] - line[-1][0], out[-1][1] - line[-1][1]) > 1:
+        out.append(line[-1])
+    return out
+
+
+traces = []
+for key in range(24):
+    chain, els = routes[key]
+    by_from = {}
+    for e in els:
+        if e.kind in ("straight", "arc"):
+            by_from[e.ends[0][0]] = e
+    seq = []
+    stub_in = [e for e in els if e.kind == "stub_in"][0]
+    stub_out = [e for e in els if e.kind == "stub_out"][0]
+    seq.append(element_lines(stub_in)[0][0])
+    for c in chain[:-1]:
+        seq.append(None)
+        seq.append(element_lines(by_from[c])[0][0])
+    seq.append(None)
+    seq.append(element_lines(stub_out)[0][0][::-1])
+    pts = []
+    for line in seq:
+        if line is None:
+            pts += [(255, 255)] * 7    # inside a scope: unseen for 60 ms
+        else:
+            pts += [(round(x / 2), round(y / 2)) for x, y in resample(line)]
+    traces.append(pts)
+TRACE = max(len(t) for t in traces)
+p.const(f"const opxy::i32 kTrace = {TRACE};")
+p.const(f"// The spark's path along each route, in 2 px: {{255, 255}} inside a scope, {{0, 0}} after the end.")
+p.const(f"const opxy::u8 kTracePoints[24][{TRACE}][2] = {{" + ", ".join("{" + ", ".join(f"{{{x}, {y}}}" for x, y in t + [(0, 0)] * (TRACE - len(t))) + "}" for t in traces) + "};")
+
+dust_ports = []
+for key in range(24):
+    mask = 0
+    for sig, ox, oy, en in uses[key]:
+        for (x, y), c in en:
+            if c == 0:
+                dx, dy = x - CX[0], y - CY
+                mask |= 1 << (0 if dx > 1 else 2 if dx < -1 else 1 if dy > 0 else 3)
+    dust_ports.append(str(mask))
+p.const("#define LINT_LEADS 1")
+p.const(f"const opxy::i32 kLead = {LEAD};   // dust's leads, Q0 px long")
+p.const("// Each route: the compass points of dust's rim its lines meet (bit 0 right, 1 bottom, 2 left, 3 top).")
+p.const("const opxy::i32 kDustPorts[24] = {" + ", ".join(dust_ports) + "};")
 p.const(f"const opxy::i32 kRouteParts = {width};")
 p.const(f"// Each route (order * 4 + loop): its lines' nodes, {{node, x, y}} in Q10 px.")
 p.const(f"const opxy::i32 kRoute[24][{width}][3] = {{" + ", ".join(rows) + "};")
@@ -424,8 +534,10 @@ ew = max(len(r) for r in end_rows)
 p.const(f"// Each route: every line's end that meets a rim, {{x, y, scope}} in Q10 px; for the tests.")
 p.const(f"const opxy::i32 kEndCount = {ew};")
 p.const(f"const opxy::i32 kRouteEnds[24][{ew}][3] = {{" + ", ".join("{" + ", ".join(r + ["{0, 0, -1}"] * (ew - len(r))) + "}" for r in end_rows) + "};")
-p.const("// A squircle's radius over a circle's at each of the rim's 64 points, Q10, held at 1 on the axes.")
-sq = lambda a: 1 / (abs(math.cos(a)) ** 5 + abs(math.sin(a)) ** 5) ** 0.2
+p.const("// A squircle's radius over a circle's at each of the rim's 64 points, Q10, of the same area as the circle.")
+SQ_N = 4
+area = 4 * math.gamma(1 + 1 / SQ_N) ** 2 / math.gamma(1 + 2 / SQ_N) / math.pi
+sq = lambda a: area ** -0.5 / (abs(math.cos(a)) ** SQ_N + abs(math.sin(a)) ** SQ_N) ** (1 / SQ_N)
 p.const("const opxy::i32 kSquared[64] = {" + ", ".join(str(round(1024 * sq(2 * math.pi * k / 64))) for k in range(64)) + "};")
 p.const("// A dent's depth from its middle out to 30 degrees, in 64ths of that, Q10: a raised cosine.")
 p.const("const opxy::i32 kBump[65] = {" + ", ".join(str(round(512 * (1 + math.cos(math.pi * k / 64)))) for k in range(65)) + "};")

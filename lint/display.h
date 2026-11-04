@@ -26,6 +26,9 @@ struct DisplayState {
     opxy::i32 lamp, light[3];                // the filament's glow and its light's reach, Q15, lagging it
     opxy::i32 tape, tape_since;              // tape 2's level as last drawn, and when it last moved
     opxy::i32 tone_shown;                    // the coil's tone, which sets how many turns it has
+    opxy::u32 noise_seed[3];                 // grit, hiss and wear: how often their marks have re-seeded
+    opxy::i32 noise_n[3];                    // how many marks each showed
+    opxy::i32 spark_since, spark_route;      // when the spark set off, along which route
 };
 void display_reset(DisplayState& state);
 void display(DisplayState& state, const opxy::draw::Input& input, Frame& frame);

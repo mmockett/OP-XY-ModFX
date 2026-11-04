@@ -81,11 +81,12 @@ i32 radius(const Rim& r, const Live& l, i32 a) {
     // Its own shape.
     if (r.dust) {
         const i32 at = a * 64 / 3600, part = (a * 64 % 3600) * 1024 / 3600;
-        const i32 sq = kSquared[at] + ((kSquared[(at + 1) & 63] - kSquared[at]) * part >> 10) - 1024;   // 0 on the axes
+        // Squaring keeps the rim's area: the corners reach out as the sides come in.
+        const i32 sq = kSquared[at] + ((kSquared[(at + 1) & 63] - kSquared[at]) * part >> 10) - 1024;
         const i32 corner = px(kR0) * sq >> 10;
-        v += share(corner, r.dust) * 3 / 4;
+        v += share(corner, r.dust);
         const i32 up = -sin10(a);
-        if (up > 0) v += share(corner, r.lop) * up >> 10;   // lopsided: the top squarer
+        if (up > 0) v += share(corner, r.lop) * up >> 10;   // lopsided: the top squarer still
     }
     if (l.lean) v -= share(px(6), l.lean) * cos10(2 * (a - 450)) >> 10;
     const i32 wide = l.soft ? 450 : 300;
@@ -117,9 +118,9 @@ Point at_angle(i32 v, i32 a) { return Point{v * cos10(a) >> 10, v * sin10(a) >> 
 // The rim's 64 points: one outline, its points at every 5.625 degrees, so the
 // compass points are among them; or (with `twin`) the rim and a copy of it
 // `twin` Q10 px inside, joined where the signal comes in (`seam`, a compass
-// point), so the join carries the incoming line on to the copy. The rim keeps 41
-// of the points, on every 9 degrees; the copy, as an echo's repeat is darker,
-// is drawn without the finest roughness, on 23.
+// point), so the join carries the incoming line on to the copy. The rim keeps 37
+// of the points, every 10 degrees; the copy, as an echo's repeat is darker, is
+// drawn without the finest roughness, on 27.
 void rim(Frame::path_type& path, const Rim& r, const Live& l, i32 twin, i32 seam) {
     if (twin < px(2) || seam < 0) {
         for (i32 k = 0; k < 64; ++k) {
@@ -131,16 +132,21 @@ void rim(Frame::path_type& path, const Rim& r, const Live& l, i32 twin, i32 seam
     const i32 d = 2;   // tenths of a degree either side of the seam: the join's two edges a third of a pixel apart
     Live soft = l;
     soft.soft = 1;
-    // The copy, inside: 23 points, the long way round from one side of the seam to the other.
-    for (i32 k = 0; k < 23; ++k) {
-        const i32 a = k == 0 ? seam + d : k == 22 ? seam + 3600 - d : seam + k * 3600 / 22;
+    // The copy, inside: 27 points, the long way round from one side of the seam to the other.
+    for (i32 k = 0; k < 27; ++k) {
+        const i32 a = k == 0 ? seam + d : k == 26 ? seam + 3600 - d : seam + k * 3600 / 26;
         path.points[k] = at_angle(radius(r, soft, a) - twin, a);
     }
-    // The rim, back: 41 points, on every 9 degrees between, so the other compass points are among them.
-    for (i32 k = 0; k < 41; ++k) {
-        const i32 a = k == 0 ? seam + 3600 - d : k == 40 ? seam + d : seam + 3600 - k * 90;
-        path.points[23 + k] = at_angle(radius(r, l, a), a);
+    // The rim, back: 37 points, on every 10 degrees between, so the other compass points are among them.
+    for (i32 k = 0; k < 37; ++k) {
+        const i32 a = k == 0 ? seam + 3600 - d : k == 36 ? seam + d : seam + 3600 - k * 100;
+        path.points[27 + k] = at_angle(radius(r, l, a), a);
     }
+}
+
+u32 mix(u32 x) {
+    x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+    return x;
 }
 
 u32 checksum(const Frame::path_type& path) {
@@ -186,6 +192,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     if (!input.reduced_motion) state.clock += clamp(input.elapsed, 0, 102);
     const i32 now = state.clock;
     const i32 dt = input.reduced_motion ? 1024 : clamp(input.elapsed, 0, 102);   // Q10 s
+    const u32 route = n.order * 4 + n.loop;
     if (fresh) {
         state.lamp = 0;
         for (i32& g : state.light) g = 0;
@@ -193,6 +200,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         state.tape_since = now - 8192;
         state.tone_shown = v[kTone];
         state.extra[5] = (v[kSpringAmount] >> 8) * 256 + (v[kTone] >> 8);
+        for (u32 g = 0; g < 3; ++g) { state.noise_seed[g] = g * 977 + 1; state.noise_n[g] = 0; }
+        state.spark_since = now - 8192;
+        state.spark_route = static_cast<i32>(route);
         state.extra[6] = now - 8192;
     }
     // LFO 2 as the objects inside the rims follow it: sampled 15 times a second,
@@ -202,7 +212,6 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         if (fresh || t15 != state.extra[2]) { state.extra[2] = t15; state.extra[3] = n.lfo2; }
     }
     const i32 lfo2_s = state.extra[3];
-    const u32 route = n.order * 4 + n.loop;
 
     // The objects' fixed parts: dust's channel, the lamp's glass and base, the echo's floor, the coil's posts.
     place(frame, kNodeChannel, px(kCX[0]), px(kCY), unit, 0, keep);
@@ -283,12 +292,12 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 state.light[k] = lag(state.light[k], k ? state.light[k - 1] : state.lamp, clamp(dt * (34 - 7 * static_cast<i32>(k)), 0, 1024));
         }
         place(frame, kNodeFilament, px(kCX[1]), px(kCY), unit,
-              state.lamp > 21000 ? kShadeLampHot : state.lamp > 5000 ? kShadeLampWarm : kShadeLampCold, stroke);
+              state.lamp > 21000 ? kShadeLampHot : state.lamp > 5000 ? kShadeT2 : kShadeWire, stroke);
         for (u32 k = 0; k < 3; ++k) {
             const i32 lit_k = state.light[k] - static_cast<i32>(k) * 7000;           // the outer arcs need more light
             if (lit_k <= 2500) { hide(frame, kNodeGlow0 + k); continue; }
             place(frame, kNodeGlow0 + k, px(kCX[1]), px(kCY - 10), (900 + (clamp(lit_k, 0, 12000) * 124 / 12000)) & ~15,
-                  lit_k > 9000 ? kShadeLampHot : kShadeLampWarm, stroke);
+                  lit_k > 9000 ? kShadeLampHot : kShadeT2, stroke);
         }
     }
     // LFO 1's shape beside the lamp (LFO 2's, when it drives the lamp, is drawn below).
@@ -304,17 +313,17 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 e = v[kEcho];
     const i32 wob = n.wobble == kWobbleTime ? share(px(2), lfo2_s) & ~(unit / 2 - 1) : 0;
     const i32 gap = px(3) + share(px(8), v[kTime]) + wob;
-    i32 hop_x[6], hop_s[6], hops = 0, end_x = px(kCX[2] - 22);
+    i32 hop_x[6], hop_s[6], hops = 0, end_x = px(kCX[2] - 24);
     {
         i32 h = e < 27853 ? e * 32767 / 27853 : 32767;
-        i32 x = px(kCX[2] - 22);
+        i32 x = px(kCX[2] - 24);
         for (u32 k = 0; k < 6; ++k) {
             // A bounce's width follows its height, as a ball's does; the spacing is the time.
             const i32 scale = 300 + (clamp(h, 0, 40000) * 724 >> 15);
             const i32 w = px(kHopW) * scale >> 10;
             if (e <= 328 || h < 2000 || x + w > px(kCX[2] + kFloorW - 9)) { hide(frame, kNodeBounce0 + k); continue; }
             place(frame, kNodeBounce0 + k, x, px(kCY + kFloorY), scale & ~15,
-                  scale > 820 ? kShadeTrail : scale > 560 ? kShadeTrailMid : kShadeTrailThin, stroke);
+                  scale > 700 ? kShadeTrail : kShadeTrailThin, stroke);
             hop_x[hops] = x;
             hop_s[hops++] = scale & ~15;
             end_x = x + w;
@@ -394,6 +403,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     }
 
     static const u32 kTones[4] = {kShadeT1, kShadeT2, kShadeT3, kShadeT4};
+    static const u32 kDoubled[4] = {kShadeT1D, kShadeT2D, kShadeT3D, kShadeT4D};
     const u32 ph = n.wobble == kWobblePhaser ? state.c.lfo2 : state.c.lfo1;
     for (u32 s = 0; s < 4; ++s) {
         const Rim& r = state.shown[s];
@@ -451,7 +461,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                     byy = px(kCY + kFloorY - 5) - (px(kHopH) * hop_s[k] >> 10) * (4 * u * (1024 - u) >> 10) / 1024;
                 }
             }
-            if (!hops) bx = px(kCX[2] - 17);
+            if (!hops) bx = px(kCX[2] - 19);
             place(frame, kNodeEchoBall, bx & ~255, byy & ~255, unit, 0, keep);
         }
         if (s == 3) {
@@ -482,10 +492,20 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 turn(frame, kNodeCoil0 + static_cast<u32>(k), Turn{cos10(-150), sin10(-150)});
             }
         }
-        place(frame, s, px(kCX[s]), px(kCY), unit, r.worn ? kShadeWorn : r.copies && r.mad ? kShadeMad : kTones[s], stroke);
+        place(frame, s, px(kCX[s]), px(kCY), unit, r.worn ? kShadeWorn : r.copies && r.mad ? kShadeMad : twin ? kDoubled[s] : kTones[s], stroke);
         Frame::path_type& path = frame.paths[s];
         rim(path, r, l, twin, kInto[route][s]);
         path.key = checksum(path);
+        // Dust's leads: where its squared rim has given at a compass point a line meets, a lead carries the line on to it.
+        if (s == 0) {
+            for (u32 k = 0; k < 4; ++k) {
+                const i32 a = static_cast<i32>(k) * 900;
+                const i32 rp = radius(r, l, a);   // what moves the rim live is nothing here
+                if (!(kDustPorts[route] >> k & 1) || rp > px(kR0) - unit / 4) { hide(frame, kNodeLeadR + k); continue; }
+                const Point at = at_angle(rp, a);
+                place(frame, kNodeLeadR + k, px(kCX[0]) + at.x, px(kCY) + at.y, unit, lit ? kShadeWireLit : kShadeWire, fill_and_stroke);
+            }
+        }
         // A soft halo where roughness has been carried.
         if (r.fuzz > 11000) place(frame, kNodeHalo0 + s, px(kCX[s]), px(kCY), unit, 0, keep);
         else hide(frame, kNodeHalo0 + s);
@@ -497,8 +517,64 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 if (!lamp) { hide(frame, kNodeBead0 + k); continue; }
                 const i32 a = orbit - static_cast<i32>(k) * trail;
                 const Point b = at_angle(radius(r, l, a), a);
-                place(frame, kNodeBead0 + k, (px(kCX[1]) + b.x) & ~511, (px(kCY) + b.y) & ~511, unit, kShadeBead, fill_and_stroke);
+                place(frame, kNodeBead0 + k, (px(kCX[1]) + b.x) & ~511, (px(kCY) + b.y) & ~511, unit, 0, keep);
             }
+        }
+    }
+
+    // Noise, where the sound has it, inside the rim: grit in dust's crush, hiss on
+    // the echo's repeats (more past Madness), tape 2's hiss and wear on the rim it
+    // works on. Each mark keeps to a band clear of the object and the rim however
+    // they move; as a change arrives a third of the marks re-seed 12 times a
+    // second, in turn, and at rest they are still.
+    {
+        const i32 tape_col = n.loop == kLoopTape ? echo_col : last;
+        const i32 tape_amt = n.loop == kLoopTape && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
+        const i32 hiss = e <= 328 ? 0 : e > 27853 ? 32767 : share(26000, e);
+        struct Group { u32 first, most; i32 col, amount, from, span, r0, r1, from_amount; };
+        const i32 tape_r0 = tape_col == 1 ? 29 : 24, tape_r1 = tape_col == 1 ? 34 : tape_col == 2 ? 29 : 31;
+        const Group groups[3] = {
+            {kNodeGrit0, 7, 0, v[kDust], 0, 2000, 20, 35, 9800},                  // two lobes, either side of the channel; once it audibly crushes
+            {kNodeHiss0, 6, echo_col, hiss, 2450, 900, 17, 23, 14000},           // over the bounces, clear of the lamp's lean; once the repeats build
+            {kNodeWear0, 5, tape_col, tape_amt, 600, 600, tape_r0, tape_r1, 5000}};   // under the object
+        for (u32 g = 0; g < 3; ++g) {
+            const Group& G = groups[g];
+            // From a few marks, as the noise becomes audible, to all of them.
+            const i32 count = G.amount < G.from_amount ? 0 : 3 + ((G.amount - G.from_amount) * (static_cast<i32>(G.most) - 3) + 16384) / (32768 - G.from_amount);
+            const bool active = !instant && (now - state.since[G.col] < 700 || count != state.noise_n[g]);
+            // 12 steps a second, each group a couple of frames after the one before, so their redraws don't pile up.
+            const i32 lead_in = static_cast<i32>(g) * 28;
+            const bool step = (((now + lead_in) * 12) >> 10) != (((now - dt + lead_in) * 12) >> 10);
+            if (active && step) ++state.noise_seed[g];   // each step re-seeds a third of the marks, in turn
+            state.noise_n[g] = count;
+            const i32 scale = (870 + share(300, G.amount)) & ~15;
+            for (u32 k = 0; k < G.most; ++k) {
+                if (static_cast<i32>(k) >= count) { hide(frame, G.first + k); continue; }
+                const u32 h = mix(((state.noise_seed[g] + k) / 3) * 31u + k * 7919u + g * 131u);
+                const i32 sector = G.span / count;
+                i32 a = G.from + sector * static_cast<i32>(k) + (sector * (200 + static_cast<i32>(h & 511) * 600 / 512) >> 10);
+                if (g == 0) a = a < 1000 ? a - 500 : a + 300;   // grit: within 50 degrees of either side
+                const i32 r = px(G.r0) + static_cast<i32>((h >> 9) & 1023) * (px(G.r1 - G.r0) >> 10);
+                const Point at = at_angle(r, a);
+                place(frame, G.first + k, (px(kCX[G.col]) + at.x) & ~511, (px(kCY) + at.y) & ~511, scale, 0, keep);
+                const i32 rot = static_cast<i32>((h >> 19) % 1800);
+                turn(frame, G.first + k, Turn{cos10(rot), sin10(rot)});
+            }
+        }
+    }
+
+    // The spark: as the order or the loop changes it runs the new path once,
+    // about 900 px a second, hidden while it passes through a scope.
+    if (static_cast<i32>(route) != state.spark_route) { state.spark_route = static_cast<i32>(route); state.spark_since = now; }
+    {
+        const i32 at = instant ? kTrace << 10 : (now - state.spark_since) * 112;   // Q10 points: 8 px each, 112 a second
+        const i32 k = at >> 10, f = at & 1023;
+        const opxy::u8* q = k + 1 < kTrace ? kTracePoints[route][k] : nullptr;
+        if (q && q[0] && q[0] < 255 && q[2] && q[2] < 255) {
+            const i32 x = q[0] * 2048 + ((q[2] - q[0]) * 2048 * f >> 10), y = q[1] * 2048 + ((q[3] - q[1]) * 2048 * f >> 10);
+            place(frame, kNodeSpark, x & ~255, y & ~255, unit, 0, keep);
+        } else {
+            hide(frame, kNodeSpark);
         }
     }
 }

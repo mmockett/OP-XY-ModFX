@@ -2,7 +2,8 @@
 // Every frame is checked as the device draws it: the SDK's own validity, every
 // reshaping outline (points at least 1/8 px apart, a closing edge of at least
 // 1/4 px, no turn straight back, within 64 px), and the signal path: every end
-// of every line it shows meets its rim within half a pixel, frame after frame,
+// of every line it shows meets its rim within half a pixel (on dust, through the
+// lead that carries it on as the rim squares), frame after frame,
 // however the rims distort. Runs: every control through all 128 values in every
 // order and loop, each turned without a reset, every shift combination at rest
 // and at the heaviest settings, the LFOs running at every rate, shape and
@@ -56,18 +57,55 @@ void check(unsigned route) {
         if (shown && !in) fault("a line shown that isn't in the route", static_cast<int>(node), route);
         if (settled && in && !shown) fault("a line of the route missing", static_cast<int>(node), route);
     }
+    // Noise marks keep inside their rim, clear of it: the line from the rim's
+    // centre to a mark crosses no part of the outline, and the mark is 2.5 px or more from it.
+    for (unsigned node = panel::kNodeGrit0; node <= panel::kNodeWear4; ++node) {
+        const auto& m = frame.nodes[node];
+        if (m.x >= opxy::draw::hidden_x * 1024) continue;
+        const int s = m.x / (120 * 1024);
+        const auto& path = frame.paths[s];
+        const double cx = frame.nodes[s].x, cy = frame.nodes[s].y;
+        double nearest = 1e9;
+        for (unsigned j = 0; j < 64; ++j) {
+            const auto a = path.points[j], b = path.points[(j + 1) % 64];
+            const double ax = cx + a.x, ay = cy + a.y, bx = cx + b.x, by = cy + b.y;
+            const double dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+            double t = L2 > 0 ? ((m.x - ax) * dx + (m.y - ay) * dy) / L2 : 0;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            nearest = std::fmin(nearest, std::hypot(ax + t * dx - m.x, ay + t * dy - m.y) / 1024);
+            // does the segment cross the line from the centre to the mark?
+            const double d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d2 = (bx - ax) * (m.y - ay) - (by - ay) * (m.x - ax);
+            const double d3 = (m.x - cx) * (ay - cy) - (m.y - cy) * (ax - cx), d4 = (m.x - cx) * (by - cy) - (m.y - cy) * (bx - cx);
+            if ((d1 > 0) != (d2 > 0) && (d3 > 0) != (d4 > 0)) fault("a noise mark outside its rim", static_cast<int>(node), s);
+        }
+        if (nearest < 2.5) fault("a noise mark on its rim, px", static_cast<int>(node), nearest);
+    }
     for (int k = 0; k < panel::kEndCount; ++k) {
         const int* e = panel::kRouteEnds[route][k];
         if (e[2] < 0) break;
         const auto& path = frame.paths[e[2]];
         const double ox = frame.nodes[e[2]].x, oy = frame.nodes[e[2]].y;
+        // Dust's rim gives at its compass points as it squares: there a lead carries
+        // the line on, and must overlap the line's end and meet the rim.
+        double ex = e[0], ey = e[1];
+        if (e[2] == 0) {
+            const double dx = e[0] - ox, dy = e[1] - oy;
+            const unsigned k = dx > 1024 ? 0 : dx < -1024 ? 2 : dy > 0 ? 1 : 3;
+            const auto& lead = frame.nodes[panel::kNodeLeadR + k];
+            if (lead.x < opxy::draw::hidden_x * 1024) {
+                const double ux = k == 0 ? 1 : k == 2 ? -1 : 0, uy = k == 1 ? 1 : k == 3 ? -1 : 0;
+                const double reach = (lead.x - ox) * ux + (lead.y - oy) * uy + panel::kLead * 1024.0;
+                if (reach < dx * ux + dy * uy - 512) fault("a lead short of its line, px", static_cast<int>(k), (dx * ux + dy * uy - reach) / 1024);
+                ex = lead.x; ey = lead.y;
+            }
+        }
         double best = 1e9;
         for (unsigned j = 0; j < 64; ++j) {
             const auto a = path.points[j], b = path.points[(j + 1) % 64];
             const double ax = ox + a.x, ay = oy + a.y, dx = double(b.x - a.x), dy = double(b.y - a.y), L2 = dx * dx + dy * dy;
-            double t = L2 > 0 ? ((e[0] - ax) * dx + (e[1] - ay) * dy) / L2 : 0;
+            double t = L2 > 0 ? ((ex - ax) * dx + (ey - ay) * dy) / L2 : 0;
             t = t < 0 ? 0 : t > 1 ? 1 : t;
-            const double d = std::hypot(ax + t * dx - e[0], ay + t * dy - e[1]) / 1024;
+            const double d = std::hypot(ax + t * dx - ex, ay + t * dy - ey) / 1024;
             if (d < best) best = d;
         }
         if (best > worst_join) worst_join = best;

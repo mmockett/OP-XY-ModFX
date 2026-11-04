@@ -64,8 +64,10 @@ greys drawn heavier so all four read alike), and it is the readout: its own
 section's shape, distorted further by what the sections before it in the order
 pass on. Inside each rim is one simple physical object, line-drawn in its grey.
 
-- **dust:** the rim squares as the diodes clip, its top squarer once they
-  lopside. Inside, a diode clipper: a ball in a channel between two stops, which
+- **dust:** the rim squares as the diodes clip, keeping its area (the corners
+  reach out as the sides come in), its top squarer once they lopside; grit, a
+  faint static of short marks, gathers either side of the channel once it
+  audibly crushes. Inside, a diode clipper: a ball in a channel between two stops, which
   close in as the drive rises (the top one further once the diodes lopside); as
   a change arrives the ball swings and rebounds a little off a stop. Tape 2's
   guides sit either side, the signal's line threading between them, and close
@@ -79,7 +81,8 @@ pass on. Inside each rim is one simple physical object, line-drawn in its grey.
   past Madness it thickens. Inside, a ball bouncing along a floor, each bounce
   a repeat, spaced by the time, each lower by the feedback, higher past
   Madness. The ball rests at the end of its trail; as a change arrives it is
-  lifted to the top of the first bounce and runs the trail again.
+  lifted to the top of the first bounce and runs the trail again. Hiss gathers
+  over the bounces as the repeats build, most past Madness.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
   the ripple. Inside, a coil stretched between two posts, wound with more turns
   the brighter the tone and larger the harder it is driven; struck by a change
@@ -91,12 +94,15 @@ after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
 with the lamp; after echo, it is drawn doubled, its copy smooth as an echo's
 repeats are darker; after spring, it shimmers with a fine ripple and rings as
 changes arrive. Tape 2, after the chain, makes the last rim unsteady, thinner and
-dimmer, and LFO 2 wavers the rim it wobbles (its shape beside it) and makes the
+dimmer, with its hiss and wear as a faint static under the object, and LFO 2 wavers the rim it wobbles (its shape beside it) and makes the
 rims after it unsteady. A section in the echo's loop puts its quality into the
 echo's rim. So the order changes the picture: dust before echo roughens the
 echo's rim; echo before dust doubles dust's square. A change travels: turn a
 control and it passes along the order a rim at a time. Otherwise only the LFOs
-move the screen.
+move the screen. A doubled rim's two lines are each thinner, so the pair weighs
+about what one rim does. The noise marks keep to bands clear of the object and
+the rim however both move, re-seed a few at a time as a change arrives, and are
+still at rest.
 
 **The signal path** is drawn as one line through the scopes in the chosen
 order: straight between neighbours, over or under the scopes it skips, in at a
@@ -104,9 +110,12 @@ short arrow and out at another, never crossing itself (`tools/route.py` lays out
 all six orders with each loop). The echo's loop leaves the echo and comes back to
 it: through the section patched into it, which then leaves the chain, or for
 tape 2 as a loop of tape hanging from the echo, its guides moved onto the loop.
-Every line meets the rims at their compass points, and every distortion of a rim
-is a shape that is nothing there, so the lines meet the rims exactly however the
-rims move, and never have to be redrawn for them; where a doubled rim is joined
+As the order or the loop changes, a spark runs the new path once, in at one
+arrow and out at the other, unseen while it passes through a scope. Every line
+meets the rims at their compass points, and every distortion of a rim is a shape
+that is nothing there, so the lines meet the rims exactly however the rims move,
+and never have to be redrawn for them (dust's squaring alone gives there, and a
+short lead carries each line on to its rim); where a doubled rim is joined
 to its copy, the join carries the incoming line on to the copy. Holding Shift
 lights the path. On the shift row, `lamp` is the phaser. The header captions
 rate in hertz, time in milliseconds (then seconds from 0.1 s) and tone from -100
@@ -116,7 +125,8 @@ to 100.
 values in every order and loop, each turned, every shift combination at rest
 and at the heaviest settings, the LFOs at every rate, shape and wobble) and
 checks every frame as the device draws it, including that every end of the
-signal path is within half a pixel of its rim.
+signal path is within half a pixel of its rim (on dust, through its lead) and
+that every noise mark stays inside its rim, 2.5 px or more clear of it.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
 0..15.
