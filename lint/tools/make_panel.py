@@ -14,14 +14,15 @@ against itself: a ring when a section does nothing to it.
 - echo rings it with ripples, spaced by time, as many as the feedback holds;
 - spring winds it into a spiral, more turns as it's driven, leaning with tone.
 
-Each scope sits on a disc in its encoder's dark step, inside a rim of 24 arcs
-the display moves, turns and scales. The rim carries the chain: each scope's
-rim starts as the one before it in the chosen order left it and takes its own
-section's change, so the last holds the whole chain. Dust squares it (its top
-pressed flatter once lopsided); phase cuts two notches into it where the lamp
-holds them; echo doubles it, with copies stepping out behind its own scope;
-spring ripples it, tone tilting the ripple; tape 2 wears the last rim thin,
-with dropouts.
+Each scope sits on a disc in its encoder's dark step, inside a rim of 16 arcs
+the display moves, turns and scales. A rim takes its own section's shape only:
+dust's squares off (its top flatter once lopsided), phase's has two notches the
+lamp walks round, echo's copies step out behind it, spring's ripples with tone
+tilting it. What passes along the order is the quality of each section, worked
+into the later rims' own shapes: dust's roughness (small jitter, a few breaks
+when hard), phase's movement (one dent riding the rim), echo's doubling (a faint
+second outline), spring's shimmer (a fine ripple, and a brief ring as changes
+arrive), and instability from tape 2 (the last rim) and LFO 2.
 
 Under each scope its place in the order; a bar joins neighbours the order
 runs straight through, and the echo's loop reaches the section patched into it.
@@ -48,20 +49,20 @@ def ring(r, n=64):
 p.static_text(3, CY - 6, 8, LABEL, "in")
 p.static_text(464, CY - 6, 8, LABEL, "out")
 # Each scope's face: a static disc in its encoder's dark step. Its rim is
-# drawn by the display: 24 arcs it moves, turns and scales, so the rim's shape
+# drawn by the display: 16 arcs it moves, turns and scales, so the rim's shape
 # carries what the chain has done so far.
 DISC = ["#141414", "#1a1a1a", "#212121", "#282828"]
-R0, SEGS = 43, 24
+R0, SEGS = 43, 16
 for k, cx in enumerate(CX):
     p.static(circle(R0 - 6, 64, cx, CY), DISC[k], 0.5, fill=DISC[k])   # inside the rim, so a rim pulled in still frames it
 # The echo's copies of the rim: plain rings behind, offset by time.
 for s_ in range(4):
     for k in range(2):
         p.node(f"copy_{s_}_{k}", circle(R0, 48), (640, 320), "#4a4a4a", 1.0)
-# The rims: an arc of the circle about its own middle, 9 degrees each side,
+# The rims: an arc of the circle about its own middle, 12.5 degrees each side,
 # so neighbours overlap a little and read as one line.
-half = math.radians(9)
-arc = [(round(R0 * math.cos(-half + 2 * half * j / 4) - R0, 2), round(R0 * math.sin(-half + 2 * half * j / 4), 2)) for j in range(5)]
+half = math.radians(12.5)
+arc = [(round(R0 * math.cos(-half + 2 * half * j / 6) - R0, 2), round(R0 * math.sin(-half + 2 * half * j / 6), 2)) for j in range(7)]
 seg_pts = normal_ribbon(arc, 0.35)
 for s_ in range(4):
     for k in range(SEGS):
@@ -205,7 +206,7 @@ p.shade("rim_worn", "#7a7a7a", 0.6)
 p.shade("copy0", "#6a6a6a", 1.1)
 p.shade("copy1", "#474747", 0.9)
 p.shade("copy_mad", "#9a9a9a", 1.8)
-p.shade("rim_echoed", "#b4b4b4", 2.3)   # a rim the echo has passed through: doubled
+p.shade("double", "#585858", 1.0)   # the faint second outline an echo earlier in the chain leaves
 p.const(f"const opxy::i32 kCY = {CY}, kR = {R};")
 p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
 idx = {n[0]: 4 + k for k, n in enumerate(p.nodes)}
@@ -232,9 +233,9 @@ for rank, k in enumerate(order):
     wear[k] = round(32767 * (rank + 0.5) / SEGS)
 p.const(f"const opxy::i32 kR0 = {R0}, kSegs = {SEGS};")
 p.const("// Each arc's place in tape 2's wear: an arc drops out once the level passes it (Q15).")
-p.const("const opxy::i32 kWear[24] = {" + ", ".join(map(str, wear)) + "};")
+p.const("const opxy::i32 kWear[16] = {" + ", ".join(map(str, wear)) + "};")
 p.const("// A squircle's radius at each arc, over a circle's, Q10: the rim squaring as dust crushes it.")
 sq = lambda a: 0.93 / (abs(math.cos(a)) ** 5 + abs(math.sin(a)) ** 5) ** 0.2
-p.const("const opxy::i32 kSquared[24] = {" + ", ".join(str(round(1024 * sq(math.radians(15 * k)))) for k in range(SEGS)) + "};")
+p.const("const opxy::i32 kSquared[16] = {" + ", ".join(str(round(1024 * sq(math.radians(22.5 * k)))) for k in range(SEGS)) + "};")
 
 print(p.write(ROOT))

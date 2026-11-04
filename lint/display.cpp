@@ -65,9 +65,21 @@ void spring(Frame::path_type& a, Frame::path_type& b, i32 drive, i32 tone, i32 s
     }
 }
 
-// The rims: each scope's rim starts as the one before it in the order left it
-// and takes its own section's change, so the last holds the whole chain.
-// Arc k sits at k * 15 degrees, clockwise from the right.
+// The rims. Each scope's rim has its own section's shape, and the qualities
+// the sections before it in the order pass on, worked into that shape: dust's
+// roughness, phase's movement, echo's doubling, spring's shimmer, and
+// instability from tape 2 and LFO 2. No rim copies another's shape.
+// Arc k sits at k * 22.5 degrees, clockwise from the right.
+const i32 kArcs = 16, kStep = 225;
+
+struct Qualities {
+    i32 fuzz, lop;        // dust: Q15 roughness, and how much more of it on top
+    i32 move;             // phase: Q15 depth of the dent it leaves riding the rim
+    i32 dbl, dgap;        // echo: Q15 strength of the second outline, Q10 px apart
+    i32 shimmer, tone;    // spring: Q15 fine ripple; its tone
+    i32 unsteady;         // tape 2, LFO 2: Q15 slow unevenness
+};
+
 bool same(const Rim& a, const Rim& b) {
     const i32* x = a.rad;
     const i32* y = b.rad;
@@ -76,33 +88,49 @@ bool same(const Rim& a, const Rim& b) {
     return true;
 }
 
-// Dust: the rim squares off as the diodes clip, its top pressed flatter once they lopside.
-void rim_dust(Rim& r, i32 d) {
-    const i32 lop = clamp((d - 18000) * 2, 0, 32767);
-    for (u32 k = 0; k < 24; ++k) {
-        r.rad[k] += ((r.rad[k] * kSquared[k] >> 10) - r.rad[k]) * d >> 15;
-        const i32 up = -sin10(static_cast<i32>(k) * 150);        // above the centre
-        if (up > 0) r.rad[k] -= share(px(7), lop) * up >> 10;
+i32 up_of(i32 k) { return -sin10(k * kStep); }   // above the centre, Q10
+
+// The qualities, worked into any rim.
+void carry(Rim& r, const Qualities& q) {
+    for (i32 k = 0; k < kArcs; ++k) {
+        const i32 h = kWear[k];                       // a fixed roughness per arc
+        if (q.fuzz) {
+            const i32 hard = q.fuzz * q.fuzz >> 15;                   // gentle at low drive
+            i32 j = share(px(2), hard) * ((h >> 4) - 1024) >> 10;     // -2..2 px
+            if (q.lop && up_of(k) > 0) j += share(j, q.lop);
+            r.rad[k] += j;
+            if (q.fuzz > 22000 && h < share(4200, q.fuzz - 22000) * 3) r.gone |= 1 << k;   // a few breaks once it's hard
+        }
+        if (q.shimmer) {
+            const i32 lean = 1024 + (share(1400, q.tone - 16384) * sin10(k * kStep - 1350) >> 10);
+            r.rad[k] += (share(px(2), q.shimmer) * sin10(k * kStep * 3) >> 10) * lean >> 10;
+        }
+        if (q.unsteady) r.rad[k] += share(px(3), q.unsteady) * sin10(k * kStep * 2 + 300) >> 10;
     }
-    // Crushing what came before: the echo's copies snap to the grid.
-    if (r.copies) r.gap = (r.gap + px(2)) & ~(px(4) - 1);
+    r.dent = q.move;
+    r.dbl = q.dbl;
+    r.dgap = q.dgap;
 }
 
-// Spring: the rim ripples, four lobes, deeper with drive; tone tilts the
-// ripple toward the top right (treble) or the bottom left (bass).
-void rim_spring(Rim& r, i32 drive, i32 tone, i32 scale) {
+// Each section's own shape.
+void own_dust(Rim& r, i32 d) {
+    const i32 lop = clamp((d - 18000) * 2, 0, 32767);
+    for (i32 k = 0; k < kArcs; ++k) {
+        r.rad[k] += ((r.rad[k] * kSquared[k] >> 10) - r.rad[k]) * d >> 15;
+        if (up_of(k) > 0) r.rad[k] -= share(px(7), lop) * up_of(k) >> 10;
+    }
+}
+void own_spring(Rim& r, i32 drive, i32 tone, i32 scale) {
     if (drive <= 328) return;
-    const i32 amp = share(px(1) + share(px(5), drive), scale);
-    const i32 tilt = share(1600, tone - 16384);                      // Q10, +-0.8
-    for (u32 k = 0; k < 24; ++k) {
-        const i32 a = static_cast<i32>(k) * 150;
-        const i32 lean = 1024 + (tilt * sin10(a - 450 - 900 * 2) >> 10);
-        r.rad[k] += (amp * sin10(a * 4) >> 10) * lean >> 10;
+    const i32 amp = share(px(1) + share(px(3), drive), scale);
+    const i32 tilt = share(1600, tone - 16384);
+    for (i32 k = 0; k < kArcs; ++k) {
+        const i32 lean = 1024 + (tilt * sin10(k * kStep - 1350) >> 10);
+        r.rad[k] += (amp * sin10(k * kStep * 4) >> 10) * lean >> 10;
     }
     r.ring = amp;
 }
-
-void rim_echo(Rim& r, i32 e, i32 time) {
+void own_echo(Rim& r, i32 e, i32 time) {
     if (e <= 328) return;
     const i32 fb = e < 27853 ? e * 903 >> 10 : 24576 + ((e - 27853) * 2731 >> 10);
     i32 h = e < 27853 ? e * 32767 / 27853 : 32767;
@@ -121,49 +149,53 @@ void rim_echo(Rim& r, i32 e, i32 time) {
 // The motion a section makes as a change arrives at it.
 struct Motion {
     i32 reveal;   // echo: copies shown so far, stepping out at the echo's time
-    i32 shake;    // dust: Q10 px the rim judders
-    i32 ring;     // spring: Q10 px, signed, the ripple rings by
-    i32 waver;    // tape 2: Q10 px the worn rim wavers
+    i32 shake;    // dust, and roughness carried: Q10 px the rim judders
+    i32 ring;     // spring, and shimmer carried: Q10 px, signed, the rim rings by
     i32 gap;      // wobble on time: Q10 px the copies swing
 };
 
-void draw_rim(Frame& frame, u32 s, const Rim& r, i32 notch_at, const Motion& mo, bool echo_here) {
+void draw_rim(Frame& frame, u32 s, const Rim& r, i32 notch_at, i32 dent_at, const i32* waver, const Motion& mo) {
     const i32 cx = px(kCX[s]), cy = px(kCY);
-    i32 rad[24];
-    for (u32 k = 0; k < 24; ++k) {
+    i32 rad[16];
+    for (i32 k = 0; k < kArcs; ++k) {
         i32 v = r.rad[k];
-        if (r.notch) {
-            for (i32 n = 0; n < 2; ++n) {
-                const i32 at = (notch_at + n * 5) % 24;
-                const i32 off = (static_cast<i32>(k) - at + 24) % 24;
-                if (off == 0) v -= share(px(11), r.notch);
-                else if (off == 1 || off == 23) v -= share(px(5), r.notch);
-            }
+        // Phase's own notches, and the dent a phase before it leaves.
+        for (i32 n = 0; n < 3; ++n) {
+            const i32 depth = n < 2 ? r.notch : r.dent;
+            if (!depth) continue;
+            const i32 at = n < 2 ? (notch_at + n * 6) % kArcs : dent_at;
+            const i32 off = (k - at + kArcs) % kArcs;
+            const i32 deep = n < 2 ? px(12) : px(6);
+            if (off == 0) v -= share(deep, depth);
+            else if (off == 1 || off == kArcs - 1) v -= share(deep / 3, depth);
         }
-        if (mo.ring) v += mo.ring * sin10(static_cast<i32>(k) * 900) >> 10;
-        if (mo.shake) v += kWear[k] & 1024 ? mo.shake : -mo.shake;
-        if (mo.waver) v += kWear[k] & 2048 ? mo.waver : -mo.waver;
+        if (mo.ring) v += mo.ring * sin10(k * kStep * 4) >> 10;
+        if (mo.shake && (k & 1)) v += kWear[k] & 1024 ? mo.shake : -mo.shake;   // half the arcs judder
+        if (waver) v += waver[k];
         rad[k] = v;
     }
-    for (u32 k = 0; k < 24; ++k) {
-        const u32 node = kNodeRim00 + s * 24 + k;
-        // Tape 2 wears the rim: arcs drop out as its level passes them, more thin.
-        if (r.worn && kWear[k] < share(8000, r.worn)) { hide(frame, node); continue; }
-        const i32 a = static_cast<i32>(k) * 150;
-        const i32 slope = rad[(k + 1) % 24] - rad[(k + 23) % 24];
-        const i32 tilt = clamp(slope * 25 >> 10, -300, 300);
+    for (i32 k = 0; k < kArcs; ++k) {
+        const u32 node = kNodeRim00 + s * kArcs + static_cast<u32>(k);
+        if (r.gone & (1 << k)) { hide(frame, node); continue; }
+        const i32 a = k * kStep;
+        const i32 slope = rad[(k + 1) % kArcs] - rad[(k + kArcs - 1) % kArcs];
+        const i32 tilt = clamp(slope * 17 >> 10, -300, 300);
         const i32 x = cx + (rad[k] * cos10(a) >> 10), y = cy + (rad[k] * sin10(a) >> 10);
-        place(frame, node, x & ~255, y & ~255, clamp(rad[k] / kR0, 600, 1600) & ~15,
-              r.worn && kWear[k] < share(26000, r.worn) ? kShadeRimWorn : r.copies ? kShadeRimEchoed : kShadeRim, stroke);
+        place(frame, node, x & ~255, y & ~255, clamp(rad[k] / kR0, 600, 1600) & ~15, kShadeRim, stroke);
         turn(frame, node, Turn{cos10(a - tilt), sin10(a - tilt)});   // the arc follows the rim's slope
     }
-    // The echo's copies, behind its own scope, offset down and to the right;
-    // later scopes carry its rim doubled.
+    // Echo's own copies step out behind it; a later rim has one faint double.
     for (u32 q = 1; q < 3; ++q) {
         const u32 node = kNodeCopy00 + s * 2 + (q - 1);
-        if (!echo_here || static_cast<i32>(q) > r.copies || static_cast<i32>(q) > mo.reveal) { hide(frame, node); continue; }
-        const i32 off = (r.gap + mo.gap) * static_cast<i32>(q);
-        place(frame, node, cx + off, cy + off * 3 / 5, unit, r.mad ? kShadeCopyMad : r.copy_h[q] > 16000 ? kShadeCopy0 : kShadeCopy1, stroke);
+        if (r.copies) {
+            if (static_cast<i32>(q) > r.copies || static_cast<i32>(q) > mo.reveal) { hide(frame, node); continue; }
+            const i32 off = (r.gap + mo.gap) * static_cast<i32>(q);
+            place(frame, node, cx + off, cy + off * 3 / 5, unit, r.mad ? kShadeCopyMad : r.copy_h[q] > 16000 ? kShadeCopy0 : kShadeCopy1, stroke);
+        } else if (q == 1 && r.dbl) {
+            place(frame, node, cx + r.dgap, cy + r.dgap * 3 / 5, unit, r.dbl > 16000 ? kShadeCopy1 : kShadeDouble, stroke);
+        } else {
+            hide(frame, node);
+        }
     }
 }
 }
@@ -253,35 +285,69 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         else hide(frame, kNodeMarkSine + k);
     }
 
-    // The rims, passed along the order.
+    // The rims: each its own section's shape, with what came before it in the order.
     {
-        Rim r = {};
-        for (i32& v : r.rad) v = px(kR0);
-        Rim at[4];
+        Rim at[4] = {};
+        for (Rim& r : at)
+            for (i32& v : r.rad) v = px(kR0);
+        Qualities q = {};
         i32 last = 0, echo_col = 2, cols[4], count = 0;
         for (u32 p = 0; p < 4; ++p) {
             const char c = kOrders[n.order][p];
             const i32 col = c == 'D' ? 0 : c == 'P' ? 1 : c == 'E' ? 2 : 3;
             if (col == n.patched) continue;
-            if (col == 0 && v[kDust] > 328) rim_dust(r, v[kDust]);
+            Rim& r = at[col];
+            if (col == 0 && v[kDust] > 328) own_dust(r, v[kDust]);
             if (col == 1 && depth > 328) r.notch = clamp(depth * 3 / 2, 0, 32767);
             if (col == 2) {
-                rim_echo(r, v[kEcho], v[kTime]);
-                // A section in the echo's loop works on the echo's rim.
-                if (n.loop == kLoopTape) r.worn = level;
-                if (n.loop == kLoopPhaser) r.notch = clamp(depth * 3 / 2, 0, 32767);
-                if (n.loop == kLoopSpring) rim_spring(r, drive, v[kTone], 16384);
+                own_echo(r, v[kEcho], v[kTime]);
                 echo_col = col;
             }
-            if (col == 3) rim_spring(r, drive, v[kTone], 32767);
-            at[col] = r;
+            if (col == 3) own_spring(r, drive, v[kTone], 32767);
+            carry(r, q);
+            // What this section passes on.
+            if (col == 0 && v[kDust] > 328) { q.fuzz = clamp(q.fuzz + v[kDust], 0, 32767); q.lop = clamp((v[kDust] - 18000) * 2, 0, 32767); }
+            if (col == 1 && depth > 328) q.move = clamp(depth * 3 / 2, 0, 32767);
+            if (col == 2 && r.copies) { q.dbl = r.copy_h[1]; q.dgap = r.gap * 2 / 3; }
+            if (col == 3 && drive > 328) { q.shimmer = drive; q.tone = v[kTone]; }
+            // A section in the echo's loop works on the echo: its quality goes into the echo's rim.
+            if (col == 2 && n.loop != kLoopOff) {
+                Qualities inner = {};
+                if (n.loop == kLoopTape) inner.unsteady = level;
+                if (n.loop == kLoopPhaser) inner.move = clamp(depth * 3 / 2, 0, 32767);
+                if (n.loop == kLoopSpring) { inner.shimmer = drive; inner.tone = v[kTone]; }
+                const i32 dbl = r.dbl, dgap = r.dgap;
+                carry(r, inner);
+                r.dbl = dbl; r.dgap = dgap;
+                if (inner.move) r.dent = inner.move;
+                q.unsteady = clamp(q.unsteady + inner.unsteady, 0, 32767);
+                if (inner.move) q.move = inner.move;
+                if (inner.shimmer) { q.shimmer = inner.shimmer; q.tone = inner.tone; }
+            }
+            if (n.wobble != kWobbleOff) {
+                const i32 target = n.wobble == kWobbleTime ? 2 : n.wobble == kWobbleSpring ? 3 : 1;
+                if (col == target) q.unsteady = clamp(q.unsteady + 12000, 0, 32767);
+            }
             last = col;
             cols[count++] = col;
         }
-        if (n.loop != kLoopTape && level > 328) at[last].worn = level;
-        if (n.patched >= 0) at[n.patched] = at[echo_col];
-        // A change passes along the order a scope at a time, 70 ms a hop, one
-        // scope a step at 30 Hz.
+        // Tape 2, after the chain, makes the last rim unsteady and worn.
+        if (n.loop != kLoopTape && level > 328) {
+            Qualities tape = {};
+            tape.unsteady = level;
+            const i32 dbl = at[last].dbl, dgap = at[last].dgap, dent = at[last].dent;
+            carry(at[last], tape);
+            at[last].dbl = dbl; at[last].dgap = dgap; at[last].dent = dent;
+            for (i32 k = 0; k < kArcs; ++k)
+                if (kWear[k] < share(7000, level)) at[last].gone |= 1 << k;
+        }
+        // A section in the echo's loop keeps its own shape, on its own.
+        if (n.patched >= 0) {
+            Rim& r = at[n.patched];
+            if (n.patched == kP) r.notch = clamp(depth * 3 / 2, 0, 32767);
+            if (n.patched == kS) own_spring(r, drive, v[kTone], 32767);
+        }
+        // A change passes along the order a rim at a time, 70 ms a hop, one rim a step at 30 Hz.
         const bool instant = fresh || input.reduced_motion;
         if (!input.reduced_motion) state.clock += clamp(input.elapsed, 0, 102);
         const i32 now = state.clock, hop = 72;
@@ -297,14 +363,13 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 slot = instant;
             }
         }
-        if (n.patched >= 0 && !same(state.shown[n.patched], at[n.patched]) && (instant || (slot && now - state.since[echo_col] >= hop))) {
+        if (n.patched >= 0 && !same(state.shown[n.patched], at[n.patched]) && (instant || slot)) {
             state.shown[n.patched] = at[n.patched];
             state.since[n.patched] = instant ? now - 4096 : now;
         }
-        // The notches' place on each rim follows the lamp an arc at a time, 15
-        // steps a second: the scope the lamp is in on every other step, the
-        // rims after it in turn on the rest, each following the one before.
-        const i32 target = 13 + (glow_tex * 9 >> 15);
+        // The notches and dents walk an arc a step, 15 steps a second: the lamp's
+        // own rim on every other step, the rims with its dent in turn on the rest.
+        const i32 target = 4 + (glow_tex * 7 >> 15);     // the upper half, left to right
         const i32 lamp_col = n.loop == kLoopPhaser ? echo_col : 1;
         const i32 t15 = (now * 15) >> 10;
         if (instant) {
@@ -313,10 +378,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             state.extra[5] = t15;
             i32 col = lamp_col, toward = target;
             if (t15 & 1) {
-                // The next rim with notches, after the lamp's, in turn.
                 for (i32 tries = 0; tries < 4; ++tries) {
                     state.notch_turn = (state.notch_turn + 1) & 3;
-                    if (state.notch_turn != lamp_col && state.shown[state.notch_turn].notch) break;
+                    if (state.notch_turn != lamp_col && state.shown[state.notch_turn].dent) break;
                 }
                 col = state.notch_turn;
                 toward = state.notch_at[lamp_col];
@@ -324,30 +388,51 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             i32& a = state.notch_at[col];
             a += a < toward ? 1 : a > toward ? -1 : 0;
         }
+        // LFO 2's waver on the rim it wobbles: a quarter of its arcs a step, 12 steps a second.
+        const i32 wob_col = n.wobble == kWobbleTime ? echo_col : n.wobble == kWobbleSpring ? 3 : n.wobble == kWobblePhaser ? lamp_col : -1;
+        if (wob_col >= 0 && !instant) {
+            const i32 t12 = (now * 12) >> 10;
+            if (t12 != state.waver_tick) {
+                state.waver_tick = t12;
+                for (i32 k = t12 & 3; k < kArcs; k += 4)
+                    state.waver[k] = share(px(3), n.lfo2) * sin10(k * kStep * 2) >> 10 & ~127;
+            }
+        } else {
+            for (i32& w : state.waver) w = 0;
+        }
         const i32 ms = clamp(curve(kEchoMs, v[kTime]) >> 10, 40, 160);
         static const i32 kInv[19] = {0, 1024, 512, 341, 256, 205, 171, 146, 128, 114, 102, 93, 85, 79, 73, 68, 64, 60, 57};
         for (u32 s = 0; s < 4; ++s) {
             const Rim& shown = state.shown[s];
             const i32 age = now - state.since[s];
-            const i32 tick = (age * 20) >> 10;   // 20ths of a second since it arrived
-            Motion mo = {3, 0, 0, 0, 0};
-            if (shown.copies && static_cast<i32>(s) == echo_col) {
+            // Each rim's 20 Hz steps fall on its own frame, so rims don't redraw together.
+            const i32 skew = static_cast<i32>(s) * 17;
+            const i32 tick = (((now + skew) * 20) >> 10) - (((state.since[s] + skew) * 20) >> 10);
+            Motion mo = {3, 0, 0, 0};
+            if (shown.copies) {
                 const i32 age_ms = age * 1000 >> 10;
                 mo.reveal = 1;
                 for (i32 t = ms; t <= age_ms && mo.reveal < 3; t += ms) ++mo.reveal;
             }
-            if (s == 0 && v[kDust] > 328 && tick < 4) mo.shake = share(px(3), v[kDust]) * (4 - tick) >> 2;
-            if (s == 3 && shown.ring) {
+            // Dust judders as a change arrives; so, less, does a rim it has roughened.
+            if (tick < 4 && v[kDust] > 328 && s == 0) mo.shake = share(px(3), v[kDust]) * (4 - tick) >> 2;
+            // The spring rings; a rim after it shimmers briefly too.
+            if (drive > 328 && (shown.ring || s != 3)) {
                 const i32 ring = 4 + share(14, drive);
-                if (tick < ring) mo.ring = (tick & 1 ? -1 : 1) * (share(px(4), drive) * (ring - tick) * kInv[ring] >> 10);
+                const i32 amp = s == 3 ? share(px(4), drive) : share(px(2), drive);
+                if (tick < ring && (s == 3 || state.shown[3].ring)) {
+                    bool after = s == 3;
+                    // The rim just after the spring shimmers with it.
+                    for (i32 k = 0; k + 1 < count && !after; ++k) if (cols[k] == 3 && cols[k + 1] == static_cast<i32>(s)) after = true;
+                    if (after) mo.ring = (tick & 1 ? -1 : 1) * (amp * (ring - tick) * kInv[ring] >> 10);
+                }
             }
-            if (static_cast<i32>(s) == last && shown.worn && tick < 6) mo.waver = tick & 1 ? -px(1) : px(1);
-            if (n.wobble == kWobbleTime && shown.copies && static_cast<i32>(s) == echo_col) {
+            if (n.wobble == kWobbleTime && shown.copies) {
                 const i32 t12 = (now * 12) >> 10;
                 if (t12 != state.extra[2]) { state.extra[2] = t12; state.extra[3] = share(px(3), n.lfo2) & ~(unit - 1); }
                 mo.gap = state.extra[3];
             }
-            draw_rim(frame, s, shown, state.notch_at[s], mo, static_cast<i32>(s) == echo_col);
+            draw_rim(frame, s, shown, state.notch_at[s], state.notch_at[s], static_cast<i32>(s) == wob_col ? state.waver : nullptr, mo);
         }
     }
 
