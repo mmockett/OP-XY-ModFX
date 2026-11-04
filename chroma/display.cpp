@@ -179,8 +179,9 @@ void ribbon(Frame::path_type& path, const Point (&line)[32], i32 nx, i32 ny) {
     }
 }
 
-// --- The rims: each facet's edge carries what its module does to the sound, starting
-// from the edge before it, so the last facet's rim holds the whole chain. A rim is 16
+// --- The rims: each facet's edge takes its own module's shape, and on top of it the
+// qualities the modules before it hand on (roughness, heaviness, wobble, doubling, wear,
+// and diffusion as dots), so the chain compounds without copying shapes. A rim is 16
 // fixed arc segments; each one's distance out, turn off the tangent, length and paint
 // make the edge's shape and quality. Sparse dots gather outside it where the edge is
 // fuzzy. ---
@@ -208,7 +209,7 @@ struct Segment {
     bool dim, shown;
 };
 
-// Segment i of the rim after modules 0..stage.
+// Segment i of facet `stage`'s rim: its own module's shape, then what earlier modules hand on.
 Segment segment(const Chain& ch, u32 i, u32 stage) {
     const i32* v = ch.v;
     Segment g = {static_cast<i32>(i) * 225, 0, 0, unit, 1, false, true};
@@ -218,7 +219,9 @@ Segment segment(const Chain& ch, u32 i, u32 stage) {
     // Character: warm swells and softens it, drive clips it flat top and bottom, fuzz roughens
     // it, howl ripples it (Tilt sets how wide), swell grows it round from one point.
     const i32 a = (ch.character == kCharacterOff ? 0 : v[kCharacterAmount]) >> 5;
-    if (ch.character == kWarm) {
+    if (stage != 0) {
+        // Past its own facet, Character hands on qualities, not its shape (see below).
+    } else if (ch.character == kWarm) {
         g.out = px(1) + 4 * a;
         g.weight = a > 154 ? 2 : 1;
     } else if (ch.character == kDrive) {
@@ -246,7 +249,7 @@ Segment segment(const Chain& ch, u32 i, u32 stage) {
     // Movement: vibe wobbles the rim, the sides apart; swirl turns it; trem pulses it, the
     // sides opposite; twin doubles it with a late rim; pitch stretches it.
     const i32 ma = ch.movement == kMovementOff ? 0 : v[kMovementAmount];
-    if (stage >= 1 && ma) {
+    if (stage == 1 && ma) {
         const i32 side = upper ? 1 : -1;
         if (ch.movement == kVibe) {
             const i32 back = static_cast<i32>(i % 8) * 1250 / 8;
@@ -273,7 +276,7 @@ Segment segment(const Chain& ch, u32 i, u32 stage) {
     // half right and the lower left; tape wobbles it and drops a few; slice breaks it into
     // panned arcs; back fades it in the other way round.
     const i32 da = (ch.diffusion == kDiffusionOff ? 0 : v[kDiffusionAmount]) >> 5, tm = v[kTime] >> 5;
-    if (stage >= 2 && da) {
+    if (stage == 2 && da) {
         if (ch.diffusion == kCloud) {
             g.out += (magnitude(hash(i, 33)) * da >> 10) * (1536 + 5 * tm) >> 10;
             g.turn += (hash(i, 34) * da >> 10) * 150 >> 10;
@@ -298,7 +301,7 @@ Segment segment(const Chain& ch, u32 i, u32 stage) {
     // Texture: tilt thins L toward its highs and R toward its lows; low and high fade one
     // side away; press flattens it; cass bands it; worn drops it out and sags it; radio
     // leaves a narrow band. Drift, on the same knob, unsettles it.
-    if (stage >= 3) {
+    if (stage == 3) {
         const i32 ta = v[kTextureAmount] >> 5, u = (c + 1024) >> 1;
         if (ch.texture == kBalance) {
             const i32 s2 = (v[kTextureAmount] - 16384) >> 4, cut = upper ? u : 1024 - u;
@@ -333,6 +336,37 @@ Segment segment(const Chain& ch, u32 i, u32 stage) {
             g.out += (hash(i, 39) * d >> 10) * 3 * sine(static_cast<i32>(ch.clock % 4833u) * 745 / 1000 + static_cast<i32>(i) * 573) >> 10;
             g.turn += (hash(i, 40) * d >> 10) * 250 >> 10;
         }
+    }
+
+    // What earlier modules hand on: not their rims but their qualities, applied to this
+    // facet's own shape. Roughness from drive and fuzz; heaviness from warm; wobble from
+    // vibe, swirl and tape, moving with the LFO; doubling from twin and dusk; wear from
+    // slice. (Diffusion is the dots outside the rim: fuzziness, below.)
+    if (stage > 0) {
+        i32 rough = 0, wobble = 0, twice = 0, wear = 0;
+        const bool heavy = ch.character == kWarm && a > 154;
+        if (ch.character == kDrive) rough = a >> 1;
+        if (ch.character == kFuzz) rough = a;
+        if (stage > 1 && (ch.movement == kVibe || ch.movement == kSwirl)) wobble += ma >> 5;
+        if (stage > 1 && ch.movement == kTwin) twice += ma >> 5;
+        if (stage > 2 && ch.diffusion == kTape) wobble += da;
+        if (stage > 2 && ch.diffusion == kDusk) twice += da;
+        if (stage > 2 && ch.diffusion == kSlice) wear += da;
+        if (rough) {
+            g.out += (hash(i, 51) * rough >> 10) * 7 / 2;
+            g.turn += (hash(i, 52) * rough >> 10) * 350 >> 10;
+            if (rough > 307 && !heavy) g.weight = 0;
+        }
+        if (wobble) {
+            const i32 phase = static_cast<i32>(ch.swing >> 16) * 3600 >> 16;
+            g.out += (sine(3 * static_cast<i32>(i) * 225 + phase) * clamp(wobble, 0, 1024) >> 10) * 5 / 2;
+        }
+        if (twice && (i & 1)) {
+            g.out += 4 * clamp(twice, 0, 1024);
+            if (twice > 205) g.dim = true;
+        }
+        if (wear && hash(i, 53) >= 1024 - (wear * 358 >> 10)) g.shown = false;
+        if (heavy && g.weight == 1) g.weight = 2;
     }
     return g;
 }
