@@ -60,23 +60,25 @@ setting was measured.
 Under the two pages, four scopes, one under each encoder, each on a disc in
 that encoder's dark step. Each scope's rim is one continuous outline in that
 encoder's grey (dark grey, mid grey, light grey and white, as the OP-XY's
-encoders and the header's bar run), and it is the readout: its own section's
-shape, distorted further by what the sections before it in the order pass on.
+encoders and the header's bar run, the darker greys drawn heavier so all four
+read alike), and it is the readout: its own section's shape, distorted further
+by what the sections before it in the order pass on. Every part is a curve.
 
 - **dust:** the rim squares as the diodes clip, its top flatter once they
-  lopside. Tape 2's corners close in on it with its level.
+  lopside. Tape 2's two arcs, either side, close in on it with its level.
 - **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
   two smooth notches ride along its top where the lamp holds them. LFO 1's mark
   orbits it, its trail wider the faster the rate, with its shape beside it.
 - **echo:** ripples spread inside the rim, spaced by time, as many as the
-  feedback holds, and copies of the rim step out behind it at the echo's time;
-  past Madness they crowd and thicken.
+  feedback holds, and the rim steps out a copy of its own shape at the echo's
+  time; past Madness it thickens.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
-  the ripple; a spiral inside grows with the drive and turns with tone.
+  the ripple; a spiral inside winds further in, more turns of it, the harder it
+  is driven, and turns with tone.
 
 What passes along the order is the quality of each section, never its shape:
 after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
-with the lamp; after echo, a faint second ring doubles it; after spring, it
+with the lamp; after echo, it is drawn doubled, heavier and brighter; after spring, it
 shimmers with a fine ripple and rings briefly as changes arrive. Tape 2, after
 the chain, makes the last rim unsteady, thinner and dimmer, and LFO 2 wavers
 the rim it wobbles and makes the rims after it unsteady. A section in the echo's

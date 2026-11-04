@@ -4,7 +4,7 @@
 namespace lint {
 // Matches resources.display in definition.json: paths, points, nodes, texts,
 // palette. tools/make_panel.py names every node (panel.h).
-using Frame = opxy::draw::Frame<4, 64, 57, 20, 16>;
+using Frame = opxy::draw::Frame<4, 64, 52, 20, 16>;
 // Each scope's rim, as the order leaves it (display.cpp): its own section's
 // shape, and the qualities the sections before it pass on.
 struct Rim {

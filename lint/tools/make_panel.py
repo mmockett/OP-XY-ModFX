@@ -15,15 +15,17 @@ against itself: a ring when a section does nothing to it.
 - spring winds it into a spiral, more turns as it's driven, leaning with tone.
 
 Each scope sits on a disc in its encoder's dark step, and its rim is one
-continuous outline in the encoder's grey: the readout. A rim takes its own
-section's shape (dust squares it, flatter on top once lopsided; phase leans it
-into an oval with the lamp and dents it with two notches; spring ripples it,
-tone tilting the ripple; echo's copies step out behind it) and the qualities the
-sections before it in the order pass on, as distortion rather than breaks:
-dust's roughness as a fine waviness and a soft halo, phase's movement as a dent
-riding the rim, echo's doubling as a faint second ring, spring's shimmer as a
-fine ripple, and unsteadiness from tape 2 (whose last rim also thins and dims)
-and LFO 2. Inside: the echo's ripples and the spring's spiral.
+continuous outline in the encoder's grey, the darker greys drawn heavier so the
+four read alike: the rim is the readout. A rim takes its own section's shape
+(dust squares it, flatter on top once lopsided, with tape 2's two arcs closing
+in either side; phase leans it into an oval with the lamp and dents it with two
+notches; the echo's rim steps out a copy of its own shape, joined at the bottom;
+spring ripples it, tone tilting the ripple, and its spiral winds further in the
+harder it is driven) and the qualities the sections before it in the order
+pass on, as smooth distortion: dust's roughness as a fine waviness and a soft
+halo, phase's movement as a dent riding the rim, echo's doubling as a heavier,
+brighter rim, spring's shimmer as a fine ripple, and unsteadiness from tape 2
+(whose last rim also thins and dims) and LFO 2. Every part is a curve.
 
 Under each scope its place in the order; a bar joins neighbours the order
 runs straight through, and the echo's loop reaches the section patched into it.
@@ -47,8 +49,8 @@ def ring(r, n=64):
     return circle(r, n, start=-math.pi / 2)
 
 
-p.static_text(3, CY - 6, 8, LABEL, "in")
-p.static_text(464, CY - 6, 8, LABEL, "out")
+p.static_text(3, CY - 16, 8, LABEL, "in")
+p.static_text(464, CY - 16, 8, LABEL, "out")
 # Each scope's face: a static disc in its encoder's dark step, and its rim, one
 # reshaping outline (paths 0..3) in the encoder's grey: the rim is the readout.
 # Two faint rings round it give it blur (a halo) and the echo's doubling.
@@ -56,33 +58,33 @@ DISC = ["#141414", "#1a1a1a", "#212121", "#282828"]
 R0 = 40
 for k, cx in enumerate(CX):
     p.static(circle(R0 - 3, 64, cx, CY), DISC[k], 0.5, fill=DISC[k])
+# The rims' greys keep the encoders' order, dark to white; the darker ones are
+# drawn heavier, so all four read as equally present.
+RIMS = [("#8a8a8a", 2.0), ("#acacac", 1.8), ("#d0d0d0", 1.6), ("#f4f4f4", 1.5)]
 for s_ in range(4):
-    for k in range(2):
-        p.node(f"halo_{s_}_{k}", circle(R0 + 5, 48), (640, 320), "#4a4a4a", 1.0)
+    p.node(f"halo_{s_}", circle(R0 + 4, 48), (640, 320), "#2c2c2c", 3.2)
 for s_ in range(4):
-    p.mutable(s_, f"rim_{s_}", circle(R0, 64), (CX[s_], CY), TONES[s_], 1.6)
-# Spring's spiral, two halves sharing one pivot, scaled with the drive and
-# turned by tone.
-spiral = []
-for j in range(64):
-    t = j / 63
-    r = 30 * (1 - 0.8 * t)
-    a = -math.pi / 2 + 2 * math.pi * 2.25 * t
-    spiral.append((r * math.cos(a), r * 0.8 * math.sin(a)))
-for half, part in (("a", spiral[:33]), ("b", spiral[32:])):
-    p.node(f"spiral_{half}", normal_ribbon(part[:31] if half == "a" else part[:31], 0.6), (640, 320), T4, 1.6)
+    p.mutable(s_, f"rim_{s_}", circle(R0, 64), (CX[s_], CY), RIMS[s_][0], RIMS[s_][1])
+# Spring's spiral: three pieces of one spiral winding inward, three quarters of
+# a turn each; the harder the drive, the more of it shows (and the further it
+# reaches), so a longer tail is more turns. Turned by tone.
+def spiral_piece(i):
+    pts = []
+    for j in range(24):
+        t = (i + j / 23) / 3                      # 0..1 along the whole spiral
+        r = 29 * (1 - 0.72 * t)
+        a = -math.pi / 2 + 2 * math.pi * 2.25 * t
+        pts.append((r * math.cos(a), r * 0.82 * math.sin(a)))
+    return normal_ribbon(pts, 0.6)
+for i in range(3):
+    p.node(f"spiral_{i}", spiral_piece(i), (640, 320), "#f4f4f4", 1.2)
 # Echo: the dry ring and eight ripples, authored near their drawn sizes.
 p.node("echo_dry", ring(14, 40), (CX[2], CY), T3, 1.6)
 for k in range(8):
     p.node(f"ripple_{k}", ring(14 + 6 * (k + 1), 48), (640, 320), T3, 1.0)
-# Tape 2: four corner brackets round the dust scope, closing in with its level.
-for k in range(4):
-    sx, sy = (1, 1, -1, -1)[k], (1, -1, -1, 1)[k]
-    pts = [(0, 0), (sx * 0, sy * 0)]
-    L = 9
-    L, t = 11, 2.2
-    br = [(0, sy * L), (0, 0), (sx * L, 0), (sx * L, sy * t), (sx * t, sy * t), (sx * t, sy * L)]
-    p.node(f"corner_{k}", br, (640, 320), T1, 0.8, fill=T1)
+# Tape 2: two arcs, like a clamp's jaws, either side of dust's rim, closing in with its level.
+for name, mid in (("clamp_l", math.pi), ("clamp_r", 0.0)):
+    p.node(name, arc_ribbon(52, mid - 0.55, mid + 0.55, 18, 0.7), (640, 320), "#8a8a8a", 1.6)
 # LFO 1: a mark orbiting the phase scope, with a trail spaced by its rate.
 for k in range(4):
     p.node(f"orbit_{k}", circle(2.8 - 0.4 * k, 12), (640, 320), T2, 0.6, fill=T2)
@@ -96,7 +98,8 @@ IN_X, OUT_X = 14, 466
 def lane(x0, x1, level):
     """From (x0, CY) to (x1, CY) by a lane at y = level, its corners rounded."""
     if level == CY:
-        return [(x0, CY), (x1, CY)]
+        # a gentle curve, sagging a little between the scopes
+        return [(x0 + (x1 - x0) * j / 11, CY + 2.5 * math.sin(math.pi * j / 11)) for j in range(12)]
     d = 1 if level > CY else -1
     o0 = 6 if x1 > x0 else 8
     o1 = 6
@@ -158,7 +161,9 @@ def add_piece(name, line):
         ys = [y for _, y in part]
         ox, oy = round((min(xs) + max(xs)) / 2), round((min(ys) + max(ys)) / 2)
         local = [(x - ox, y - oy) for x, y in part]
-        if len(local) == 2 and local[0][1] == local[1][1]:
+        if name.startswith(("join", "in", "out")):
+            p.node(f"{name}_{k}", normal_ribbon(local, 0.6), (640, 320), GUIDE2, 1.0)
+        elif len(local) == 2 and local[0][1] == local[1][1]:
             # A straight join: a 2 px bar.
             (x0, y0), (x1, _) = local
             p.node(f"{name}_{k}", [(x0, y0 - 1), (x1, y0 - 1), (x1, y0 + 1), (x0, y0 + 1)], (640, 320), GUIDE2, 0.6, fill=GUIDE2)
@@ -182,30 +187,33 @@ for col in (0, 1, 3):
     pieces.append(("loop", 2, col, add_piece(f"loop{col}", line)))
 # LFO 2's mark (its shape) over the scope it wobbles.
 mark = 7
-p.node("mark_sine", ribbon([(-mark + 2 * mark * j / 15, -3 * math.sin(2 * math.pi * j / 15)) for j in range(16)]), (640, 320), T4, 1.0)
-p.node("mark_triangle", ribbon([(-mark, 0), (-mark / 2, -3), (mark / 2, 3), (mark, 0)]), (640, 320), T4, 1.0)
-p.node("mark_square", ribbon([(-mark, 3), (-mark, -3), (0, -3), (0, 3), (mark, 3), (mark, -3)]), (640, 320), T4, 1.0)
-for k, nm in enumerate(("sine", "triangle", "square")):
-    src = {"sine": [(-mark + 2 * mark * j / 15, -3 * math.sin(2 * math.pi * j / 15)) for j in range(16)],
-           "triangle": [(-mark, 0), (-mark / 2, -3), (mark / 2, 3), (mark, 0)],
-           "square": [(-mark, 3), (-mark, -3), (0, -3), (0, 3), (mark, 3), (mark, -3)]}[nm]
-    p.node(f"lfo_{nm}", ribbon(src), (640, 320), T2, 1.0)
+# The LFO shapes as smooth curves: a sine, a rounded triangle, a rounded square.
+def glyph(nm):
+    f = {"sine": lambda x: math.sin(x),
+         "triangle": lambda x: 2 / math.pi * math.asin(0.93 * math.sin(x)) / (2 / math.pi * math.asin(0.93)),
+         "square": lambda x: math.tanh(3 * math.sin(x)) / math.tanh(3)}[nm]
+    return ribbon([(-mark + 2 * mark * j / 23, -3.2 * f(2 * math.pi * j / 23)) for j in range(24)], 0.6)
+for nm in ("sine", "triangle", "square"):
+    p.node(f"mark_{nm}", glyph(nm), (640, 320), T4, 1.1)
+for nm in ("sine", "triangle", "square"):
+    p.node(f"lfo_{nm}", glyph(nm), (640, 320), T2, 1.1)
 p.const("const opxy::i32 kRippleInv[8] = {" + ", ".join(str(round(2 ** 20 / (14 + 6 * (k + 1)))) for k in range(8)) + "};")
-for t, c in (("t1", T1), ("t2", T2), ("t3", T3), ("t4", T4)):
-    p.shade(t, c, 1.6)
+for t, (c, w) in zip(("t1", "t2", "t3", "t4"), RIMS):
+    p.shade(t, c, w)
 p.shade("guide", GUIDE2, 0.6)
-p.shade("lit1", T1, 0.8)
+p.shade("lit1", "#8a8a8a", 1.0)
 p.shade("t3mid", T3, 1.25)
 p.shade("t3thin", T3, 0.95)
 p.shade("lit3", T3, 1.2)
 p.shade("lit2", T2, 0.6)
 # The rims: whole, worn thin; the echo's copies, fading, and heavy past Madness.
 p.shade("worn", "#7a7a7a", 0.9)      # tape 2's wear: the last rim thinner and dimmer
-p.shade("copy0", "#6a6a6a", 1.1)     # the echo's own copies
-p.shade("copy1", "#474747", 0.9)
-p.shade("copy_mad", "#9a9a9a", 1.8)
-p.shade("double", "#505050", 1.0)    # the faint second outline an echo before it leaves
-p.shade("halo", "#3e3e3e", 2.4)      # dust's blur: a soft, wide, dim ring
+# A rim after an echo is drawn doubled: heavier and a step brighter (the echo's own scope has none before it).
+p.shade("t1_doubled", "#9c9c9c", 2.7)
+p.shade("t2_doubled", "#bebebe", 2.5)
+p.shade("mad", "#e4e4e4", 2.4)      # the echo past Madness: its doubled rim heavier
+p.shade("t4_doubled", "#ffffff", 2.2)
+p.shade("halo", "#2c2c2c", 3.2)      # dust's blur: a soft, wide, dim ring
 p.const(f"const opxy::i32 kCY = {CY}, kR = {R};")
 p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
 idx = {n[0]: 4 + k for k, n in enumerate(p.nodes)}
@@ -217,14 +225,10 @@ for kind, a, b, nodes in pieces:
 p.const("// Thread pieces: joins 0..2, IN leg, OUT leg, the echo loop to tape (dust's scope), phase and spring. Each: nodes {index, x, y}.")
 p.const(f"const opxy::i32 kPieceParts = {width};")
 p.const(f"const opxy::i32 kPieces[{len(pieces)}][{width}][3] = {{" + ", ".join(rows) + "};")
-p.const("// tanh(g x) / tanh(g) at x = k/32, g = 1 + 2.2 i/16: Q10.")
-tab = []
-for i in range(17):
-    g = 0.001 + 3.2 * i / 16
-    tab.append("{" + ", ".join(str(round(1024 * math.tanh(g * k / 32) / math.tanh(g))) for k in range(33)) + "}")
-p.const("const opxy::i32 kSoft[17][33] = {" + ", ".join(tab) + "};")
 import random
 p.const(f"const opxy::i32 kR0 = {R0};")
+p.const("// 2^20 over the echo's time in ms (clamped 40..160) across the time control: the copy steps out over one echo time.")
+p.const("const opxy::i32 kEchoRecip[33] = {" + ", ".join(str(round(2 ** 20 / min(160, max(40, 3 * (650 / 3) ** (i / 32))))) for i in range(33)) + "};")
 p.const("// A squircle's radius over a circle's at each of the rim's 64 points, Q10: the rim squaring as dust crushes it.")
 sq = lambda a: 0.93 / (abs(math.cos(a)) ** 5 + abs(math.sin(a)) ** 5) ** 0.2
 p.const("const opxy::i32 kSquared[64] = {" + ", ".join(str(round(1024 * sq(2 * math.pi * k / 64))) for k in range(64)) + "};")
