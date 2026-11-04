@@ -221,7 +221,7 @@ def head_block(scale=1.0):
 
 solid("rec_head", head_block(), G[2])
 solid("play_head", head_block(), G[2])
-REPEAT_GREYS = ["#AFAFAF", "#969696", "#7D7D7D", "#646464", "#4B4B4B", "#3C3C3C"]
+REPEAT_GREYS = ["#AFAFAF", "#A0A0A0", "#919191", "#828282", "#737373", "#646464"]   # stepping down, none darker than the lamp's grey
 REPEAT_SCALE = [0.72, 0.62, 0.53, 0.45, 0.39, 0.34]
 for k in range(REPEATS):
     solid(f"repeat_{k}", head_block(REPEAT_SCALE[k]), REPEAT_GREYS[k])
