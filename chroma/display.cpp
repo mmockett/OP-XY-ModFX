@@ -3,13 +3,13 @@
 
 namespace chroma {
 // Four facets in a row (tools/make_panel.py draws them), one under each header
-// column, each a solid disc in its encoder's tone, as the OP-XY's knobs run from
+// column, each a rim in its encoder's tone, as the OP-XY's knobs run from
 // dark grey to white. Each disc's rim, one smooth outline, shows what its module does
 // to the sound (Character clips, swells, ripples or scallops it; Movement's lobes,
 // as many as Rate fits, breathe or turn round it; Diffuse smears, wobbles or facets
 // it; Texture flattens, narrows or sags it), and on top of that the qualities the
 // modules before it hand on; a faint ring outside it is its blur or its echo.
-// Character's plate leans with Tilt; Diffuse's echoes open inside its disc. Between
+// Tilt leans Character's rim; Diffuse's echoes open inside its own. Between
 // them the sound passes as two bars, left above and right below, as far apart as it
 // is wide so far. A send's page hears no notes, so only what moves the sound on its
 // own moves the screen: Movement's LFO and Drift's wander.
@@ -94,6 +94,8 @@ struct Chain {
 };
 
 void sign(Frame::path_type& path);
+// Q10 to the nearest whole pixel, still Q10.
+i32 whole(i32 q10) { return floor_q10(q10 + 512) * unit; }
 
 // The shape of facet `stage`'s rim at an angle (tenths): how far out from the plain
 // circle, Q10 px. Its own module draws its shape; the modules before it hand on only
@@ -111,7 +113,8 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
     i32 out = 0;
     if (stage == 0) {
         // Character: warm swells it, drive clips it flat top and bottom, fuzz ripples it
-        // finely, howl scallops it (Tilt: three to five lobes), swell leaves it growing.
+        // finely, howl scallops it (Tilt: three to five lobes), swell leaves it growing;
+        // Tilt leans it.
         if (ch.character == kWarm) out = px(1) + 8 * a;
         else if (ch.character == kDrive) {
             const i32 e = clamp((magnitude(s) - 512) * 2, 0, 1024);
@@ -119,6 +122,9 @@ i32 shape(const Chain& ch, u32 stage, i32 th) {
         } else if (ch.character == kFuzz) out = (a * 5 / 2) * sine(10 * th) >> 10;
         else if (ch.character == kHowl) out = 5 * a * sine((3 + ((v[kTilt] * 2 + 16384) >> 15)) * th + 900) >> 10;
         else if (ch.character == kSwell) out = -(7 * a * (1024 - c) >> 11);
+        // Tilt leans the rim into an oval, one way for lows and the other for highs (howl's
+        // Tilt sets its lobes instead).
+        if (ch.character != kHowl && ch.character != kCharacterOff) out += (((v[kTilt] - 16384) >> 4) * 7) * sine(2 * th) >> 10;
     } else if (ch.character == kDrive || ch.character == kFuzz) {
         const i32 rough = ch.character == kFuzz ? a : a >> 1;
         out += (rough * 3 / 2) * sine(10 * th) >> 10;
@@ -210,9 +216,12 @@ Look look(const Chain& ch, u32 stage) {
 // Facet k's rim: 64 points round its shape, one closed outline.
 void put_rim(Frame& frame, const Chain& ch, u32 k, bool lit) {
     Frame::path_type& path = frame.paths[kNodeRims + k];
+    i32 most = 0, least = px(kRimR * 2);
     for (u32 j = 0; j < 64; ++j) {
         const i32 th = static_cast<i32>(j) * 3600 / 64;
         const i32 r = px(kRimR) + shape(ch, k, th);
+        if (r > most) most = r;
+        if (r < least) least = r;
         path.points[j] = Point{(r >> 5) * sine(th + 900) >> 5, (r >> 5) * sine(th) >> 5};
     }
     sign(path);
@@ -222,16 +231,34 @@ void put_rim(Frame& frame, const Chain& ch, u32 k, bool lit) {
     else if (l.dim) place(frame, n, px(kX[k]), px(kY), unit, kRimDim + k, stroke);
     else if (l.weight != 1) place(frame, n, px(kX[k]), px(kY), unit, (l.weight ? kRimThick : kRimThin) + k, stroke);
     else place(frame, n, px(kX[k]), px(kY), unit, 0, keep);
-    // The halo rings, scaled to sit `halo` beyond the rim (they're drawn at kHaloR).
+    // The halo rings, scaled to sit `halo` beyond the rim's furthest point (or inside its
+    // nearest, for back), so a ring never crosses a distorted rim (they're drawn at kHaloR).
     for (u32 j = 0; j < 2; ++j) {
         const u32 h = kNodeHalos + 2 * k + j;
         if (!l.halo || (j && !l.far)) {
             hide(frame, h);
             continue;
         }
-        const i32 r = px(kRimR) + l.halo * static_cast<i32>(j + 1);
+        const i32 r = (l.halo > 0 ? most : least) + l.halo * static_cast<i32>(j + 1);
         place(frame, h, px(kX[k]), px(kY), (r / kHaloR + 16) >> 5 << 5, 0, keep);
     }
+}
+
+// An embossed form: its shadow, highlight and body (nodes base, base+1, base+2), lit from
+// the upper left. Raised, the highlight sits up-left and the shadow down-right; inset, the
+// other way round. All three share one place, scale and turn.
+void emboss(Frame& frame, u32 base, i32 x, i32 y, i32 scale, i32 tenths, bool raised) {
+    const i32 near = raised ? -unit : unit, far = raised ? unit * 3 / 2 : -unit;
+    place(frame, base, x + far, y + far, scale, 0, keep);
+    place(frame, base + 1, x + near, y + near, scale, 0, keep);
+    place(frame, base + 2, x, y, scale, 0, keep);
+    if (tenths) {
+        const Turn t = rotation(tenths);
+        for (u32 i = 0; i < 3; ++i) turn(frame, base + i, t);
+    }
+}
+void hide_form(Frame& frame, u32 base) {
+    for (u32 i = 0; i < 3; ++i) hide(frame, base + i);
 }
 
 // Sets a path's key from its points, so it redraws only when it changes.
@@ -339,21 +366,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 w3 = w2 + (da ? px(2) + share(share(px(10), da), 16384 + (v[kTime] >> 1)) : 0);
     const i32 widths[4] = {0, w1, w2, w3};
 
-    // --- The facets' solid grounds; their rims (below) carry the edge, lit while Shift is held. ---
-    for (u32 i = 0; i < 4; ++i)
-        place(frame, kNodeFacets + i, px(kX[i]), px(kY), unit, 0, keep);
     // --- Between them the sound: one line in, then left above and right below. ---
     place(frame, kNodeIn, 0, px(kY), unit, 0, keep);
     for (u32 k = 1; k < 4; ++k) {
         place(frame, kNodeLines + 2 * (k - 1), px(kX[k - 1] + kR + 3), px(kY) - widths[k] - unit, unit, 0, keep);
         place(frame, kNodeLines + 2 * (k - 1) + 1, px(kX[k - 1] + kR + 3), px(kY) + widths[k] + unit, unit, 0, keep);
-    }
-
-    // --- Character's plate: the facet's lower half, leaning with Tilt a whole degree at a time. ---
-    {
-        const i32 tenths = character == kHowl ? 0 : (v[kTilt] - 16384) * 300 >> 14;
-        place(frame, kNodePlate, px(kX[0]), px(kY), unit, 0, keep);
-        turn(frame, kNodePlate, rotation((tenths + (tenths < 0 ? -5 : 5)) / 10 * 10));
     }
 
     // --- Diffuse: its echoes, arcs opening outward; more with Amount, further apart with Time. ---
@@ -362,15 +379,46 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 scale = 614 + (870 * v[kTime] >> 15);
         for (u32 e = 0; e < 5; ++e)
             for (i32 k = 0; k < 5; ++k) {
-                const u32 n = kNodeArcs + e * 5 + static_cast<u32>(diffusion == kBack ? 4 - k : k);
+                const u32 n = kNodeArcs + 3 * (e * 5 + static_cast<u32>(diffusion == kBack ? 4 - k : k));
                 if (e != diffusion || k >= shown_arcs) {
-                    hide(frame, n);
+                    hide_form(frame, n);
                     continue;
                 }
                 // Tape's heads wander with Drift, a whole pixel at a time.
                 const i32 jitter = diffusion == kTape ? ((s10(clock * 9878u + static_cast<u32>(k) * 0x4ccccccdu) * (v[kDrift] >> 5) >> 10) * 2 >> 10) : 0;
-                place(frame, n, px(kArcX + jitter), px(kY), scale, 0, keep);
+                emboss(frame, n, px(kArcX + jitter), px(kY), scale, 0, true);
             }
+    }
+
+    // --- The embossed forms inside the rims: raised while their module plays, inset when it's off. ---
+    {
+        // Character: a bar turned with Tilt, a whole degree at a time.
+        const i32 tenths = character == kHowl ? 0 : (v[kTilt] - 16384) * 300 >> 14;
+        emboss(frame, kNodeForms, px(kX[0]), px(kY), unit, (tenths + (tenths < 0 ? -5 : 5)) / 10 * 10, character != kCharacterOff);
+        // Movement: each side's puck where it is now, left above and right below, on whole pixels.
+        const i32 mq = ma >> 5, phase = static_cast<i32>(state.swing >> 16) * 3600 >> 16;
+        i32 lx = 0, ly = 0, rx = 0, ry = 0;
+        if (movement == kVibe || movement == kSwirl || movement == kTrem) {
+            const i32 m = 7 * mq * sine(phase) >> 10;
+            ly = -m;
+            ry = movement == kSwirl ? -(7 * mq * sine(phase + 900) >> 10) : m;
+            if (movement == kSwirl) {
+                lx = 7 * mq * sine(phase + 900) >> 10;
+                rx = -lx;
+            }
+        } else if (movement == kTwin) {
+            lx = -((px(2) >> 10) + share(8, v[kRate])) * mq;
+            rx = -lx;
+        } else if (movement == kPitch) {
+            ly = ry = -((((v[kRate] - 16384) >> 4) * mq >> 10) * 8);
+        }
+        const bool moving = movement != kMovementOff;
+        emboss(frame, kNodeForms + 3, px(kX[1]) + whole(lx), px(kY - 9) + whole(ly), unit, 0, moving);
+        emboss(frame, kNodeForms + 6, px(kX[1]) + whole(rx), px(kY + 9) + whole(ry), unit, 0, moving);
+        // Texture: the groove, inset, and the slider at its amount (tilt's middle is flat).
+        emboss(frame, kNodeForms + 9, px(kX[3]), px(kY), unit, 0, false);
+        const i32 at = texture == kTextureOff ? 0 : share(px(32), v[kTextureAmount]) - px(16);
+        emboss(frame, kNodeForms + 12, px(kX[3]) + whole(at), px(kY), unit, 0, texture != kTextureOff);
     }
 
     // --- The rims: each facet's own shape, and the qualities handed on to it. ---

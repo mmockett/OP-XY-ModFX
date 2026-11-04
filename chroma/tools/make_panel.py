@@ -4,11 +4,10 @@ draws it with (panel.h). Run it after changing a shape here and commit all three
 
 The screen is four facets in a row, one under each header column, one for each
 module, in its encoder's tone: dark grey, mid grey, light grey and white, as the
-OP-XY's own knobs run left to right. Each facet is a solid disc whose rim, one
-smooth outline the display reshapes, shows what its module does to the sound and
-the qualities the modules before it hand on; a faint ring outside it is its blur
-or its echo. Character's plate leans with Tilt and Diffuse's echoes open inside
-its disc. Between the facets the sound passes as two bars, left above and right
+OP-XY's own knobs run left to right. Each facet is a rim, one smooth outline the
+display reshapes, that shows what its module does to the sound and the qualities
+the modules before it hand on; a faint ring outside it is its blur or its echo.
+Tilt leans Character's rim, and Diffuse's echoes open inside its own. Between the facets the sound passes as two bars, left above and right
 below, as far apart as the sound is wide so far.
 
 Every shape is one path with one closed outline of at most 64 points, as the
@@ -37,33 +36,34 @@ def grey(hexs, f):
     return f"#{g:02x}{g:02x}{g:02x}"
 
 
-# Each facet's ground, a dark step of its tone; Character's plate a step up; Diffuse's
-# echoes stepping darker as they fade.
-GROUNDS = [grey(t, 0.26) for t in TONES]
-PLATE = grey(TONES[0], 0.42)
+# Diffuse's echoes, stepping darker as they fade.
 ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
 # Each facet's rim: one smooth closed outline of 64 points that the display reshapes,
 # in the knob's own tone. The palette makes it thin, thick or dim, or lights it while
 # Shift is held; it lends its width too. The halo rings are faint, two steps apart.
 RIM_R = 38
-GROUND_R = 29   # the solid disc sits inside the rim's deepest dent, so the rim alone is the edge
-RIM_WIDTH = 1.8
+RIM_WIDTH = 2.1
 HALO_R = 44
 HALOS = [grey(t, 0.42) for t in TONES]
 HALOS_FAR = [grey(t, 0.26) for t in TONES]
 PALETTE = ([("#000000", TONES[i], 1.1) for i in range(4)] + [("#000000", TONES[i], 2.4) for i in range(4)] +
            [("#000000", grey(TONES[i], 0.5), 1.4) for i in range(4)] + [("#000000", "#ffffff", 2.2) for i in range(4)])
 RIMS = [f"rim_{k}" for k in range(4)]
-NODES = (RIMS + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
+# The forms inside the rims, embossed: each is a shadow, a highlight and a body, the light
+# from the upper left everywhere. The display moves all three together; raised has the
+# highlight up-left and the shadow down-right, inset the other way round.
+FORMS = ["tilt", "left_puck", "right_puck", "groove", "slider"]
+NODES = (RIMS + ["in"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
-         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] +
+         [f"arc_{e}_{k}_{p}" for e in EFFECTS for k in range(5) for p in ("shade", "light", "body")] +
+         [f"{f}_{p}" for f in FORMS for p in ("shade", "light", "body")] +
          [f"halo_{k}_{j}" for k in range(4) for j in range(2)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
 
 def num(v):
-    text = f"{round(v, 4):.4f}".rstrip("0").rstrip(".")
+    text = f"{round(v, 2):.2f}".rstrip("0").rstrip(".")
     return "0" if text in ("", "-0") else text
 
 
@@ -117,6 +117,23 @@ def arcs(effect):
     return out
 
 
+def capsule(half_length, half_width, n=12):
+    """A bar with round ends, centred, lying along x."""
+    pts = []
+    for end, sign in ((half_length, 1), (-half_length, -1)):
+        for j in range(n):
+            a = -math.pi / 2 + math.pi * j / (n - 1)
+            pts.append((end + sign * half_width * math.cos(a), sign * half_width * math.sin(a)))
+    return pts
+
+
+def lift(body):
+    """A highlight a step lighter than its body."""
+    v = int(body[1:3], 16)
+    g = min(255, round(v * 1.45 + 24))
+    return f"#{g:02x}{g:02x}{g:02x}"
+
+
 def check(points, name):
     assert len(points) <= 64, f"{name}: {len(points)} points"
     for i, a in enumerate(points):
@@ -151,11 +168,6 @@ def main():
     # The output's two sides, named once.
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y - 22})" fill="{GUIDE}" {FONT} font-size="10px">L</text>')
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y + 30})" fill="{GUIDE}" {FONT} font-size="10px">R</text>')
-    # Solid grounds, static; the rims above them carry the edge.
-    for i, x in enumerate(XS):
-        put(f"facet_{i}", circle(GROUND_R), "none", 0, x, Y, GROUNDS[i])
-    # Character's plate: the facet's lower half, turned with Tilt.
-    put("plate", [((GROUND_R - 2) * math.cos(math.pi * k / 31), (GROUND_R - 2) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
     # The halos: a faint ring, and a fainter one further out, around a blurred or doubled rim.
     for k in range(4):
         put(f"halo_{k}_0", circle(HALO_R), HALOS[k], 1.0, XS[k], Y)
@@ -165,9 +177,22 @@ def main():
     for k in range(1, 4):
         for s in ("left", "right"):
             put(f"{s}_{k}", [(0, -1), (gap, -1), (gap, 1), (0, 1)], "none", 0, XS[k - 1] + R + 3, Y, TONES[k - 1])
+    def emboss(name, points, body, x, y):
+        put(f"{name}_shade", points, "none", 0, x, y, grey(body, 0.3))
+        put(f"{name}_light", points, "none", 0, x, y, lift(body))
+        put(f"{name}_body", points, "none", 0, x, y, body)
+
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
-            put(f"arc_{e}_{k}", a, "none", 0, XS[2] - 20, Y, ECHOES[k])
+            emboss(f"arc_{e}_{k}", a, ECHOES[k], XS[2] - 20, Y)
+    # Character's tilt: a raised bar across its rim, turned with Tilt.
+    emboss("tilt", capsule(13, 2.6), grey(TONES[0], 0.75), XS[0], Y)
+    # Movement: a raised puck for each side, left above and right below, where it sways now.
+    emboss("left_puck", circle(4.2, 20), grey(TONES[1], 0.8), XS[1], Y - 9)
+    emboss("right_puck", circle(4.2, 20), grey(TONES[1], 0.8), XS[1], Y + 9)
+    # Texture: an inset groove, low to high, and a raised slider on it at the amount.
+    emboss("groove", capsule(20, 2.4), grey(TONES[3], 0.2), XS[3], Y)
+    emboss("slider", circle(4.4, 20), grey(TONES[3], 0.82), XS[3], Y)
     # The rims: the reshaping outlines, placeholders the display replaces every frame. Always hollow.
     for k in range(4):
         put(f"rim_{k}", circle(RIM_R), TONES[k], RIM_WIDTH, XS[k], Y)
@@ -186,8 +211,8 @@ def main():
          "// nodes, in pixels unless named Q10.", "#pragma once", "#include <opxy/types.hpp>", "",
          "namespace chroma { namespace panel {",
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
-         f"enum Node {{ kNodeRims = 0, kNodeFacets = {nodes['facet_0']}, "
-         f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
+         f"enum Node {{ kNodeRims = 0, "
+         f"kNodeIn = {nodes['in']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0_shade']}, kNodeForms = {nodes['tilt_shade']}, "
          f"kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
          "// Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.",
          "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
