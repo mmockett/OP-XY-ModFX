@@ -19,7 +19,7 @@ LABEL = "#8c8c8c"
 
 
 def num(v):
-    s = f"{v:.3f}".rstrip("0").rstrip(".")
+    s = f"{v:.2f}".rstrip("0").rstrip(".")
     return "0" if s in ("-0", "") else s
 
 

@@ -57,12 +57,15 @@ setting was measured.
 
 ![Lint's screen in its six presets](screens.png)
 
-Under the two pages, four scopes, one under each encoder, each on a disc in
-that encoder's dark step. Each scope's rim is one continuous outline in that
-encoder's grey (dark grey, mid grey, light grey and white, as the OP-XY's
+Under the two pages, four scopes, one under each encoder. Each scope is its
+rim: one continuous outline in that encoder's grey (dark grey, mid grey, light grey and white, as the OP-XY's
 encoders and the header's bar run, the darker greys drawn heavier so all four
 read alike), and it is the readout: its own section's shape, distorted further
-by what the sections before it in the order pass on. Every part is a curve.
+by what the sections before it in the order pass on. Every part is a curve,
+and the parts inside the rims (the echo's ripples, the spring's spiral, the
+lamp's mark, the LFO shapes, tape 2's arcs) are embossed: a shadow below right,
+a highlight above left, light from the top left everywhere, and sunk instead of
+raised while they're quiet.
 
 - **dust:** the rim squares as the diodes clip, its top flatter once they
   lopside. Tape 2's two arcs, either side, close in on it with its level.

@@ -62,7 +62,7 @@ i32 bump(i32 a, i32 at, i32 depth) {
     while (d > 1800) d -= 3600;
     while (d < -1800) d += 3600;
     if (d < 0) d = -d;
-    const i32 i = d * 512 / 3600;   // eighths of a 64th of the turn
+    const i32 i = d * 256 / 3600;   // quarters of a point (a 64th of the turn): the table reaches 16 points each side
     return i >= 64 ? 0 : depth * kBump[i] >> 10;
 }
 
@@ -120,6 +120,21 @@ void rim(Frame::path_type& path, const Rim& r, const Live& l, i32 twin) {
     }
 }
 
+// An embossed element: its shadow (the node before it), its body, and its
+// highlight (the node after), sharing one pivot and turn. Light from the top
+// left: raised, the shadow falls down-right; sunk (quiet or off), up-left.
+void trio(Frame& frame, u32 body, i32 x, i32 y, i32 scale, u32 shade, Paint paint, Turn t, bool raised) {
+    const i32 o = raised ? 1024 : -1024, h = raised ? -717 : 717;
+    place(frame, body - 1, x + o, y + o, scale, 0, keep);
+    place(frame, body, x, y, scale, shade, paint);
+    place(frame, body + 1, x + h, y + h, scale, 0, keep);
+    for (u32 k = 0; k < 3; ++k) turn(frame, body - 1 + k, t);
+}
+void hide3(Frame& frame, u32 body) {
+    for (u32 k = 0; k < 3; ++k) hide(frame, body - 1 + k);
+}
+const Turn kStraight = {1024, 0};
+
 u32 checksum(const Frame::path_type& path) {
     u32 sum = 1;
     for (u32 k = 0; k < 64; ++k) sum = sum * 31 + static_cast<u32>(path.points[k].x) * 7 + static_cast<u32>(path.points[k].y);
@@ -139,11 +154,18 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const bool fresh = !state.extra[7];
     state.extra[7] = 1;
     const bool lit = n.shift;
+    // LFO 2 as the inner parts follow it: sampled 15 times a second, so the
+    // embossed spiral and ripples redraw in steps, not every frame.
+    {
+        const i32 t15 = (state.clock * 15) >> 10;
+        if (fresh || t15 != state.extra[2]) { state.extra[2] = t15; state.extra[3] = n.lfo2; }
+    }
+    const i32 lfo2_s = state.extra[3];
 
     // Tape 2: two arcs either side of dust's rim close in with its level (at half in the loop with its control down).
     const i32 level = n.loop == kLoopTape && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
     for (u32 k = 0; k < 2; ++k)
-        place(frame, kNodeClampL + k, px(kCX[0]), px(kCY), (1024 - share(170, level)) & ~7, level > 328 ? kShadeLit1 : kShadeGuide, stroke);
+        trio(frame, kNodeClampL + 3 * k, px(kCX[0]), px(kCY), (1024 - share(170, level)) & ~7, level > 328 ? kShadeLit1 : kShadeGuide, stroke, kStraight, level > 328);
 
     // Phase: the lamp, lagging the LFO's light, leans its rim and holds its notches.
     const i32 depth = n.patched == kP && v[kPhase] < 328 ? 16384 : v[kPhase];
@@ -156,47 +178,49 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 orbit = static_cast<i32>(ph >> 16) * 3600 >> 16;
     const i32 trail = 60 + share(240, v[kRate]);
     for (u32 k = 0; k < 4; ++k) {
-        if (!lamp) { hide(frame, kNodeOrbit0 + k); continue; }
+        if (!lamp) { if (k == 0) hide3(frame, kNodeOrbit0); else hide(frame, kNodeOrbit1 + k - 1); continue; }
         const i32 a = orbit - static_cast<i32>(k) * trail - 900;
-        place(frame, kNodeOrbit0 + k, px(kCX[1]) + (kR0 + 9) * cos10(a), px(kCY) + (kR0 + 9) * sin10(a), unit, kShadeLit2, fill_and_stroke);
+        const i32 x = px(kCX[1]) + (kR0 + 9) * cos10(a), y = px(kCY) + (kR0 + 9) * sin10(a);
+        if (k == 0) trio(frame, kNodeOrbit0, x, y, unit, 0, keep, kStraight, true);
+        else place(frame, kNodeOrbit1 + k - 1, x, y, unit, kShadeLit2, fill_and_stroke);
     }
     for (u32 k = 0; k < 3; ++k) {
-        if ((lamp || lit) && k == n.shape) place(frame, kNodeLfoSine + k, px(kCX[1] + kR + 6), px(kCY + kR + 12), unit, 0, keep);
-        else hide(frame, kNodeLfoSine + k);
+        if ((lamp || lit) && k == n.shape) trio(frame, kNodeLfoSine + 3 * k, px(kCX[1] + kR + 6), px(kCY + kR + 12), unit, 0, keep, kStraight, lamp);
+        else hide3(frame, kNodeLfoSine + 3 * k);
     }
 
     // Echo: ripples inside its scope, spaced by time, as many as the feedback holds.
-    place(frame, kNodeEchoDry, px(kCX[2]), px(kCY), unit, 0, keep);
     const i32 e = v[kEcho];
+    trio(frame, kNodeEchoDry, px(kCX[2]), px(kCY), unit, 0, keep, kStraight, e > 328);
     const i32 fb = e < 27853 ? e * 903 >> 10 : 24576 + ((e - 27853) * 2731 >> 10);
-    const i32 wob = n.wobble == kWobbleTime ? share(px(2), n.lfo2) : 0;
+    const i32 wob = n.wobble == kWobbleTime ? share(px(2), lfo2_s) & ~(unit / 2 - 1) : 0;   // half-pixel steps
     const i32 gap = px(3) + share(px(6), v[kTime]) + wob;
     i32 h = e < 27853 ? e * 32767 / 27853 : 32767;
     const i32 spread = 560 + (h * 464 >> 15) + (e > 27853 ? (e - 27853) * 300 / 4915 : 0);
     for (u32 k = 0; k < 8; ++k) {
         const i32 r = px(14) + (gap * static_cast<i32>(k + 1) >> 10) * spread;
-        if (e <= 328 || h < 1500 || r > px(e > 27853 ? 37 : 34)) { hide(frame, kNodeRipple0 + k); continue; }
+        if (e <= 328 || h < 1500 || r > px(e > 27853 ? 37 : 34)) { hide3(frame, kNodeRipple0 + 3 * k); continue; }
         const i32 scale = (r >> 4) * kRippleInv[k] >> 16;
-        place(frame, kNodeRipple0 + k, px(kCX[2]), px(kCY), scale, h > 16384 ? kShadeT3 : h > 8000 ? kShadeT3Mid : kShadeT3Thin, stroke);
+        trio(frame, kNodeRipple0 + 3 * k, px(kCX[2]), px(kCY), scale, h > 16384 ? kShadeT3 : h > 8000 ? kShadeT3Mid : kShadeT3Thin, stroke, kStraight, true);
         h = clamp(h * fb >> 15, 0, 32767);
     }
 
     // Spring: its spiral winds further in, more of it showing, the harder the
     // tank is driven; tone turns it; LFO 2 on the tank breathes it.
     const i32 drive = n.patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
-    const i32 trem = n.wobble == kWobbleSpring ? 900 + (n.lfo2 * 124 >> 15) : 1024;
+    const i32 trem = n.wobble == kWobbleSpring ? 900 + (lfo2_s * 124 >> 15) : 1024;
     const i32 turn_by = share(1000, v[kTone] - 16384);
     for (u32 k = 0; k < 3; ++k) {
-        if (drive <= 328 || drive < static_cast<i32>(k) * 10923) { hide(frame, kNodeSpiral0 + k); continue; }
-        place(frame, kNodeSpiral0 + k, px(kCX[3]), px(kCY), ((820 + share(204, drive)) * trem >> 10) & ~7, 0, keep);
-        turn(frame, kNodeSpiral0 + k, Turn{cos10(turn_by), sin10(turn_by)});
+        if (drive <= 328 || drive < static_cast<i32>(k) * 10923) { hide3(frame, kNodeSpiral0 + 3 * k); continue; }
+        trio(frame, kNodeSpiral0 + 3 * k, px(kCX[3]), px(kCY), ((820 + share(204, drive)) * trem >> 10) & ~31, 0, keep,
+             Turn{cos10(turn_by), sin10(turn_by)}, true);
     }
 
     // LFO 2's mark over what it wobbles.
     const i32 wob_col = n.wobble == kWobbleTime ? 2 : n.wobble == kWobbleSpring ? 3 : n.wobble == kWobblePhaser ? 1 : -1;
     for (u32 k = 0; k < 3; ++k) {
-        if (wob_col >= 0 && k == n.shape) place(frame, kNodeMarkSine + k, px(kCX[wob_col] + kR0 - 2), px(kCY - kR0 - 8), unit, 0, keep);
-        else hide(frame, kNodeMarkSine + k);
+        if (wob_col >= 0 && k == n.shape) trio(frame, kNodeMarkSine + 3 * k, px(kCX[wob_col] + kR0 - 2), px(kCY - kR0 - 8), unit, 0, keep, kStraight, true);
+        else hide3(frame, kNodeMarkSine + 3 * k);
     }
 
     // The rims: each its own section's shape, with the qualities of what came before it.
@@ -297,7 +321,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             rim(path, r, l, twin);
             path.key = checksum(path);
             // A soft halo where roughness has been carried.
-            if (r.fuzz) place(frame, kNodeHalo0 + s, px(kCX[s]), px(kCY), unit, 0, keep);
+            if (r.fuzz > 11000) place(frame, kNodeHalo0 + s, px(kCX[s]), px(kCY), unit, 0, keep);   // only once it's rough
             else hide(frame, kNodeHalo0 + s);
         }
     }
@@ -314,8 +338,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     }
     for (i32 k = 0; k + 1 < count; ++k)
         if (cols[k + 1] == cols[k] + 1) on[cols[k]] = true;
-    on[3] = cols[0] == 0;
-    on[4] = cols[count - 1] == 3;
+    // No legs to IN and OUT: the labels are enough, and the legs crowded tape 2's arcs.
     if (n.loop != kLoopOff) on[5 + (n.loop == kLoopTape ? 0 : n.loop == kLoopPhaser ? 1 : 2)] = true;
     for (i32 piece = 0; piece < 8; ++piece)
         for (i32 part = 0; part < kPieceParts; ++part) {
