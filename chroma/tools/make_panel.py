@@ -4,11 +4,12 @@ draws it with (panel.h). Run it after changing a shape here and commit all three
 
 The screen is four facets in a row, one under each header column, one for each
 module, in its encoder's tone: dark grey, mid grey, light grey and white, as the
-OP-XY's own knobs run left to right. Character is one cycle of the wave as it
-shapes it, Movement each side's sway over the last moments, Diffuse its echoes
-opening out, and Texture a band whose upper edge is the left side's response and
-lower edge the right's. Between the facets the sound passes as two lines, left
-above and right below, as far apart as the sound is wide so far.
+OP-XY's own knobs run left to right. Each facet is a solid disc whose rim, one
+smooth outline the display reshapes, shows what its module does to the sound and
+the qualities the modules before it hand on; a faint ring outside it is its blur
+or its echo. Character's plate leans with Tilt and Diffuse's echoes open inside
+its disc. Between the facets the sound passes as two bars, left above and right
+below, as far apart as the sound is wide so far.
 
 Every shape is one path with one closed outline of at most 64 points, as the
 device's SVG loader takes them, and check() holds it to that."""
@@ -38,29 +39,25 @@ def grey(hexs, f):
 
 # Each facet's ground, a dark step of its tone; Character's plate a step up; Diffuse's
 # echoes stepping darker as they fade.
-GROUNDS = [grey(t, 0.22) for t in TONES]
+GROUNDS = [grey(t, 0.26) for t in TONES]
 PLATE = grey(TONES[0], 0.42)
 ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
-# Each facet's rim, 16 arc segments, as drawn a step below the readouts; the palette gives
-# a segment thin, thick, dim, or lit in the knob's own tone while Shift is held. The palette
-# lends its width too.
-RIM_R, SEGMENTS, HALO_ARCS = 39, 16, 8
-RIM_TONES = [grey(t, 0.78) for t in TONES]
-RIM_DIMS = [grey(t, 0.38) for t in TONES]
-PALETTE = ([("#000000", RIM_TONES[i], 1.2) for i in range(4)] + [("#000000", RIM_TONES[i], 2.8) for i in range(4)] +
-           [("#000000", RIM_DIMS[i], 1.2) for i in range(4)] + [("#000000", TONES[i], 1.9) for i in range(4)])
-SHAPES = ["wave", "left_sway", "right_sway", "band"]
-
-
-def segment(count=SEGMENTS, overlap=2.2, points=6):
-    """An arc of a rim: through its node's origin, tangent upright there, a little longer
-    than its share of the rim so neighbouring arcs meet as one outline."""
-    half = math.radians(360 / count / 2 + overlap)
-    return ribbon([(RIM_R * math.cos(-half + 2 * half * k / (points - 1)) - RIM_R, RIM_R * math.sin(-half + 2 * half * k / (points - 1))) for k in range(points)], 0.25)
-NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
+# Each facet's rim: one smooth closed outline of 64 points that the display reshapes,
+# in the knob's own tone. The palette makes it thin, thick or dim, or lights it while
+# Shift is held; it lends its width too. The halo rings are faint, two steps apart.
+RIM_R = 38
+GROUND_R = 29   # the solid disc sits inside the rim's deepest dent, so the rim alone is the edge
+RIM_WIDTH = 1.8
+HALO_R = 44
+HALOS = [grey(t, 0.42) for t in TONES]
+HALOS_FAR = [grey(t, 0.26) for t in TONES]
+PALETTE = ([("#000000", TONES[i], 1.1) for i in range(4)] + [("#000000", TONES[i], 2.4) for i in range(4)] +
+           [("#000000", grey(TONES[i], 0.5), 1.4) for i in range(4)] + [("#000000", "#ffffff", 2.2) for i in range(4)])
+RIMS = [f"rim_{k}" for k in range(4)]
+NODES = (RIMS + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
-         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + ["puck_left", "puck_right", "exit_left", "exit_right"] +
-         [f"rim_{k}_{i}" for k in range(4) for i in range(SEGMENTS)] + [f"halo_{k}_{j}" for k in range(4) for j in range(HALO_ARCS)] +
+         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] +
+         [f"halo_{k}_{j}" for k in range(4) for j in range(2)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
@@ -156,16 +153,13 @@ def main():
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y + 30})" fill="{GUIDE}" {FONT} font-size="10px">R</text>')
     # Solid grounds, static; the rims above them carry the edge.
     for i, x in enumerate(XS):
-        put(f"facet_{i}", circle(R - 1), "none", 0, x, Y, GROUNDS[i])
+        put(f"facet_{i}", circle(GROUND_R), "none", 0, x, Y, GROUNDS[i])
     # Character's plate: the facet's lower half, turned with Tilt.
-    put("plate", [((R - 4) * math.cos(math.pi * k / 31), (R - 4) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
-    # The halos (a faint echo of a rim, when it's blurred or doubled), then the rims, over
-    # the grounds and the plate and under every readout.
+    put("plate", [((GROUND_R - 2) * math.cos(math.pi * k / 31), (GROUND_R - 2) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
+    # The halos: a faint ring, and a fainter one further out, around a blurred or doubled rim.
     for k in range(4):
-        for j in range(HALO_ARCS):
-            put(f"halo_{k}_{j}", segment(HALO_ARCS, 4.0, 8), grey(TONES[k], 0.45), 1.0, XS[k] + RIM_R, Y)
-        for i in range(SEGMENTS):
-            put(f"rim_{k}_{i}", segment(), RIM_TONES[k], 1.9, XS[k] + RIM_R, Y)
+        put(f"halo_{k}_0", circle(HALO_R), HALOS[k], 1.0, XS[k], Y)
+        put(f"halo_{k}_1", circle(HALO_R), HALOS_FAR[k], 0.8, XS[k], Y)
     put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
     gap = XS[1] - XS[0] - 2 * R - 6
     for k in range(1, 4):
@@ -174,14 +168,9 @@ def main():
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
             put(f"arc_{e}_{k}", a, "none", 0, XS[2] - 20, Y, ECHOES[k])
-    # The reshaping outlines: placeholders the display replaces every frame. Always hollow.
-    homes = {"wave": 0, "left_sway": 1, "right_sway": 1, "band": 3}
-    for name in SHAPES:
-        tone = homes[name]
-        put(name, ribbon([(-30 + 2 * k, 0) for k in range(32)]), TONES[tone], 1.6 if name == "band" else 1.4, XS[tone], Y)
-    # Filled marks: where each side of Movement is now, and where each side leaves Texture.
-    for name, tone in (("puck_left", 1), ("puck_right", 1), ("exit_left", 3), ("exit_right", 3)):
-        put(name, circle(4.2, 20), "none", 0, XS[tone], Y, TONES[tone])
+    # The rims: the reshaping outlines, placeholders the display replaces every frame. Always hollow.
+    for k in range(4):
+        put(f"rim_{k}", circle(RIM_R), TONES[k], RIM_WIDTH, XS[k], Y)
     for i, (fill, stroke, width) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>')
     lines.append("</g>")
@@ -197,13 +186,12 @@ def main():
          "// nodes, in pixels unless named Q10.", "#pragma once", "#include <opxy/types.hpp>", "",
          "namespace chroma { namespace panel {",
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
-         f"enum Node {{ kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = {nodes['facet_0']}, "
+         f"enum Node {{ kNodeRims = 0, kNodeFacets = {nodes['facet_0']}, "
          f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
-         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeRims = {nodes['rim_0_0']}, kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
-         "// Palette: a rim segment thin, thick, dim, or lit in its knob's tone while Shift is held, a facet each.",
+         f"kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
+         "// Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.",
          "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
-         f"const opxy::u32 kSegments = {SEGMENTS}, kHaloArcs = {HALO_ARCS};",
-         f"const opxy::i32 kRimR = {RIM_R};",
+         f"const opxy::i32 kRimR = {RIM_R}, kHaloR = {HALO_R};",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
          f"const opxy::i32 kArcX = {XS[2] - 20};",

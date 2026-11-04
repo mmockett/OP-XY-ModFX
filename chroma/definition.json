@@ -245,11 +245,11 @@
     "bufferBytes": 328300,
     "transport": 1,
     "display": {
-      "stateBytes": 72,
+      "stateBytes": 64,
       "stateAlignment": 4,
       "paths": 4,
       "points": 64,
-      "nodes": 149,
+      "nodes": 57,
       "texts": 16,
       "palette": 16
     }
