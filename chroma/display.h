@@ -4,15 +4,15 @@
 namespace chroma {
 // Matches resources.display in definition.json: paths, points, nodes, texts,
 // palette. tools/make_panel.py names every node (panel.h).
-using Frame = opxy::draw::Frame<4, 64, 205, 16, 16>;
+using Frame = opxy::draw::Frame<4, 64, 157, 16, 16>;
 // The two-page header; each control as the screen shows it, easing toward its
 // value; Movement's sway (2^32 a cycle) and a clock in ms for Drift's wander;
-// the grain's refresh; whether the first frame has been drawn.
+// the rims' refresh; whether the first frame has been drawn.
 struct DisplayState {
     opxy::draw::PageHeader header;
     opxy::i32 shown[8];
     opxy::u32 swing, clock;
-    opxy::u32 sweep, key;  // the grain's refresh: the next to place, and the controls it was last placed for
+    opxy::u32 sweep, key;  // the rims' refresh: the next to place, and the controls they were last placed for
     opxy::u32 ready;
 };
 }

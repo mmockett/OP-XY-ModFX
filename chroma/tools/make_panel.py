@@ -39,39 +39,28 @@ def grey(hexs, f):
 # Each facet's ground, a dark step of its tone; Character's plate a step up; Diffuse's
 # echoes stepping darker as they fade.
 GROUNDS = [grey(t, 0.22) for t in TONES]
-RINGS = [grey(t, 0.5) for t in TONES]
 PLATE = grey(TONES[0], 0.42)
 ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
-# The grain inside each facet, a step below its readouts: thin, thick, or dimmed.
-GRAIN_TONES = [grey(t, 0.62) for t in TONES]
-GRAIN_DIMS = [grey(t, 0.34) for t in TONES]
-# Palette: each facet lit in its knob's tone while Shift is held (its ground kept);
-# then the grain's paints, which lend their widths: thin, thick and dim, a facet each.
-PALETTE = ([(GROUNDS[i], TONES[i], 1.2) for i in range(4)] + [("#000000", GRAIN_TONES[i], 1.2) for i in range(4)] +
-           [("#000000", GRAIN_TONES[i], 2.5) for i in range(4)] + [("#000000", GRAIN_DIMS[i], 1.4) for i in range(4)])
+# Each facet's rim, 16 arc segments, as drawn a step below the readouts; the palette gives
+# a segment thin, thick, dim, or lit in the knob's own tone while Shift is held. The palette
+# lends its width too.
+RIM_R, SEGMENTS, DOT_COUNT = 39, 16, 10
+RIM_TONES = [grey(t, 0.78) for t in TONES]
+RIM_DIMS = [grey(t, 0.38) for t in TONES]
+PALETTE = ([("#000000", RIM_TONES[i], 1.2) for i in range(4)] + [("#000000", RIM_TONES[i], 2.8) for i in range(4)] +
+           [("#000000", RIM_DIMS[i], 1.2) for i in range(4)] + [("#000000", TONES[i], 1.9) for i in range(4)])
 SHAPES = ["wave", "left_sway", "right_sway", "band"]
 
 
-def grain_grid():
-    """Each facet's grain: rows 6, 17 and 28 px either side of the centre, columns 10 px
-    apart, those inside the disc. Upper rows are the left side, lower the right."""
-    out = []
-    for side in (1, -1):
-        for d in range(3):
-            y = -side * (6 + d * 11)
-            for col in range(7):
-                x = -30 + col * 10
-                if x * x + y * y <= 35 * 35:
-                    out.append((side, d, col))
-    return out
-
-
-GRID = grain_grid()
-GRAINS = len(GRID)
+def segment():
+    """A rim segment: an arc through its node's origin, tangent upright there, a little
+    longer than a sixteenth of the rim so a smooth rim reads whole."""
+    half = math.radians(360 / SEGMENTS / 2 + 2.2)
+    return ribbon([(RIM_R * math.cos(-half + 2 * half * k / 7) - RIM_R, RIM_R * math.sin(-half + 2 * half * k / 7)) for k in range(8)], 0.25)
 NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
          [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + ["puck_left", "puck_right", "exit_left", "exit_right"] +
-         [f"grain_{k}_{j}" for k in range(4) for j in range(GRAINS)] +
+         [f"rim_{k}_{i}" for k in range(4) for i in range(SEGMENTS)] + [f"dot_{k}_{j}" for k in range(4) for j in range(DOT_COUNT)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
@@ -165,15 +154,17 @@ def main():
     # The output's two sides, named once.
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y - 22})" fill="{GUIDE}" {FONT} font-size="10px">L</text>')
     lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y + 30})" fill="{GUIDE}" {FONT} font-size="10px">R</text>')
-    # Solid grounds, static except when Shift lights their rings.
+    # Solid grounds, static; the rims above them carry the edge.
     for i, x in enumerate(XS):
-        put(f"facet_{i}", circle(R - 1), RINGS[i], SECOND, x, Y, GROUNDS[i])
+        put(f"facet_{i}", circle(R - 1), "none", 0, x, Y, GROUNDS[i])
     # Character's plate: the facet's lower half, turned with Tilt.
     put("plate", [((R - 4) * math.cos(math.pi * k / 31), (R - 4) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
-    # The grain, over the grounds and the plate and under every readout; the display places each.
+    # The rims and their dots, over the grounds and the plate and under every readout.
     for k in range(4):
-        for j in range(GRAINS):
-            put(f"grain_{k}_{j}", ribbon([(-2.6, 0), (2.6, 0)], 0.25), GRAIN_TONES[k], 1.2, XS[k], Y)
+        for i in range(SEGMENTS):
+            put(f"rim_{k}_{i}", segment(), RIM_TONES[k], 1.9, XS[k] + RIM_R, Y)
+        for j in range(DOT_COUNT):
+            put(f"dot_{k}_{j}", circle(1.9, 12), "none", 0, XS[k], Y - RIM_R - 4, grey(TONES[k], 0.7 if j % 3 else 0.45))
     put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
     gap = XS[1] - XS[0] - 2 * R - 6
     for k in range(1, 4):
@@ -207,12 +198,11 @@ def main():
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = {nodes['facet_0']}, "
          f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
-         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeGrains = {nodes['grain_0_0']}, kNodeBars = {nodes['bar_0']} }};",
-         "// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept; then the grain's thin, thick and dim paints, a facet each.",
-         "enum Shade { kLit = 0, kGrainThin = 4, kGrainThick = 8, kGrainDim = 12 };",
-         f"const opxy::u32 kGrains = {GRAINS};",
-         "// Each grain's side (+1 left, -1 right), row out from the centre and column.",
-         "const opxy::i32 kGrid[" + str(GRAINS) + "][3] = {" + ", ".join("{%d, %d, %d}" % g for g in GRID) + "};",
+         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeRims = {nodes['rim_0_0']}, kNodeDots = {nodes['dot_0_0']}, kNodeBars = {nodes['bar_0']} }};",
+         "// Palette: a rim segment thin, thick, dim, or lit in its knob's tone while Shift is held, a facet each.",
+         "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
+         f"const opxy::u32 kSegments = {SEGMENTS}, kDotCount = {DOT_COUNT};",
+         f"const opxy::i32 kRimR = {RIM_R};",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
          f"const opxy::i32 kArcX = {XS[2] - 20};",

@@ -4,13 +4,12 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 205, kTexts = 16, kPalette = 16;
-enum Node { kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = 4, kNodeIn = 8, kNodePlate = 9, kNodeLines = 10, kNodeArcs = 16, kNodePucks = 41, kNodeExits = 43, kNodeGrains = 45, kNodeBars = 197 };
-// Palette: each facet lit in its encoder's tone while Shift is held, its ground kept; then the grain's thin, thick and dim paints, a facet each.
-enum Shade { kLit = 0, kGrainThin = 4, kGrainThick = 8, kGrainDim = 12 };
-const opxy::u32 kGrains = 38;
-// Each grain's side (+1 left, -1 right), row out from the centre and column.
-const opxy::i32 kGrid[38][3] = {{1, 0, 0}, {1, 0, 1}, {1, 0, 2}, {1, 0, 3}, {1, 0, 4}, {1, 0, 5}, {1, 0, 6}, {1, 1, 0}, {1, 1, 1}, {1, 1, 2}, {1, 1, 3}, {1, 1, 4}, {1, 1, 5}, {1, 1, 6}, {1, 2, 1}, {1, 2, 2}, {1, 2, 3}, {1, 2, 4}, {1, 2, 5}, {-1, 0, 0}, {-1, 0, 1}, {-1, 0, 2}, {-1, 0, 3}, {-1, 0, 4}, {-1, 0, 5}, {-1, 0, 6}, {-1, 1, 0}, {-1, 1, 1}, {-1, 1, 2}, {-1, 1, 3}, {-1, 1, 4}, {-1, 1, 5}, {-1, 1, 6}, {-1, 2, 1}, {-1, 2, 2}, {-1, 2, 3}, {-1, 2, 4}, {-1, 2, 5}};
+const opxy::u32 kNodes = 157, kTexts = 16, kPalette = 16;
+enum Node { kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = 4, kNodeIn = 8, kNodePlate = 9, kNodeLines = 10, kNodeArcs = 16, kNodePucks = 41, kNodeExits = 43, kNodeRims = 45, kNodeDots = 109, kNodeBars = 149 };
+// Palette: a rim segment thin, thick, dim, or lit in its knob's tone while Shift is held, a facet each.
+enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };
+const opxy::u32 kSegments = 16, kDotCount = 10;
+const opxy::i32 kRimR = 39;
 const opxy::i32 kY = 130, kR = 40, kGap = 34;
 const opxy::i32 kX[4] = {60, 180, 300, 420};
 const opxy::i32 kArcX = 280;
