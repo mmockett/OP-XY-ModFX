@@ -73,20 +73,19 @@ GUIDE_X, GUIDE_R, SPINDLE_R = 39, 7, 2.2
 LINT_AT = [(-22, 39), (22, 39), (0, 40.5)]   # lint's places along the plate's back, about the crown's top
 # Phase: the cell on the cable; the lamp below it, its glass's centre.
 CELL_R = 15
-GLASS_R, GLASS_Y, NECK_W, NECK_Y = 16, 42, 7, 60
-GLOW_Y = 24.5                    # the light's foot, just above the glass; it reaches up to the cell
+GLASS_R, GLASS_Y, NECK_W, NECK_Y = 17, 43.5, 7.5, 62
 # Echo: the drum, its heads outside the rim, the cable round them.
 DRUM_R, HUB_R, AXLE_R = 26, 7, 3
 HEAD_IN, HEAD_LEN, HEAD_W = 1.5, 12, 6.5
 CABLE_R = DRUM_R + 18
-PLAY_FROM, PLAY_SPAN = 2160, 1800            # the playback head: tenths of a degree (the record head is at 1800), across time
+PLAY_FROM, PLAY_SPAN = 2160, 1440            # the playback head: tenths of a degree (the record head is at 1800), across time
 REPEATS, REPEAT_STEP, REPEAT_LAST = 5, 300, 5000
 RISER_X = -33              # the loop's cable leaves the record head here
 # Spring: the tank's rails and transducers, and the springs' turns between.
-TANK_X, RAIL_Y, RAIL_H = 42, 23, 3
-TRANS_IN, TRANS_OUT, TRANS_H = 27, 40, 21.5
-SPRING_Y, TURN_RX, TURN_RY, TURNS, TURN_END = 10, 2.4, 6.2, 7, 21
-BOW = 5
+TANK_X, RAIL_Y, RAIL_H = 42, 27.5, 2.5
+TRANS_IN, TRANS_OUT, TRANS_H = 29, 40, 25.5
+SPRING_Y, TURN_RX, TURN_RY, TURNS, TURN_END = 9, 2.4, 5.6, 6, 23
+BOW = 9
 # Tape 2: a smaller head of dust's kind, facing the cable's run down to the jack.
 T2_SCALE, T2_Y, T2_REST, T2_LIFT, T2_BACK = 0.7, 182, 2.5, 8, 3.5
 CORNER = 3
@@ -234,7 +233,7 @@ for place in range(3):
 
 # ---- phase ----
 # The lamp's screw cap with its contact below, as one stepped outline.
-solid("lamp_cap", [(-8, 61.5), (8, 61.5), (8, 66.5), (6.5, 68), (3.5, 68), (3.5, 70), (2, 71.5), (-2, 71.5), (-3.5, 70), (-3.5, 68), (-6.5, 68), (-8, 66.5)], G[1])
+solid("lamp_cap", [(-8.5, 63.5), (8.5, 63.5), (8.5, 68.5), (7, 70), (3.8, 70), (3.8, 72), (2.2, 73.5), (-2.2, 73.5), (-3.8, 72), (-3.8, 70), (-7, 70), (-8.5, 68.5)], G[1])
 
 
 def bulb():
@@ -250,18 +249,14 @@ solid("glass", bulb(), G[1])
 # The filament inside the glass: a loop of wire on two posts, the glass's one inner tone.
 fil = [(-5, 8), (-5, 0)] + [(4.2 * math.cos(a), -3.2 * math.sin(a)) for a in [math.pi * (1 - k / 8) for k in range(9)]][1:-1] + [(5, 0), (5, 8)]
 solid("filament", strip(fil, 1.6), "#4B4B4B")
-# Its light: three soft rays fanning up to the cell, prepared at three lengths, each hanging from its foot.
-for v, length in enumerate((4, 5.6, 7.2)):
-    pts = [(-6.5, 0)]
-    for k, ang in enumerate((-28, 0, 28)):
-        a = math.radians(ang)
-        L = length * (0.85 if ang else 1.0)
-        bx, by = (k - 1) * 4.2, -0.6
-        tx, ty = bx + L * math.sin(a), by - L * math.cos(a)
-        nx, ny = math.cos(a) * 0.9, math.sin(a) * 0.9
-        pts += [(bx - 1.6, by), (tx - nx, ty - ny), (tx + 0.25 * math.sin(a), ty - 0.25 * math.cos(a)), (tx + nx, ty + ny), (bx + 1.6, by)]
-    pts.append((6.5, 0))
-    solid(f"glow_{v}", pts, G[1])
+# Its light: a soft crescent of glow over the glass, toward the cell, prepared
+# in three thicknesses; each hangs from its node at the glass's centre.
+for v, (thick, spread) in enumerate(((2.2, 30), (3.6, 36), (5.2, 42))):
+    r0 = GLASS_R + 2.2
+    outer = [(math.sin(math.radians(a_)) * (r0 + thick * (1 - (a_ / spread) ** 2 * 0.55)), -math.cos(math.radians(a_)) * (r0 + thick * (1 - (a_ / spread) ** 2 * 0.55)))
+             for a_ in [-spread + 2 * spread * k / 14 for k in range(15)]]
+    inner = [(math.sin(math.radians(a_)) * r0, -math.cos(math.radians(a_)) * r0) for a_ in [spread - 2 * spread * k / 12 for k in range(13)]]
+    solid(f"glow_{v}", outer + inner[1:-1], G[1])
 solid("cell", disc(CELL_R, 44), G[1])
 # The cell's face: its zigzag track, three runs joined by round turns.
 zig = [(-10.5, 0.5), (-7, -5), (-3.5, 5), (0, -5), (3.5, 5), (7, -5), (10.5, 0.5)]
@@ -365,7 +360,7 @@ p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
 p.const("// Dust's head, Q10: its crown's radius, its rest below the cable and its lift; the guides in pixels; lint's places.")
 p.const(f"const opxy::i32 kCrownR = {q(CROWN_R)}, kHeadRest = {q(HEAD_REST)}, kHeadLift = {q(HEAD_LIFT)}, kGuideX = {GUIDE_X}, kGuideR = {GUIDE_R};")
 p.const("const opxy::i32 kLintAt[3][2] = {" + ", ".join(f"{{{q(x)}, {q(y)}}}" for x, y in LINT_AT) + "};  // Q10")
-p.const(f"const opxy::i32 kGlowY = {q(GLOW_Y)}, kGlassY = {GLASS_Y}, kGlows = {len(GLOWS)};  // kGlowY Q10")
+p.const(f"const opxy::i32 kGlassY = {q(GLASS_Y)}, kGlows = {len(GLOWS)};  // kGlassY Q10")
 p.const("// The echo's drum; its heads' foot and tip from the centre (Q10); the playback cable's run; the playback head's travel, tenths of a degree.")
 p.const(f"const opxy::i32 kDrumR = {DRUM_R}, kHeadFoot = {q(DRUM_R + HEAD_IN)}, kHeadTip = {q(DRUM_R + HEAD_IN + HEAD_LEN)}, kCableR = {CABLE_R};")
 p.const(f"const opxy::i32 kPlayFrom = {PLAY_FROM}, kPlaySpan = {PLAY_SPAN}, kRepeats = {REPEATS}, kRepeatStep = {REPEAT_STEP}, kRepeatLast = {REPEAT_LAST};")
@@ -399,4 +394,6 @@ disp = json.loads(text)["resources"]["display"]
 disp.update(paths=counts["paths"], points=counts["points"], nodes=counts["nodes"], texts=counts["texts"], palette=counts["palette"])
 text = re.sub(r'"display": \{[^}]*\}', '"display": {' + ", ".join(f'"{k}": {v}' for k, v in disp.items()) + "}", text)
 definition.write_text(text)
-print(f"wrote panel.svg.fragment, panel.h and tests/shapes.h: {counts}")
+header = ROOT / "display.h"
+header.write_text(re.sub(r"Frame<\d+, \d+, \d+, \d+, \d+>", f"Frame<{counts['paths']}, {counts['points']}, {counts['nodes']}, {counts['texts']}, {counts['palette']}>", header.read_text()))
+print(f"wrote panel.svg.fragment, panel.h, tests/shapes.h and display.h's frame: {counts}")

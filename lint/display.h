@@ -4,7 +4,7 @@
 namespace lint {
 // Matches resources.display in definition.json: paths, points, nodes, texts,
 // palette. tools/make_panel.py names every node (panel.h).
-using Frame = opxy::draw::Frame<3, 64, 107, 16, 8>;
+using Frame = opxy::draw::Frame<3, 64, 105, 16, 8>;
 // The two-page header; each control as the screen shows it, easing toward its
 // value; the two LFOs' phases, 2^32 a cycle; tape 2's place, 0 on the way out
 // to 32767 down in the loop, easing; the buckled drum's turn, tenths of a

@@ -4,18 +4,18 @@
 namespace lint {
 // A 1970s effects chassis with its lid off, seen from above (tools/make_panel.py
 // draws it): the tray's walls round the screen, four modules in the order the
-// shift row picks, and one patch cable from the jack in the left wall to the
-// jack in the right, running through every module at one height. Each module is
-// its working part, solid in its encoder's grey; the cable is the one line.
-// Dust pushes the tape head into the tape, which wraps its crown, and grit steps
-// out behind it; the lamp lights with phase and pulses with its LFO; the
-// playback head rides round the echo's drum with time, the repeats after it,
-// more with feedback, and Madness buckles the drum; the spring shakes wider as
-// the tank is driven and winds tighter as the tone brightens. Tape 2's head
-// rises into the tape before the jack out with its level.
+// shift row picks, and one patch cable from the jack in the left wall through
+// every module to the jack in the front wall. Each module is the real part,
+// solid in its encoder's grey; the cable is the one line.
+// Dust slides the tape head into the tape, which wraps its face, and lint
+// gathers on its plate; the lamp below the photocell lights with phase and
+// pulses with its LFO; the playback head rides round the echo's drum with time,
+// the repeats after it, more with feedback, and Madness buckles the drum; the
+// tank's springs bow apart as it is driven and gain turns as the tone brightens.
+// Tape 2's head presses into the cable on its way to the jack with its level.
 // A section patched into the echo's loop leaves the cable, which hops over it
 // along the back wall, for a cable along the front wall from the echo's record
-// head; tape 2 drops down to it when it is the one in the loop. When the order
+// head; tape 2 draws back to it when it is the one in the loop. When the order
 // changes, the modules move to their places one a frame. A turned control eases
 // to its new value in about 0.15 s; only the LFOs and a buckled drum move an idle screen.
 using opxy::i32;
@@ -399,14 +399,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 glow = share(depth, 8192 + share(24575, light * light >> 15));
         const u32 level = static_cast<u32>(clamp((glow * kGlows + 16384) >> 15, 0, kGlows - 1));
         place(frame, kNodeLampCap, cx[kP], y, unit, 0, keep);
-        place(frame, kNodeGlass, cx[kP], y + px(kGlassY), unit, level, fill_and_stroke);
-        place(frame, kNodeFilament, cx[kP], y + px(kGlassY), unit, 0, keep);
-        // The light: none below 0.15, then short, longer and full, each grown in from 0.85 of itself.
+        place(frame, kNodeGlass, cx[kP], y + kGlassY, unit, level, fill_and_stroke);
+        place(frame, kNodeFilament, cx[kP], y + kGlassY, unit, 0, keep);
+        // The glow: none below 0.15, then thin, fuller and full, each grown in from 0.95 of itself.
         const i32 reach = clamp((glow - 4915) * 32 / 27, 0, 32767);   // 0.15..1 as Q15
         const u32 drawing = glow < 4915 ? 3 : static_cast<u32>(clamp(reach * 3 >> 15, 0, 2));
         const i32 within = clamp(reach * 3 - static_cast<i32>(drawing) * 32768, 0, 32767);
         for (u32 k = 0; k < 3; ++k) {
-            if (k == drawing) place(frame, kNodeGlows + k, cx[kP], y + kGlowY, 870 + share(154, within), level ? level - 1 : 0, fill_and_stroke);
+            if (k == drawing) place(frame, kNodeGlows + k, cx[kP], y + kGlassY, 972 + share(52, within), level ? level - 1 : 0, fill_and_stroke);
             else hide(frame, kNodeGlows + k);
         }
         place(frame, kNodeCell, cx[kP], y, unit, 0, keep);
@@ -504,7 +504,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 drive = loop == kLoopSpring && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
         const i32 tremolo = wobble == kWobbleSpring ? 6554 + share(26213, (lfo2 + 32767) >> 1) : 32767;
         const i32 bow = share(share(kBow, 4915 + share(27852, drive)), tremolo) & ~127;   // in eighths of a pixel
-        const i32 count = 4 * 1024 + share(3 * 1024, v[kTone]);   // Q10 turns, 4..7
+        const i32 count = 4 * 1024 + share((kTurns - 4) * 1024, v[kTone]);   // Q10 turns, 4..6
         const i32 step = 2 * kTurnEnd * 1024 / (count - 1024);   // Q10 px between turns
         for (i32 s = 0; s < 2; ++s)
             for (i32 k = 0; k < kTurns; ++k) {

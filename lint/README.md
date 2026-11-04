@@ -58,34 +58,38 @@ setting was measured.
 ![Lint's screen in six settings](screens.png)
 
 Under the two pages, a 1970s effects chassis with its lid off, seen from above:
-four modules in the chosen order, one under each encoder in the default order,
-on one patch cable from the jack in the left wall to the jack in the right. Each
-module is its working part in solid greys, its encoder's shade from dark to
-white, and the cable runs through every part at one height. On the shift row,
-`lamp` is the phaser. The header captions rate in hertz, time in milliseconds
-(then seconds from 0.1 s) and tone from -100 to 100.
+four modules in the chosen order, each under its encoder in the default order,
+on one patch cable from the jack in the left wall to the jack in the front wall.
+Each module is drawn as the real part in solid greys, its encoder's shade from
+dark to white, and the cable runs through every part at one height. On the
+shift row, `lamp` is the phaser. The header captions rate in hertz, time in
+milliseconds (then seconds from 0.1 s) and tone from -100 to 100.
 
-- **dust:** a tape head between two guides. Dust pushes the head into the tape,
-  which wraps its crown, and past 30 grit steps out behind it.
-- **phase:** a lamp over its photocell. The glass lights with depth and pulses
-  with the LFO, at its rate and in its shape, and its light falls on the cell.
-- **echo:** a drum. The cable comes in at the record head; time sends the
-  playback head round the rim, its cable following; the repeats ride after it,
-  up to four with feedback; past 85 Madness buckles the drum and it turns.
-- **spring:** a spring between the tank's two transducers, shaking wider as it's
-  driven and wound tighter as the tone brightens.
-- **tape 2:** a small head before the jack out, rising into the tape with its level.
+- **dust:** a tape head on its sliding head plate, between two guide rollers.
+  Dust slides the head into the tape, which wraps its face, and past 30 lint
+  gathers along the plate.
+- **phase:** a photocell on the cable, its zigzag track on its face, and the lamp
+  below it. The glass lights with depth and pulses with the LFO, at its rate and
+  in its shape, and its glow grows toward the cell.
+- **echo:** a drum on its spindle. The cable comes in at the record head; time
+  sends the playback head round the rim, its cable following; the repeats ride
+  after it like further heads, up to four with feedback; past 85 Madness buckles
+  the drum and it turns.
+- **spring:** a reverb tank, its two transducers and two springs drawn turn by
+  turn, bowing apart as it's driven, more turns as the tone brightens.
+- **tape 2:** a smaller head in the corner, pressing into the cable on its way
+  down to the jack with its level.
 
 A section patched into the echo's loop leaves the cable, which hops over it
 along the back wall, and a cable along the front wall joins it to the echo's
-record head; tape 2 drops down to that cable when it's the one in the loop.
-LFO 2 shows on what it wobbles: the playback head sways, the spring swells and
-falls, or the lamp pulses faster. When the order changes, the modules move to
+record head; tape 2 draws back from the cable and takes the loop's instead.
+LFO 2 shows on what it wobbles: the playback head sways, the springs swell and
+fall, or the lamp pulses faster. When the order changes, the modules move to
 their new places one a frame.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
 0..15 and nothing else, so it fits the 16-slot limit as well as SDK 1.7's 32.
 
-`tools/make_panel.py` writes the artwork, `panel.h` and the parts' outlines that
-`tests/screen.cpp` checks every settled frame against (`tests/shapes.h`), `tools/make_tables.py`
+`tools/make_panel.py` writes the artwork, `panel.h`, `display.h`'s frame size and the
+parts' outlines that `tests/screen.cpp` checks every settled frame against (`tests/shapes.h`), `tools/make_tables.py`
 writes `tables.h`, and `tools/mockup.py` drew the first proposal (`mockup.png`).
