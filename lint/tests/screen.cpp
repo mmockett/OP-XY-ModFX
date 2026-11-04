@@ -2,7 +2,8 @@
 // Every frame is checked as the device draws it: the SDK's own validity, every
 // reshaping outline (points at least 1/8 px apart, a closing edge of at least
 // 1/4 px, no turn straight back, within 64 px), and the signal path: every end
-// of every line it shows meets its rim within half a pixel (on dust, through the
+// of every line it shows meets its rim within half a pixel, every object keeps
+// clear inside its rim, (on dust, through the
 // lead that carries it on as the rim squares), frame after frame,
 // however the rims distort. Runs: every control through all 128 values in every
 // order and loop, each turned without a reset, every shift combination at rest
@@ -56,6 +57,32 @@ void check(unsigned route) {
         const bool shown = frame.nodes[node].x < opxy::draw::hidden_x * 1024;
         if (shown && !in) fault("a line shown that isn't in the route", static_cast<int>(node), route);
         if (settled && in && !shown) fault("a line of the route missing", static_cast<int>(node), route);
+    }
+    // Every object keeps inside its rim, clear of it: its outer points, at their
+    // largest, are inside the rim (and any copy of it) and 1.5 px or more from it.
+    for (int s = 0; s < 4; ++s) {
+        const auto& path = frame.paths[s];
+        const double cx = frame.nodes[s].x, cy = frame.nodes[s].y;
+        for (int q = 0; q < panel::kKeepCount; ++q) {
+            double mx = cx + panel::kKeep[s][q][0], my = cy + panel::kKeep[s][q][1];
+            if (s == 0 && q < 4) {   // the jaws' outer corners where they are now
+                const auto& jaw = frame.nodes[q < 2 ? panel::kNodeJawTop : panel::kNodeJawBottom];
+                my = q < 2 ? jaw.y - panel::kJawH * 1024.0 : jaw.y + (2 * panel::kFace + panel::kJawH) * 1024.0;
+            }
+            double nearest = 1e9;
+            for (unsigned j = 0; j < 64; ++j) {
+                const auto a = path.points[j], b = path.points[(j + 1) % 64];
+                const double ax = cx + a.x, ay = cy + a.y, bx = cx + b.x, by = cy + b.y;
+                const double dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+                double t = L2 > 0 ? ((mx - ax) * dx + (my - ay) * dy) / L2 : 0;
+                t = t < 0 ? 0 : t > 1 ? 1 : t;
+                nearest = std::fmin(nearest, std::hypot(ax + t * dx - mx, ay + t * dy - my) / 1024);
+                const double d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d2 = (bx - ax) * (my - ay) - (by - ay) * (mx - ax);
+                const double d3 = (mx - cx) * (ay - cy) - (my - cy) * (ax - cx), d4 = (mx - cx) * (by - cy) - (my - cy) * (bx - cx);
+                if ((d1 > 0) != (d2 > 0) && (d3 > 0) != (d4 > 0)) fault("an object reaching its rim", s, q);
+            }
+            if (nearest < 1.5) fault("an object on its rim, px", s * 100 + q, nearest);
+        }
     }
     // Noise marks keep inside their rim, clear of it: the line from the rim's
     // centre to a mark crosses no part of the outline, and the mark is 2.5 px or more from it.

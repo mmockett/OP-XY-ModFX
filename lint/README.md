@@ -63,21 +63,25 @@ grey and white, as the OP-XY's encoders and the header's bar run, the darker
 greys drawn heavier so all four read alike), and it is the readout: its own
 section's shape, distorted further by what the sections before it in the order
 pass on. Inside each rim is one simple physical object, after the stock screens: a
-few bold parts, the solid ones filled flat in its section's grey, outline kept for
-the accents (the coil's wire, the lamp's light, the bounces' trail).
+few large solid forms filled flat in its section's grey, each with a front face a
+step darker beneath it (one light, from above, for all four) and one corner radius,
+outline kept for the accents (the rims, the signal's line, the coil's wire, the
+lamp's light, the bounces' trail). No part crosses another, and every object keeps
+clear inside its rim however the rim moves.
 
 - **dust:** the rim squares as the diodes clip, keeping its area (the corners
   reach out as the sides come in), its top squarer once they lopside; grit, small
-  blocks stepping dark to light, roughens the channel's walls once it audibly
-  crushes. Inside, a diode clipper: a ball in a channel between two stops, which
+  blocks stepping dark to light, gathers in a column beside the jaws once it
+  audibly crushes. Inside, a diode clipper: two solid jaws and a ball between them; the jaws
   close in as the drive rises (the top one further once the diodes lopside); as
-  a change arrives the ball swings and rebounds a little off a stop. Tape 2's
+  a change arrives the ball swings and rebounds a little off a jaw. Tape 2's
   guides sit either side, the signal's line threading between them, and close
   in with its level, catching a little wow as it moves.
 - **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
   two notches ride its upper quarters where the lamp holds them. Inside, the
   phaser's lamp, its glass filled: dark unlit, then its grey, then white at full
-  glow, the filament dark against it; it lights first and its light then spreads in arcs,
+  glow, the filament dark against it, on a solid base; it lights first and its
+  light then spreads in arcs,
   as far as the depth reaches, pulsing with the LFO and lagging it as a bulb
   does. LFO 1's beads ride the rim, spaced by the rate, its shape beside it.
 - **echo:** the rim draws a copy of itself just inside at the echo's time;
@@ -85,16 +89,17 @@ the accents (the coil's wire, the lamp's light, the bounces' trail).
   a repeat, spaced by the time, each lower by the feedback, higher past
   Madness. The ball rests at the end of its trail; as a change arrives it is
   lifted to the top of the first bounce and runs the trail again. The floor is a
-  slab, its front face a step darker. Hiss, a row of small blocks, gathers over
-  the bounces as the repeats build, most past Madness.
+  solid slab. As the ball runs the trail again it draws it behind it. Hiss, a row
+  of small blocks, gathers under the floor as the repeats build, most past
+  Madness.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
-  the ripple. Inside, a coil stretched between two posts, wound with more turns
+  the ripple. Inside, a coil stretched between two solid end blocks, wound with more turns
   the brighter the tone and larger the harder it is driven; struck by a change
   to its drive or tone, it sways along its length and settles with a last
   small wobble.
 
 What passes along the order is the quality of each section, never its shape:
-after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
+after dust, a rim is finely wavy; after phase, a dent rides it
 with the lamp; after echo, it is drawn doubled, its copy smooth as an echo's
 repeats are darker; after spring, it shimmers with a fine ripple and rings as
 changes arrive. Tape 2, after the chain, makes the last rim unsteady, thinner and
@@ -109,8 +114,8 @@ the rim however both move, re-seed a few at a time as a change arrives, and are
 still at rest.
 
 **The signal path** is drawn as one line through the scopes in the chosen
-order, each stretch in the grey of the section it has just left, so the line
-brightens as it passes through the chain, dry at the way in: straight between
+order, each stretch in the grey and weight of the section it has just left, so
+the line brightens as it passes through the chain, dry at the way in: straight between
 neighbours, over or under the scopes it skips, in at a
 short arrow and out at another, never crossing itself (`tools/route.py` lays out
 all six orders with each loop). The echo's loop leaves the echo and comes back to
@@ -131,8 +136,9 @@ to 100.
 values in every order and loop, each turned, every shift combination at rest
 and at the heaviest settings, the LFOs at every rate, shape and wobble) and
 checks every frame as the device draws it, including that every end of the
-signal path is within half a pixel of its rim (on dust, through its lead) and
-that every noise mark stays inside its rim, 2.5 px or more clear of it.
+signal path is within half a pixel of its rim (on dust, through its lead), that
+every object's outer points keep inside its rim (and any copy of it) 1.5 px or
+more clear, and that every noise mark stays inside its rim, 2.5 px or more clear.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
 0..15.
