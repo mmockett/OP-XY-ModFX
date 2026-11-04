@@ -4,11 +4,12 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 117, kTexts = 16, kPalette = 16;
-enum Node { kNodeRims = 0, kNodeIn = 4, kNodeLines = 5, kNodeArcs = 11, kNodeForms = 86, kNodeHalos = 101, kNodeBars = 109 };
+const opxy::u32 kNodes = 91, kTexts = 16, kPalette = 16;
+enum Node { kNodeRims = 0, kNodeIn = 4, kNodeLines = 5, kNodeArcs = 11, kNodeLinks = 36, kNodePosts = 60, kNodeStops = 62, kNodeRods = 64, kNodeBobs = 66, kNodeBase = 68, kNodeWalls = 69, kNodeDrop = 71, kNodeBlades = 72, kNodePath = 74, kNodeHalos = 75, kNodeBars = 83 };
 // Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.
 enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };
 const opxy::i32 kRimR = 38, kHaloR = 44;
+const opxy::u32 kLinks = 12;
 const opxy::i32 kY = 130, kR = 40, kGap = 34;
 const opxy::i32 kX[4] = {60, 180, 300, 420};
 const opxy::i32 kArcX = 280;

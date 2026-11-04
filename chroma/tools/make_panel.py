@@ -49,14 +49,18 @@ HALOS_FAR = [grey(t, 0.26) for t in TONES]
 PALETTE = ([("#000000", TONES[i], 1.1) for i in range(4)] + [("#000000", TONES[i], 2.4) for i in range(4)] +
            [("#000000", grey(TONES[i], 0.5), 1.4) for i in range(4)] + [("#000000", "#ffffff", 2.2) for i in range(4)])
 RIMS = [f"rim_{k}" for k in range(4)]
-# The forms inside the rims, embossed: each is a shadow, a highlight and a body, the light
-# from the upper left everywhere. The display moves all three together; raised has the
-# highlight up-left and the shadow down-right, inset the other way round.
-FORMS = ["tilt", "left_puck", "right_puck", "groove", "slider"]
+# Inside each rim, one small mechanism that behaves as its module does to the sound:
+# Character a string plucked between two posts, its swing caught by two stops; Movement
+# two metronome pendulums, L and R, their weights set to the rate; Diffuse a drop in a
+# room between two walls, its ripples spreading; Texture an aperture of two blades the
+# sound passes between, low to high from left to right.
+LINKS = 12   # a pose of the string; it's drawn at both ends of its swing
+OBJECTS = ([f"link_{i}" for i in range(2 * LINKS)] + ["post_left", "post_right", "stop_top", "stop_bottom"] +
+           ["rod_left", "rod_right", "bob_left", "bob_right", "base"] + ["wall_top", "wall_bottom", "drop"] +
+           ["blade_top", "blade_bottom", "path"])
 NODES = (RIMS + ["in"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
-         [f"arc_{e}_{k}_{p}" for e in EFFECTS for k in range(5) for p in ("shade", "light", "body")] +
-         [f"{f}_{p}" for f in FORMS for p in ("shade", "light", "body")] +
+         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + OBJECTS +
          [f"halo_{k}_{j}" for k in range(4) for j in range(2)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
@@ -117,8 +121,9 @@ def arcs(effect):
     return out
 
 
-def capsule(half_length, half_width, n=12):
+def capsule(half_length, half_width, n=None):
     """A bar with round ends, centred, lying along x."""
+    n = n or max(4, min(12, int(half_width * 5)))
     pts = []
     for end, sign in ((half_length, 1), (-half_length, -1)):
         for j in range(n):
@@ -127,11 +132,9 @@ def capsule(half_length, half_width, n=12):
     return pts
 
 
-def lift(body):
-    """A highlight a step lighter than its body."""
-    v = int(body[1:3], 16)
-    g = min(255, round(v * 1.45 + 24))
-    return f"#{g:02x}{g:02x}{g:02x}"
+def upright(half_length, half_width):
+    """A capsule standing upright, centred."""
+    return [(y, x) for x, y in capsule(half_length, half_width)][::-1]
 
 
 def check(points, name):
@@ -177,22 +180,32 @@ def main():
     for k in range(1, 4):
         for s in ("left", "right"):
             put(f"{s}_{k}", [(0, -1), (gap, -1), (gap, 1), (0, 1)], "none", 0, XS[k - 1] + R + 3, Y, TONES[k - 1])
-    def emboss(name, points, body, x, y):
-        put(f"{name}_shade", points, "none", 0, x, y, grey(body, 0.3))
-        put(f"{name}_light", points, "none", 0, x, y, lift(body))
-        put(f"{name}_body", points, "none", 0, x, y, body)
-
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
-            emboss(f"arc_{e}_{k}", a, ECHOES[k], XS[2] - 20, Y)
-    # Character's tilt: a raised bar across its rim, turned with Tilt.
-    emboss("tilt", capsule(13, 2.6), grey(TONES[0], 0.75), XS[0], Y)
-    # Movement: a raised puck for each side, left above and right below, where it sways now.
-    emboss("left_puck", circle(4.2, 20), grey(TONES[1], 0.8), XS[1], Y - 9)
-    emboss("right_puck", circle(4.2, 20), grey(TONES[1], 0.8), XS[1], Y + 9)
-    # Texture: an inset groove, low to high, and a raised slider on it at the amount.
-    emboss("groove", capsule(20, 2.4), grey(TONES[3], 0.2), XS[3], Y)
-    emboss("slider", circle(4.4, 20), grey(TONES[3], 0.82), XS[3], Y)
+            put(f"arc_{e}_{k}", a, "none", 0, XS[2] - 20, Y, ECHOES[k])
+    # Character: the string's links (each a short bar the display lays along its shape), its
+    # posts, and the stops that clip its swing.
+    for i in range(2 * LINKS):
+        put(f"link_{i}", capsule(3.6, 1.0), "none", 0, XS[0], Y, TONES[0])
+    for name, x in (("post_left", -27), ("post_right", 27)):
+        put(name, upright(5, 1.1), "none", 0, XS[0] + x, Y, grey(TONES[0], 0.8))
+    for name in ("stop_top", "stop_bottom"):
+        put(name, capsule(7, 1.1), "none", 0, XS[0], Y, grey(TONES[0], 0.7))
+    # Movement: two pendulums from a base, rods pivoting at their foot, a weight on each.
+    for name, x in (("rod_left", -9), ("rod_right", 9)):
+        put(name, [(px_, py_ - 17) for px_, py_ in upright(17, 1.0)], "none", 0, XS[1] + x, Y + 24, TONES[1])
+    for name, x in (("bob_left", -9), ("bob_right", 9)):
+        put(name, circle(3.8, 16), "none", 0, XS[1] + x, Y, TONES[1])
+    put("base", capsule(17, 1.2), "none", 0, XS[1], Y + 25, grey(TONES[1], 0.6))
+    # Diffuse: the room's walls, further apart with Time, and the drop its ripples spread from.
+    for name, y in (("wall_top", -20), ("wall_bottom", 20)):
+        put(name, capsule(17, 1.0), "none", 0, XS[2] + 2, Y + y, grey(TONES[2], 0.65))
+    put("drop", circle(2.8, 16), "none", 0, XS[2] - 20, Y, TONES[2])
+    # Texture: the sound's path through it, quiet, and the two blades it passes between.
+    put("path", capsule(26, 0.8), "none", 0, XS[3], Y, grey(TONES[3], 0.3))
+    for name, y in (("blade_top", -14), ("blade_bottom", 14)):
+        put(name, capsule(19, 1.7), "none", 0, XS[3], Y + y, TONES[3])
+
     # The rims: the reshaping outlines, placeholders the display replaces every frame. Always hollow.
     for k in range(4):
         put(f"rim_{k}", circle(RIM_R), TONES[k], RIM_WIDTH, XS[k], Y)
@@ -212,11 +225,14 @@ def main():
          "namespace chroma { namespace panel {",
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeRims = 0, "
-         f"kNodeIn = {nodes['in']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0_shade']}, kNodeForms = {nodes['tilt_shade']}, "
+         f"kNodeIn = {nodes['in']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, kNodeLinks = {nodes['link_0']}, kNodePosts = {nodes['post_left']}, kNodeStops = {nodes['stop_top']}, "
+         f"kNodeRods = {nodes['rod_left']}, kNodeBobs = {nodes['bob_left']}, kNodeBase = {nodes['base']}, kNodeWalls = {nodes['wall_top']}, kNodeDrop = {nodes['drop']}, "
+         f"kNodeBlades = {nodes['blade_top']}, kNodePath = {nodes['path']}, "
          f"kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
          "// Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.",
          "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
          f"const opxy::i32 kRimR = {RIM_R}, kHaloR = {HALO_R};",
+         f"const opxy::u32 kLinks = {LINKS};",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
          f"const opxy::i32 kArcX = {XS[2] - 20};",
