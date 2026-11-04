@@ -14,20 +14,28 @@ against itself: a ring when a section does nothing to it.
 - echo rings it with ripples, spaced by time, as many as the feedback holds;
 - spring winds it into a spiral, more turns as it's driven, leaning with tone.
 
-Each scope is its rim alone: one
-continuous outline in the encoder's grey, the darker greys drawn heavier so the
-four read alike: the rim is the readout. A rim takes its own section's shape
-(dust squares it, flatter on top once lopsided, with tape 2's two arcs closing
-in either side; phase leans it into an oval with the lamp and dents it with two
-notches; the echo's rim steps out a copy of its own shape, joined at the bottom;
-spring ripples it, tone tilting the ripple, and its spiral winds further in the
-harder it is driven) and the qualities the sections before it in the order
-pass on, as smooth distortion: dust's roughness as a fine waviness and a soft
-halo, phase's movement as a dent riding the rim, echo's doubling as a heavier,
-brighter rim, spring's shimmer as a fine ripple, and unsteadiness from tape 2
-(whose last rim also thins and dims) and LFO 2. Every part is a curve, and
-the parts inside the rims are embossed: a shadow below right and a highlight
-above left, light from the top left everywhere, sunk instead when quiet.
+Each scope is its rim alone: one continuous outline in the encoder's grey, the
+darker greys drawn heavier so the four read alike. A rim takes its own
+section's shape (dust squares it, flatter on top once lopsided; phase leans it
+into an oval with the lamp and dents it with two notches; the echo's rim steps
+out a copy of its own shape, joined at the bottom; spring ripples it) and the
+qualities the sections before it in the order pass on, as smooth distortion:
+dust's roughness as a fine waviness and a soft halo, phase's movement as a dent
+riding the rim, echo's doubling as a heavier, brighter rim, spring's shimmer as
+a fine ripple, and unsteadiness from tape 2 (whose last rim also thins and
+dims) and LFO 2.
+
+Inside each rim, one simple physical analogy, line-drawn in its grey:
+- dust: a diode clipper, a ball in a channel between two stops; the stops close
+  in as the drive rises, the top one further once the diodes lopside, and the
+  ball swings into them as a change arrives;
+- phase: the optical phaser's lamp; its filament glows and its light spreads
+  in arcs as the LFO brightens it, as far as the depth lets it;
+- echo: a ball bouncing along a floor; each bounce a repeat, spaced by the
+  echo's time, each lower by the feedback, higher past Madness;
+- spring: a coil, tighter the brighter the tone, larger the harder it is
+  driven, ringing as a change strikes it.
+Tape 2's two arcs, either side of dust's rim, close in with its level.
 
 Under each scope its place in the order; a bar joins neighbours the order
 runs straight through, and the echo's loop reaches the section patched into it.
@@ -47,17 +55,22 @@ CX = [60, 180, 300, 420]
 p = Panel()
 
 
-# Embossing: each inner element is three nodes sharing one pivot, drawn in
-# order: a shadow below and to the right, the body, and a thin highlight above
-# and to the left. The light comes from the top left everywhere; swapping the
-# two offsets sinks an element (quiet, off) instead of raising it.
-SHADOW, LIGHT = "#2e2e2e", "#ffffff"
-
-
-def trio(name, pts, at, body, width, fill="none", shadow=SHADOW, light=LIGHT):
-    p.node(f"{name}_lo", pts, at, shadow, width + 0.8, fill=shadow if fill != "none" else "none")
+def trio(name, pts, at, body, width, fill="none"):
+    """One plain line-drawn part (no embossing)."""
     p.node(name, pts, at, body, width, fill=fill)
-    p.node(f"{name}_hi", pts, at, light, max(0.5, width * 0.45), fill="none")
+
+
+def stadium(w, h, n=40):
+    """A rounded slot, w wide and h tall, about the origin."""
+    r = w / 2
+    pts = []
+    for j in range(n // 2):
+        a = math.pi + math.pi * j / (n // 2 - 1)
+        pts.append((r * math.cos(a), -(h / 2 - r) + r * math.sin(a)))
+    for j in range(n // 2):
+        a = math.pi * j / (n // 2 - 1)
+        pts.append((r * math.cos(a), (h / 2 - r) + r * math.sin(a)))
+    return pts
 
 
 def ring(r, n=64):
@@ -77,30 +90,53 @@ for s_ in range(4):
     p.node(f"halo_{s_}", circle(R0 + 3, 48), (640, 320), "#2c2c2c", 3.2)
 for s_ in range(4):
     p.mutable(s_, f"rim_{s_}", circle(R0, 64), (CX[s_], CY), RIMS[s_][0], RIMS[s_][1])
-# Spring's spiral: three pieces of one spiral winding inward, three quarters of
-# a turn each; the harder the drive, the more of it shows (and the further it
-# reaches), so a longer tail is more turns. Turned by tone.
-def spiral_piece(i):
-    pts = []
-    for j in range(24):
-        t = (i + j / 23) / 3                      # 0..1 along the whole spiral
-        r = 29 * (1 - 0.72 * t)
-        a = -math.pi / 2 + 2 * math.pi * 2.25 * t
-        pts.append((r * math.cos(a), r * 0.82 * math.sin(a)))
-    return normal_ribbon(pts, 0.6)
-for i in range(3):
-    trio(f"spiral_{i}", spiral_piece(i), (640, 320), "#d8d8d8", 1.3)
-# Echo: the dry ring and eight ripples, authored near their drawn sizes.
-trio("echo_dry", ring(14, 28), (CX[2], CY), "#bdbdbd", 1.6)
-for k in range(8):
-    trio(f"ripple_{k}", ring(14 + 6 * (k + 1), 36), (640, 320), "#bdbdbd", 1.0)
+# Inside each rim, one simple physical analogy, line-drawn in the rim's grey.
+G = "#5a5a5a"   # quiet structure: the channel, the floor
+# Dust: a diode clipper as a ball in a channel between two stops. The stops close
+# in as the drive rises (it clips sooner), the top one further once the diodes
+# lopside; when a change arrives the ball swings and the stops catch it.
+p.node("channel", stadium(14, 60, 40), (CX[0], CY), G, 1.2)
+# a stop: a short curved bar across the channel, bowed toward the ball
+def stop(sign):
+    pts = [(-10 + 20 * j / 11, sign * 2.2 * (1 - ((-10 + 20 * j / 11) / 10) ** 2)) for j in range(12)]
+    return normal_ribbon(pts, 0.8)
+p.node("stop_top", stop(1), (640, 320), "#8a8a8a", 2.2)
+p.node("stop_bottom", stop(-1), (640, 320), "#8a8a8a", 2.2)
+p.node("ball", circle(4.6, 20), (640, 320), "#8a8a8a", 2.0)
+# Phase: the optical phaser's lamp: a bulb whose filament glows and whose light
+# spreads in arcs as the LFO brightens it, as far as the depth lets it.
+bulb = []
+for j in range(30):
+    a = math.radians(115 + (310 * j / 29))           # the glass, open at the bottom
+    bulb.append((13.5 * math.cos(a), -7 + 13.5 * math.sin(a)))
+bulb += [(5.2, 11), (5.2, 18), (-5.2, 18), (-5.2, 11)]
+p.node("bulb", bulb, (CX[1], CY), "#acacac", 1.8)
+p.node("bulb_base", [(-5.2, 21.5), (5.2, 21.5), (5.2, 23), (-5.2, 23)], (CX[1], CY), "#acacac", 1.4)
+fil = [(-6.5 + 13 * j / 15, -7 + 3 * math.sin(math.pi * 3 * j / 15)) for j in range(16)]
+p.node("filament", ribbon(fil, 0.6), (640, 320), "#acacac", 1.6)
+for k in range(3):
+    r = 19.5 + 4.5 * k
+    p.node(f"glow_{k}", arc_ribbon(r, math.radians(-150), math.radians(-30), 16, 0.7), (640, 320), "#acacac", 1.6)
+# Echo: a ball bouncing along a floor; each bounce is a repeat, spaced by the
+# echo's time and lower by its feedback, rising past Madness.
+p.node("floor", [(-30 + 60 * j / 11, 20 + 1.2 * math.sin(math.pi * j / 11)) for j in range(12)] + [(30 - 60 * j / 11, 20.8 + 1.2 * math.sin(math.pi * (11 - j) / 11)) for j in range(12)], (CX[2], CY), G, 1.2)
+p.node("echo_ball", circle(4.4, 20), (640, 320), "#d0d0d0", 1.8)
+hop = [(14 * j / 15, -26 * 4 * (j / 15) * (1 - j / 15)) for j in range(16)]
+for k in range(6):
+    p.node(f"bounce_{k}", normal_ribbon(hop, 0.6), (640, 320), "#d0d0d0", 1.6)
+# Spring: a coil spring, side on, as seven loops of wire along its axis; the
+# brighter the tone the tighter the coil (loops closer), the harder the drive
+# the larger the loops, and it rings as a change strikes it.
+loop = [(5 * math.cos(2 * math.pi * j / 24), 15 * math.sin(2 * math.pi * j / 24)) for j in range(24)]
+for k in range(7):
+    p.node(f"coil_{k}", loop, (640, 320), "#f4f4f4", 1.6)
 # Tape 2: two arcs, like a clamp's jaws, either side of dust's rim, closing in with its level.
 for name, mid in (("clamp_l", math.pi), ("clamp_r", 0.0)):
     trio(name, arc_ribbon(52, mid - 0.55, mid + 0.55, 18, 0.7), (640, 320), "#8a8a8a", 1.6)
 # LFO 1: a mark orbiting the phase scope, with a trail spaced by its rate.
 for k in range(4):
     if k == 0:
-        trio("orbit_0", circle(3.0, 14), (640, 320), "#9a9a9a", 0.6, fill="#9a9a9a")   # the lamp's mark, raised
+        trio("orbit_0", circle(3.0, 14), (640, 320), "#acacac", 0.6, fill="#acacac")   # the lamp's mark
     else:
         p.node(f"orbit_{k}", circle(2.6 - 0.4 * k, 12), (640, 320), T2, 0.6, fill=T2)
 # The thread: every piece runs from a scope's right side (or IN) to another's
@@ -212,13 +248,12 @@ for nm in ("sine", "triangle", "square"):
     trio(f"mark_{nm}", glyph(nm), (640, 320), "#e0e0e0", 1.2)
 for nm in ("sine", "triangle", "square"):
     trio(f"lfo_{nm}", glyph(nm), (640, 320), "#a8a8a8", 1.2)
-p.const("const opxy::i32 kRippleInv[8] = {" + ", ".join(str(round(2 ** 20 / (14 + 6 * (k + 1)))) for k in range(8)) + "};")
 for t, (c, w) in zip(("t1", "t2", "t3", "t4"), RIMS):
     p.shade(t, c, w)
 p.shade("guide", GUIDE2, 0.6)
 p.shade("lit1", "#8a8a8a", 1.0)
-p.shade("t3mid", T3, 1.25)
-p.shade("t3thin", T3, 0.95)
+p.shade("t3mid", "#d0d0d0", 2.4)   # a bounce drawn small keeps its weight
+p.shade("t3thin", "#d0d0d0", 3.6)
 p.shade("lit3", T3, 1.2)
 p.shade("lit2", T2, 0.6)
 # The rims: whole, worn thin; the echo's copies, fading, and heavy past Madness.

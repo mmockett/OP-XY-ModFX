@@ -224,6 +224,6 @@
   },
   "resources": {
     "bufferBytes": 121584,
-    "display": {"stateBytes": 420, "stateAlignment": 4, "paths": 4, "points": 64, "nodes": 94, "texts": 20, "palette": 16}
+    "display": {"stateBytes": 420, "stateAlignment": 4, "paths": 4, "points": 64, "nodes": 65, "texts": 20, "palette": 16}
   }
 }

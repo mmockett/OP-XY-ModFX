@@ -62,22 +62,24 @@ rim: one continuous outline in that encoder's grey (dark grey, mid grey, light g
 encoders and the header's bar run, the darker greys drawn heavier so all four
 read alike), and it is the readout: its own section's shape, distorted further
 by what the sections before it in the order pass on. Every part is a curve,
-and the parts inside the rims (the echo's ripples, the spring's spiral, the
-lamp's mark, the LFO shapes, tape 2's arcs) are embossed: a shadow below right,
-a highlight above left, light from the top left everywhere, and sunk instead of
-raised while they're quiet.
+and inside each rim is one simple physical object, line-drawn in its grey.
 
 - **dust:** the rim squares as the diodes clip, its top flatter once they
-  lopside. Tape 2's two arcs, either side, close in on it with its level.
+  lopside. Inside, a diode clipper: a ball in a channel between two stops, which
+  close in as the drive rises (the top one further once the diodes lopside); the
+  ball swings into them as a change arrives. Tape 2's two arcs, either side,
+  close in with its level.
 - **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
   two smooth notches ride along its top where the lamp holds them. LFO 1's mark
   orbits it, its trail wider the faster the rate, with its shape beside it.
-- **echo:** ripples spread inside the rim, spaced by time, as many as the
-  feedback holds, and the rim steps out a copy of its own shape at the echo's
-  time; past Madness it thickens.
+  Inside, the phaser's lamp: its filament glows and its light spreads in arcs
+  as the LFO brightens it, as far as the depth lets it.
+- **echo:** the rim steps out a copy of its own shape at the echo's time; past
+  Madness it thickens. Inside, a ball bouncing along a floor: each bounce a
+  repeat, spaced by the time, each lower by the feedback, higher past Madness.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
-  the ripple; a spiral inside winds further in, more turns of it, the harder it
-  is driven, and turns with tone.
+  the ripple. Inside, a coil spring: tighter the brighter the tone, larger the
+  harder it is driven, ringing as a change strikes it.
 
 What passes along the order is the quality of each section, never its shape:
 after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
