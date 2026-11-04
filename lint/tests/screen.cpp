@@ -65,9 +65,10 @@ void check(unsigned route) {
         const double cx = frame.nodes[s].x, cy = frame.nodes[s].y;
         for (int q = 0; q < panel::kKeepCount; ++q) {
             double mx = cx + panel::kKeep[s][q][0], my = cy + panel::kKeep[s][q][1];
-            if (s == 0 && q < 4) {   // the jaws' outer corners where they are now
-                const auto& jaw = frame.nodes[q < 2 ? panel::kNodeJawTop : panel::kNodeJawBottom];
-                my = q < 2 ? jaw.y - panel::kJawH * 1024.0 : jaw.y + (2 * panel::kFace + panel::kJawH) * 1024.0;
+            if (s == 0 && q < 4) {   // the plates' and masks' outer corners where they are now
+                const auto& flat = frame.nodes[q < 2 ? panel::kNodeMaskTop : panel::kNodeMaskBottom];
+                const double reach = (q < 2 ? -1 : 1) * 1024.0 * (panel::kMaskH > 1 + panel::kFace + panel::kPlateH ? panel::kMaskH : 1 + panel::kFace + panel::kPlateH);
+                my = flat.y + reach;
             }
             double nearest = 1e9;
             for (unsigned j = 0; j < 64; ++j) {

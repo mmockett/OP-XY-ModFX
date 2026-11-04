@@ -195,7 +195,6 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const u32 route = n.order * 4 + n.loop;
     if (fresh) {
         state.lamp = 0;
-        for (i32& g : state.light) g = 0;
         state.tape = v[kTape2Level];
         state.tape_since = now - 8192;
         state.tone_shown = v[kTone];
@@ -216,8 +215,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // The objects' fixed parts: dust's channel, the lamp's glass and base, the echo's floor, the coil's posts.
     place(frame, kNodeBulbBase, px(kCX[1]), px(kCY), unit, 0, keep);
     place(frame, kNodeBulbBaseFace, px(kCX[1]), px(kCY), unit, 0, keep);
-    place(frame, kNodeFloor, px(kCX[2]), px(kCY), unit, 0, keep);
-    place(frame, kNodeFloorFace, px(kCX[2]), px(kCY), unit, 0, keep);
+    place(frame, kNodeDustBall, px(kCX[0]), px(kCY), unit, 0, keep);
 
     // The signal path, as the order and the loop lay it out (tools/route.py):
     // every line meets the rims at their compass points, which never move. A new
@@ -274,9 +272,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
     }
 
-    // Phase: the lamp. Its filament follows the LFO's light, lagging as a bulb
-    // does (so the faster the rate, the shallower its pulse), and its light
-    // spreads in arcs after it, as far as the depth reaches.
+    // Phase: the lamp, a plain silhouette, as bright as it is lit. It follows the
+    // LFO's light, lagging as a bulb does (so the faster the rate, the shallower
+    // its pulse), as far as the depth reaches.
     const i32 depth = n.patched == kP && v[kPhase] < 328 ? 16384 : v[kPhase];
     const bool lamp = depth > 328;
     const i32 light = ((n.wobble == kWobblePhaser ? n.lfo2 : n.lfo1) + 32767) >> 1;
@@ -284,25 +282,12 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 reach = clamp(depth * 3 / 2, 0, 32767);
     const i32 lean = share(reach, lamp ? 6000 + share(26767, glow) : 0);
     {
-        const i32 target = lamp ? share(reach, 18000 + share(14767, glow)) : 0;   // never darker than about half lit
-        if (instant) {
-            state.lamp = target;
-            for (i32& g : state.light) g = target;
-        } else {
-            state.lamp = lag(state.lamp, target, clamp(dt * 24, 0, 1024));           // ~40 ms
-            for (u32 k = 0; k < 3; ++k)                                               // each arc ~25 ms behind the one inside it
-                state.light[k] = lag(state.light[k], k ? state.light[k - 1] : state.lamp, clamp(dt * (34 - 7 * static_cast<i32>(k)), 0, 1024));
-        }
-        // The glass: dark unlit, then its grey, then white at full glow; the filament dark against it once lit.
-        place(frame, kNodeBulb, px(kCX[1]), px(kCY), unit,
-              state.lamp > 21000 ? kShadeLampHot : state.lamp > 5000 ? kShadeT2 : kShadeGlassOff, fill_and_stroke);
-        place(frame, kNodeFilament, px(kCX[1]), px(kCY), unit, state.lamp > 5000 ? kShadeInk : kShadeWire, stroke);
-        for (u32 k = 0; k < 3; ++k) {
-            const i32 lit_k = state.light[k] - static_cast<i32>(k) * 7000;           // the outer arcs need more light
-            if (lit_k <= 2500) { hide(frame, kNodeGlow0 + k); continue; }
-            place(frame, kNodeGlow0 + k, px(kCX[1]), px(kCY - 11), (900 + (clamp(lit_k, 0, 12000) * 124 / 12000)) & ~15,
-                  lit_k > 9000 ? kShadeLampHot : kShadeT2, stroke);
-        }
+        const i32 target = lamp ? share(reach, 9000 + share(23767, glow)) : 0;
+        state.lamp = instant ? target : lag(state.lamp, target, clamp(dt * 24, 0, 1024));   // ~40 ms
+        // The glass, in five steps: dark unlit, barely lit, dim, its grey, white at full glow.
+        const u32 glass = state.lamp > 24000 ? kShadeLampHot : state.lamp > 15000 ? kShadeT2 : state.lamp > 8000 ? kShadeTrail
+                        : state.lamp > 2500 ? kShadeFade : kShadeGlassOff;
+        place(frame, kNodeBulb, px(kCX[1]), px(kCY), unit, glass, fill_and_stroke);
     }
     // LFO 1's shape beside the lamp (LFO 2's, when it drives the lamp, is drawn below).
     for (u32 k = 0; k < 3; ++k) {
@@ -311,30 +296,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         else hide(frame, kNodeLfoSine + k);
     }
 
-    // Echo: a ball bouncing along a floor. Each bounce is a repeat: spaced by the
-    // echo's time, each lower by the feedback; past Madness each rises higher.
-    // Its trail stays; the ball rests at its end, and runs it again as a change arrives.
+    // Echo: a block and its repeats, receding: spaced by the echo's time, each
+    // smaller and dimmer by the feedback; past Madness each grows. The repeats are
+    // placed below, with the rims (they come back one at a time as a change arrives).
     const i32 e = v[kEcho];
     const i32 wob = n.wobble == kWobbleTime ? share(px(2), lfo2_s) & ~(unit / 2 - 1) : 0;
-    const i32 gap = px(3) + share(px(8), v[kTime]) + wob;
-    i32 hop_x[6], hop_s[6], hops = 0, end_x = px(kCX[2] - 24);
-    {
-        i32 h = e < 27853 ? e * 32767 / 27853 : 32767;
-        i32 x = px(kCX[2] - 24);
-        for (u32 k = 0; k < 6; ++k) {
-            // A bounce's width follows its height, as a ball's does; the spacing is the time.
-            const i32 scale = 480 + (clamp(h, 0, 40000) * 544 >> 15);
-            const i32 w = px(kHopW) * scale >> 10;
-            if (e <= 328 || h < 2000 || x + w > px(kCX[2] + kFloorW / 2 - 14)) { hide(frame, kNodeBounce0 + k); continue; }
-            place(frame, kNodeBounce0 + k, x, px(kCY + kFloorY) - 1536, scale & ~15,
-                  kShadeTrail, stroke);
-            hop_x[hops] = x;
-            hop_s[hops++] = scale & ~15;
-            end_x = x + w;
-            x += w + gap - px(6);
-            h = clamp(h * feedback(e) >> 15, 0, 40000);
-        }
-    }
 
     // Spring: the coil.
     const i32 drive = n.patched == kS && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
@@ -435,45 +401,44 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         twin &= ~(unit / 4 - 1);
 
         if (s == 0) {
-            // The clipper: its jaws as close as the drive clips (the top one closer
-            // once the diodes lopside); as a change arrives the ball swings, and
-            // rebounds a little off whichever jaw it reaches, never into it.
+            // The ball between the plates: they close in as far as the drive clips
+            // (the top one further once the diodes lopside), flattening it; as a
+            // change arrives they press a little further, and settle.
             const i32 d = v[kDust] > 328 ? v[kDust] : 0;
             const i32 lop = clamp((d - 18000) * 2, 0, 32767);
-            const i32 top = (px(kJawFace) - share(px(14), d) - share(px(5), lop)) & ~255;      // the jaws' faces from the centre
-            const i32 bottom = (px(kJawFace) - share(px(14), d)) & ~255;
-            const i32 top_y = px(kCY) - top - px(kFace), bottom_y = px(kCY) + bottom - px(kFace);
-            place(frame, kNodeJawTop, px(kCX[0]), top_y, unit, 0, keep);
-            place(frame, kNodeJawTopFace, px(kCX[0]), top_y, unit, 0, keep);
-            place(frame, kNodeJawBottom, px(kCX[0]), bottom_y, unit, 0, keep);
-            place(frame, kNodeJawBottomFace, px(kCX[0]), bottom_y, unit, 0, keep);
-            i32 by = d && !instant ? share(px(24), 26000) * swing(age, 3 * 1024 + 300, 800) >> 10 : 0;
-            const i32 lo = -(top - kBallR - unit), hi = bottom - kBallR - unit;   // a pixel clear of either jaw
-            if (by < lo) by = lo + (lo - by) / 4;      // a small rebound off the top stop
-            if (by > hi) by = hi - (by - hi) / 4;
-            by = clamp(by, lo, hi);
-            place(frame, kNodeBall, px(kCX[0]), (px(kCY) + by) & ~255, unit, 0, keep);
+            const i32 press = d && !instant ? share(px(2), d) * swing(age, 4 * 1024, 500) >> 10 : 0;
+            const i32 top = (kDustR + 512 - share(px(13), d) - share(px(3), lop) - (press > 0 ? press : 0)) & ~255;   // the flats from the centre
+            const i32 bottom = (kDustR + 512 - share(px(13), d) - (press > 0 ? press : 0)) & ~255;
+            place(frame, kNodeMaskTop, px(kCX[0]), px(kCY) - top, unit, 0, keep);
+            place(frame, kNodeMaskBottom, px(kCX[0]), px(kCY) + bottom, unit, 0, keep);
+            place(frame, kNodePlateTop, px(kCX[0]), px(kCY) - top, unit, 0, keep);
+            place(frame, kNodePlateTopFace, px(kCX[0]), px(kCY) - top, unit, 0, keep);
+            place(frame, kNodePlateBottom, px(kCX[0]), px(kCY) + bottom, unit, 0, keep);
+            place(frame, kNodePlateBottomFace, px(kCX[0]), px(kCY) + bottom, unit, 0, keep);
         }
         if (s == 2) {
-            // The ball: at rest at the end of its trail. As a change arrives it is
-            // lifted to the top of the first bounce, and dropped to run the trail again.
-            const i32 rest_y = px(kCY + kFloorY) - kEchoR - unit;   // a pixel clear of the floor
-            i32 bx = end_x + px(7) + 512, byy = rest_y;
-            i32 drawn = hops;   // the trail drawn so far: as the ball runs it again, only behind it
-            if (hops && !instant) {
-                const i32 each = clamp(curve(kEchoMs, v[kTime]) >> 10, 90, 240);   // ms a bounce
-                const i32 t = (age * 1000 >> 10) + each / 2;                        // from the first bounce's top
-                const i32 k = t / each;
-                if (k < hops) {
-                    const i32 u = (t - k * each) * 1024 / each;                     // Q10 along the bounce
-                    bx = hop_x[k] + (px(kHopW) * hop_s[k] >> 10) * u / 1024;
-                    byy = rest_y - (px(kHopH) * hop_s[k] >> 10) * (4 * u * (1024 - u) >> 10) / 1024;
-                    drawn = k;
+            // The block and its repeats, on one baseline; each repeat comes back an
+            // echo time after the one before as a change arrives (at most 0.6 s in all).
+            // Past Madness the repeats no longer fade: every one as large and bright as the block.
+            static const u32 kFades[4] = {kShadeT3, kShadeTrail, kShadeWire, kShadeFade};
+            const bool mad = e > 27853;
+            const i32 g = mad ? 1024 : 470 + (feedback(e) * 16 >> 10);         // Q10: each repeat's size over the last
+            const i32 each = clamp(curve(kEchoMs, v[kTime]) >> 10, 40, 110);   // ms between repeats coming back
+            const i32 back = instant ? 99 : (age * 1000 >> 10) / each;           // repeats back so far
+            const i32 space = px(2) + share(px(6), v[kTime]) + wob;              // the echo's time, between them
+            i32 x = px(kCX[2] - 23), size = 1024;
+            for (i32 k = 0; k < kEchoes; ++k) {
+                const u32 node = kNodeEblock0 + 2 * static_cast<u32>(k), face_node = node + 1;   // each block, then its face
+                const i32 w = px(kEchoBlock) * size >> 10;
+                const bool shown = k == 0 || (e > 328 && size >= 260 && x + w <= px(kCX[2] + 27) && k <= back);
+                if (!shown) { hide(frame, node); hide(frame, face_node); }
+                else {
+                    place(frame, node, x & ~255, px(kCY + kEchoBase), size & ~15, mad ? kShadeT3 : kFades[k < 3 ? k : 3], fill_and_stroke);
+                    place(frame, face_node, x & ~255, px(kCY + kEchoBase), size & ~15, 0, keep);
                 }
+                x += w + space;
+                size = size * g >> 10;
             }
-            if (!hops) bx = px(kCX[2] - 18);
-            place(frame, kNodeEchoBall, bx & ~255, byy & ~255, unit, 0, keep);
-            for (i32 k = drawn; k < hops; ++k) hide(frame, kNodeBounce0 + static_cast<u32>(k));
         }
         if (s == 3) {
             // The coil, between its end blocks: wound with more turns the brighter the
@@ -533,7 +498,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     }
 
     // Noise, where the sound has it, as a texture of the object: grit in columns
-    // beside dust's jaws, hiss in a row under the echo's floor (more past
+    // either side of dust's ball, hiss in a row under the echo's repeats (more past
     // Madness), tape 2's hiss and wear in a row under the object it works on.
     // Each mark a small block, their greys stepping dark to light, jittered as
     // the stock screens' noise is; as a change arrives a third of them re-seed 12
@@ -545,10 +510,10 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         // A group: its first node, how many, its scope, its amount, from what amount it shows, and its row:
         // x from x0 across w, y from y0 down h (px from the scope's centre); a column pair for grit.
         struct Group { u32 first, most; i32 col, amount, from_amount, x0, w, y0, h; };
-        const i32 tape_y = tape_col == 1 ? 26 : tape_col == 2 ? kFloorY + kFloorH + kFace + 7 : 21, tape_w = tape_col == 3 ? 30 : tape_col == 2 ? 24 : 20;
+        const i32 tape_y = tape_col == 1 ? 27 : tape_col == 2 ? kEchoBase + kFace + 8 : 21, tape_w = tape_col == 3 ? 30 : tape_col == 2 ? 24 : 20;
         const Group groups[3] = {
-            {kNodeGrit0, 7, 0, v[kDust], 9800, kJawW / 2 + 4, 1, -24, 48},   // a column beside the jaws, either side; once it audibly crushes
-            {kNodeHiss0, 6, echo_col, hiss, 14000, -12, 24, kFloorY + kFloorH + kFace + 2, 3},        // a row a row under the floor, its texture; once the repeats build
+            {kNodeGrit0, 7, 0, v[kDust], 9800, kMaskW / 2 + 3, 1, -21, 42},   // a column either side of the ball; once it audibly crushes
+            {kNodeHiss0, 6, echo_col, hiss, 14000, -14, 28, kEchoBase + kFace + 3, 3},        // a row under the repeats; once they build
             {kNodeWear0, 5, tape_col, tape_amt, 5000, -tape_w / 2, tape_w, tape_y, 3}};   // a row under the object
         for (u32 g = 0; g < 3; ++g) {
             const Group& G = groups[g];

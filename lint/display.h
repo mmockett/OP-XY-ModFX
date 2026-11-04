@@ -23,7 +23,7 @@ struct DisplayState {
     Rim shown[4];
     opxy::i32 since[4];
     opxy::i32 clock;
-    opxy::i32 lamp, light[3];                // the filament's glow and its light's reach, Q15, lagging it
+    opxy::i32 lamp;                          // the lamp's glow, Q15, lagging the LFO
     opxy::i32 tape, tape_since;              // tape 2's level as last drawn, and when it last moved
     opxy::i32 tone_shown;                    // the coil's tone, which sets how many turns it has
     opxy::u32 noise_seed[3];                 // grit, hiss and wear: how often their marks have re-seeded

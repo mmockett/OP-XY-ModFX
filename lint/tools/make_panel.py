@@ -151,46 +151,38 @@ def darker(grey, k=0.5):
 
 GREYS = [c for c, _ in RIMS]
 
-# Dust: a diode clipper: two solid jaws and a ball between them. The jaws close
-# in as the drive rises (it clips sooner), the top one further once the diodes
-# lopside; as a change arrives the ball swings, and rebounds off a jaw.
-JAW_W, JAW_H, BALL_R = 26, 10, 6.5
-solid("jaw_top", block(JAW_W, JAW_H, 0, -JAW_H / 2), GREYS[0])          # its face (the ball side) at y = 0
-solid("jaw_top_face", face(JAW_W, 0, 0), darker(GREYS[0]))
-solid("jaw_bottom", block(JAW_W, JAW_H, 0, JAW_H / 2 + FACE), GREYS[0])  # under its own face, so the light falls alike
-solid("jaw_bottom_face", face(JAW_W, 0, JAW_H + FACE), darker(GREYS[0]))
-solid("ball", circle(BALL_R, 20), GREYS[0])
+# Dust: a ball squashed between two plates. The plates are the clipping levels:
+# they close in as the drive rises, flattening the ball's top and bottom as the
+# diodes flatten the wave's peaks, the top one further once they lopside; as a
+# change arrives they press, and settle. (Two black masks, unseen, flatten the ball.)
+DUST_R, PLATE_W, PLATE_H, MASK_W, MASK_H = 16.5, 26, 5, 36, 16
+solid("dust_ball", circle(DUST_R, 40), GREYS[0])
+solid("mask_top", [(-MASK_W / 2, -MASK_H), (MASK_W / 2, -MASK_H), (MASK_W / 2, 0), (-MASK_W / 2, 0)], "#000000")
+solid("mask_bottom", [(-MASK_W / 2, 0), (MASK_W / 2, 0), (MASK_W / 2, MASK_H), (-MASK_W / 2, MASK_H)], "#000000")
+PLATE = darker(GREYS[0], 0.8)
+solid("plate_top", block(PLATE_W, PLATE_H, 0, -(1 + FACE + PLATE_H / 2)), PLATE)        # its origin on the flat it presses
+solid("plate_top_face", face(PLATE_W, 0, -(1 + FACE)), darker(PLATE))
+solid("plate_bottom", block(PLATE_W, PLATE_H, 0, 1 + PLATE_H / 2), PLATE)
+solid("plate_bottom_face", face(PLATE_W, 0, 1 + PLATE_H), darker(PLATE))
 
-# Phase: the optical phaser's lamp, its glass filled: dark when it is off, then
-# its grey, then white at full glow, the filament dark against it; its light
-# spreads in arcs as far as the depth lets it. A solid base with its face.
+# Phase: the optical phaser's lamp as a plain silhouette, glass and base; its
+# glass as bright as the lamp is lit: dark, then dim, then its grey, then white.
 bulb = []
-for j in range(30):
-    a = math.radians(116 + (308 * j / 29))           # the glass, open at the bottom
-    bulb.append((16.5 * math.cos(a), -9 + 16.5 * math.sin(a)))
-bulb += [(6.6, 12.5), (-6.6, 12.5)]
+for j in range(32):
+    a = math.radians(113 + (314 * j / 31))           # the glass, open at the bottom
+    bulb.append((19 * math.cos(a), -7 + 19 * math.sin(a)))
+bulb += [(7.4, 14), (-7.4, 14)]
 p.node("bulb", bulb, (CX[1], CY), "#acacac", 1.8, fill="#1c1c1c")
-solid("bulb_base", block(15, 8, 0, 17.5), GREYS[1], (CX[1], CY))
-solid("bulb_base_face", face(15, 0, 21.5), darker(GREYS[1]), (CX[1], CY))
-fil = [(-7.5 + 15 * j / 15, -9 + 3.4 * math.sin(math.pi * 3 * j / 15)) for j in range(16)]
-p.node("filament", capsule(fil, 0.6), (640, 320), "#000000", 1.4)
-GLOW_R = (18.5, 22, 25.5)
-for k, r in enumerate(GLOW_R):
-    p.node(f"glow_{k}", capsule(arc(r, math.radians(-106), math.radians(-74), 10), 0.6), (640, 320), "#acacac", 1.6)
+solid("bulb_base", block(16, 8, 0, 19), GREYS[1], (CX[1], CY))
+solid("bulb_base_face", face(16, 0, 23), darker(GREYS[1]), (CX[1], CY))
 
-# Echo: a ball bouncing along a solid floor; each bounce a repeat, spaced by the
-# echo's time and lower by its feedback, rising past Madness. The ball rests at
-# the end of its trail; as a change arrives it is lifted and runs the trail
-# again, drawing it as it goes.
-FLOOR_Y, FLOOR_W, FLOOR_H = 5, 52, 5
-solid("floor", block(FLOOR_W, FLOOR_H, 0, FLOOR_Y + FLOOR_H / 2), GREYS[2], (CX[2], CY))
-solid("floor_face", face(FLOOR_W, 0, FLOOR_Y + FLOOR_H), darker(GREYS[2]), (CX[2], CY))
-ECHO_R = 5.5
-solid("echo_ball", circle(ECHO_R, 20), GREYS[2])
-HOP_W, HOP_H = 14, 25
-hop = [(HOP_W * j / 11, -HOP_H * 4 * (j / 11) * (1 - j / 11)) for j in range(12)]
-for k in range(6):
-    p.node(f"bounce_{k}", capsule(hop, 0.6), (640, 320), "#9a9a9a", 1.6)
+# Echo: a block and its repeats, receding: each repeat a copy of the block, spaced
+# by the echo's time, smaller and dimmer by the feedback; past Madness they grow.
+# As a change arrives the repeats come back one at a time.
+EBLOCK, ECHO_BASE, ECHOES = 18, 8, 5
+for k in range(ECHOES):
+    p.node(f"eblock_{k}", block(EBLOCK, EBLOCK, EBLOCK / 2, -EBLOCK / 2), (640, 320), GREYS[2], 0.6, fill=GREYS[2])   # origin: its bottom left corner
+    solid(f"eface_{k}", face(EBLOCK, EBLOCK / 2, 0), "#2c2c2c")
 
 # Spring: a coil stretched between two solid end blocks, side on; the brighter
 # the tone the more turns it is wound with, the harder the drive the larger they
@@ -453,7 +445,7 @@ for t, (c, w) in zip(("t1", "t2", "t3", "t4"), RIMS):
     p.shade(t, c, w)
 p.shade("wire", WIRE, 0.9)          # the dry input's line, and the lamp's filament when it is off
 p.shade("wire_lit", "#b4b4b4", 1.1)
-p.shade("ink", "#000000", 1.4)      # the filament, dark against lit glass
+p.shade("fade", "#4a4a4a", 0.6)     # the echo's last repeats, and the lamp's glass barely lit
 p.shade("trail", "#9a9a9a", 1.6)     # the echo ball's trail; and tape 2's wear, a rim thinner and a step dimmer
 p.shade("lamp_hot", "#ffffff", 1.7)  # the glass and light at full glow (warm: the rim's own grey)
 p.shade("glass_off", "#acacac", 1.8, fill="#1c1c1c")   # the lamp's glass, unlit
@@ -466,8 +458,7 @@ for t, (c, w) in zip(("t1d", "t2d", "t3d", "t4d"), RIMS):
 idx = p.node_index()
 p.const(f"const opxy::i32 kCY = {CY}, kR0 = {R0};")
 p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
-p.const(f"const opxy::i32 kFloorY = {FLOOR_Y}, kFloorW = {FLOOR_W}, kHopW = {HOP_W}, kHopH = {HOP_H}, kCoilL = {COIL_L}, kCoils = {COILS};")
-p.const(f"const opxy::i32 kGlowR[3] = {{{', '.join(str(round(r)) for r in GLOW_R)}}};")
+p.const(f"const opxy::i32 kCoilL = {COIL_L}, kCoils = {COILS};")
 p.const(f"const opxy::u32 kNodeWireFirst = {idx[first_wire]}, kNodeWireEnd = {idx[last_wire] + 1};")
 # Each route (order * 4 + loop): the nodes it shows and where.
 width = max(sum(len(shape_nodes[sig][0]) for sig, *_ in lst) for lst in uses.values())
@@ -600,16 +591,14 @@ def ring_pts(cx, cy, r, a0, a1, n=5):
     return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), cy + r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)]
 
 
-JAW_FACE0 = 24
 keep = [
-    # dust: the jaws wide open, the noise columns
-    [(-JAW_W / 2, -JAW_FACE0 - JAW_H - 1), (JAW_W / 2, -JAW_FACE0 - JAW_H - 1), (-JAW_W / 2, JAW_FACE0 + FACE + JAW_H + FACE),
-     (JAW_W / 2, JAW_FACE0 + FACE + JAW_H + FACE), (-18.5, -27), (18.5, -27), (-18.5, 27), (18.5, 27)],
-    # phase: the outer arc of light, the glass, the base, the noise row
-    ring_pts(0, -11, GLOW_R[2] + 1, -106, -74) + [(-17.5, -9), (17.5, -9), (-8.5, 25), (8.5, 25), (-12, 30), (12, 30)],
-    # echo: the floor, the highest bounce and the ball over it, the noise rows
-    [(-FLOOR_W / 2, FLOOR_Y + FLOOR_H + FACE), (FLOOR_W / 2, FLOOR_Y + FLOOR_H + FACE), (-FLOOR_W / 2, FLOOR_Y), (FLOOR_W / 2, FLOOR_Y),
-     (-14, -24), (0, -33), (14, -24), (-14, 23), (14, 23)],
+    # dust: the plates and masks wide open (moved with them in the test), the noise columns
+    [(-MASK_W / 2, -DUST_R - 1 - FACE - PLATE_H), (MASK_W / 2, -DUST_R - 1 - FACE - PLATE_H), (-MASK_W / 2, DUST_R + 1 + PLATE_H + FACE),
+     (MASK_W / 2, DUST_R + 1 + PLATE_H + FACE), (-27, -22), (27, -22), (-27, 22), (27, 22)],
+    # phase: the glass and its base, the noise row
+    ring_pts(0, -7, 20, 113, 427, 9) + [(-9, 26), (9, 26), (-11, 30), (11, 30)],
+    # echo: the block, the largest repeats past Madness, the noise rows
+    [(-24, ECHO_BASE - EBLOCK - 1), (-24, ECHO_BASE + FACE), (28, ECHO_BASE - EBLOCK - 1), (28, ECHO_BASE + FACE), (-14, 20), (14, 20), (-14, 25), (14, 25)],
     # spring: the end blocks, the largest turns, the noise row
     [(-END_X - END_W / 2, -END_H / 2 - FACE / 2), (END_X + END_W / 2, -END_H / 2 - FACE / 2), (-END_X - END_W / 2, END_H / 2 + FACE / 2),
      (END_X + END_W / 2, END_H / 2 + FACE / 2), (0, -17), (-COIL_L / 2, -17), (COIL_L / 2, 17), (-15, 25), (15, 25)]]
@@ -617,8 +606,8 @@ KEEP = max(len(k) for k in keep)
 p.const(f"const opxy::i32 kKeepCount = {KEEP};")
 p.const("// What keeps inside each rim, clear of it: the objects' outer points at their largest, Q10 px from the centre (for the tests).")
 p.const(f"const opxy::i32 kKeep[4][{KEEP}][2] = {{" + ", ".join("{" + ", ".join(f"{{{round(x * 1024)}, {round(y * 1024)}}}" for x, y in k + [k[-1]] * (KEEP - len(k))) + "}" for k in keep) + "};")
-p.const(f"const opxy::i32 kJawW = {JAW_W}, kJawH = {JAW_H}, kBallR = {round(BALL_R * 1024)}, kFace = {round(FACE)}, kJawFace = {JAW_FACE0};")
-p.const(f"const opxy::i32 kFloorH = {FLOOR_H}, kEchoR = {round(ECHO_R * 1024)};   // the echo ball's radius, Q10 px")
+p.const(f"const opxy::i32 kDustR = {round(DUST_R * 1024)}, kPlateH = {PLATE_H}, kMaskW = {MASK_W}, kMaskH = {round(MASK_H)}, kFace = {round(FACE)};")
+p.const(f"const opxy::i32 kEchoBlock = {EBLOCK}, kEchoBase = {ECHO_BASE}, kEchoes = {ECHOES};")
 counts = p.write(OUT)
 # Keep definition.json's display resources in step with the artwork.
 definition = OUT / "definition.json"
