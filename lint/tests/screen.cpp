@@ -91,7 +91,7 @@ std::vector<Shape> drawing() {
         for (int k = 0; k < sh.count; ++k) local.push_back({sh.points[k][0] / 1024.0, sh.points[k][1] / 1024.0});
         add(sh.node, sh.solid, local);
     }
-    for (int p = 0; p < 4; ++p) {   // a reshaping run of cable: its centre line
+    for (int p = 0; p < static_cast<int>(lint::Frame::path_count); ++p) {   // a reshaping run of cable: its centre line
         std::vector<P> local;
         for (int k = 0; k < 32; ++k)
             local.push_back({(frame.paths[p].points[k].x + frame.paths[p].points[63 - k].x) / 2048.0,
@@ -112,8 +112,10 @@ void check_drawing() {
         const Shape& a = shapes_[i];
         // Inside the tray: the walls' inner edges are 4 px in from the sides and 44 and 216 down.
         for (const P& q : a.pts) {
-            const bool jack = !a.solid && std::fabs(q.y - panel::kY) < 1.5;
-            if ((!jack && (q.x < 4.5 || q.x > 475.5)) || q.y < 44.5 || q.y > 215.5) { fault("past the tray's walls", a.node, q.x * 1000 + q.y); break; }
+            // The cable leaves by its two jacks: in through the left wall, out through the front.
+            const bool in_jack = !a.solid && std::fabs(q.y - panel::kY) < 1.5 && q.x < 4.5;
+            const bool out_jack = !a.solid && std::fabs(q.x - panel::kOutX) < 2 && q.y > 200;
+            if (!in_jack && !out_jack && (q.x < 4.5 || q.x > 475.5 || q.y < 44.5 || q.y > 215.5)) { fault("past the tray's walls", a.node, q.x * 1000 + q.y); break; }
         }
         for (size_t j = 0; j < shapes_.size(); ++j) {
             if (i == j) continue;
@@ -123,9 +125,15 @@ void check_drawing() {
                 double d = 1e9;
                 for (size_t k = 0; k < a.pts.size(); ++k) d = std::fmin(d, std::fabs(to_solid(a.pts[k], b)));
                 for (size_t k = 0; k < b.pts.size(); ++k) d = std::fmin(d, std::fabs(to_solid(b.pts[k], a)));
-                if (inside(a.pts[0], b.pts) || inside(b.pts[0], a.pts)) d = -1;
+                // A part's inner tone (a screw, a hub, the cell's track) lies wholly inside it, clear of its edge.
+                auto within = [](const Shape& in, const Shape& out) {
+                    for (const P& q : in.pts) if (!inside(q, out.pts)) return false;
+                    return true;
+                };
+                const bool inset = within(a, b) || within(b, a);
+                if (!inset && (inside(a.pts[0], b.pts) || inside(b.pts[0], a.pts))) d = -1;
                 closest_parts = std::fmin(closest_parts, d);
-                if (d < 0.75) fault("two parts overlap or touch, px (node x1000 + node)", a.node * 1000 + b.node, d);
+                if (d < 0.75) fault(inset ? "an inner tone on its part's edge, px (node x1000 + node)" : "two parts overlap or touch, px (node x1000 + node)", a.node * 1000 + b.node, d);
             } else if (!a.solid) {
                 // a's interior, away from its ends
                 const P s = a.pts.front(), e = a.pts.back();
@@ -143,9 +151,16 @@ void check_drawing() {
                         if (d < 1.5 && !at_join) { fault("two runs of cable meet, px (cable x1000 + cable)", a.node * 1000 + b.node, d); break; }
                     }
                 }
+                // (away from where two runs join, end to end)
+                auto at_end = [&](P q) {
+                    for (const P& e : {a.pts.front(), a.pts.back(), b.pts.front(), b.pts.back()})
+                        if (std::hypot(q.x - e.x, q.y - e.y) < 1.5) return true;
+                    return false;
+                };
                 for (size_t k = 0; k + 1 < a.pts.size() && !b.solid && i < j; ++k)
                     for (size_t m = 0; m + 1 < b.pts.size(); ++m)
-                        if (crosses(a.pts[k], a.pts[k + 1], b.pts[m], b.pts[m + 1])) fault("two runs of cable cross (cable x1000 + cable)", a.node * 1000 + b.node, 0);
+                        if (!at_end(a.pts[k]) && !at_end(a.pts[k + 1]) && !at_end(b.pts[m]) && !at_end(b.pts[m + 1]) &&
+                            crosses(a.pts[k], a.pts[k + 1], b.pts[m], b.pts[m + 1])) fault("two runs of cable cross (cable x1000 + cable)", a.node * 1000 + b.node, 0);
             }
         }
         // The cable is whole: each end meets a run, a part, or a jack (once the
@@ -154,7 +169,7 @@ void check_drawing() {
         for (int k = 0; k < 4; ++k) moving = moving || state.at[k] > 3;
         if (!a.solid && !moving) {
             for (const P& end : {a.pts.front(), a.pts.back()}) {
-                if (end.x < 0.5 || end.x > 479.5) continue;
+                if (end.x < 0.5 || end.x > 479.5 || end.y > 219) continue;   // off the screen, through a jack
                 bool met = false;
                 for (size_t j = 0; j < shapes_.size() && !met; ++j) {
                     if (i == j) continue;
@@ -171,7 +186,7 @@ void check_drawing() {
 void check(bool draw) {
     ++frames;
     if (!opxy::draw::valid(frame)) fault("invalid frame", 0, 0);
-    for (unsigned p = 0; p < 4; ++p) {
+    for (unsigned p = 0; p < lint::Frame::path_count; ++p) {
         const auto& path = frame.paths[p];
         if (!path.key) fault("a path without a key", static_cast<int>(p), 0);
         for (unsigned k = 0; k < 64; ++k) {
