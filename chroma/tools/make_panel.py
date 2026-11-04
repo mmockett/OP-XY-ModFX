@@ -44,7 +44,7 @@ ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
 # Each facet's rim, 16 arc segments, as drawn a step below the readouts; the palette gives
 # a segment thin, thick, dim, or lit in the knob's own tone while Shift is held. The palette
 # lends its width too.
-RIM_R, SEGMENTS, DOT_COUNT = 39, 16, 10
+RIM_R, SEGMENTS, HALO_ARCS = 39, 16, 8
 RIM_TONES = [grey(t, 0.78) for t in TONES]
 RIM_DIMS = [grey(t, 0.38) for t in TONES]
 PALETTE = ([("#000000", RIM_TONES[i], 1.2) for i in range(4)] + [("#000000", RIM_TONES[i], 2.8) for i in range(4)] +
@@ -52,15 +52,15 @@ PALETTE = ([("#000000", RIM_TONES[i], 1.2) for i in range(4)] + [("#000000", RIM
 SHAPES = ["wave", "left_sway", "right_sway", "band"]
 
 
-def segment():
-    """A rim segment: an arc through its node's origin, tangent upright there, a little
-    longer than a sixteenth of the rim so a smooth rim reads whole."""
-    half = math.radians(360 / SEGMENTS / 2 + 2.2)
-    return ribbon([(RIM_R * math.cos(-half + 2 * half * k / 7) - RIM_R, RIM_R * math.sin(-half + 2 * half * k / 7)) for k in range(8)], 0.25)
+def segment(count=SEGMENTS, overlap=2.2, points=6):
+    """An arc of a rim: through its node's origin, tangent upright there, a little longer
+    than its share of the rim so neighbouring arcs meet as one outline."""
+    half = math.radians(360 / count / 2 + overlap)
+    return ribbon([(RIM_R * math.cos(-half + 2 * half * k / (points - 1)) - RIM_R, RIM_R * math.sin(-half + 2 * half * k / (points - 1))) for k in range(points)], 0.25)
 NODES = (SHAPES + [f"facet_{i}" for i in range(4)] + ["in", "plate"] +
          [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
          [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + ["puck_left", "puck_right", "exit_left", "exit_right"] +
-         [f"rim_{k}_{i}" for k in range(4) for i in range(SEGMENTS)] + [f"dot_{k}_{j}" for k in range(4) for j in range(DOT_COUNT)] +
+         [f"rim_{k}_{i}" for k in range(4) for i in range(SEGMENTS)] + [f"halo_{k}_{j}" for k in range(4) for j in range(HALO_ARCS)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
 
@@ -159,12 +159,13 @@ def main():
         put(f"facet_{i}", circle(R - 1), "none", 0, x, Y, GROUNDS[i])
     # Character's plate: the facet's lower half, turned with Tilt.
     put("plate", [((R - 4) * math.cos(math.pi * k / 31), (R - 4) * math.sin(math.pi * k / 31)) for k in range(32)], "none", 0, XS[0], Y, PLATE)
-    # The rims and their dots, over the grounds and the plate and under every readout.
+    # The halos (a faint echo of a rim, when it's blurred or doubled), then the rims, over
+    # the grounds and the plate and under every readout.
     for k in range(4):
+        for j in range(HALO_ARCS):
+            put(f"halo_{k}_{j}", segment(HALO_ARCS, 4.0, 8), grey(TONES[k], 0.45), 1.0, XS[k] + RIM_R, Y)
         for i in range(SEGMENTS):
             put(f"rim_{k}_{i}", segment(), RIM_TONES[k], 1.9, XS[k] + RIM_R, Y)
-        for j in range(DOT_COUNT):
-            put(f"dot_{k}_{j}", circle(1.9, 12), "none", 0, XS[k], Y - RIM_R - 4, grey(TONES[k], 0.7 if j % 3 else 0.45))
     put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
     gap = XS[1] - XS[0] - 2 * R - 6
     for k in range(1, 4):
@@ -198,10 +199,10 @@ def main():
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeWave = 0, kNodeLeftSway = 1, kNodeRightSway = 2, kNodeBand = 3, kNodeFacets = {nodes['facet_0']}, "
          f"kNodeIn = {nodes['in']}, kNodePlate = {nodes['plate']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, "
-         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeRims = {nodes['rim_0_0']}, kNodeDots = {nodes['dot_0_0']}, kNodeBars = {nodes['bar_0']} }};",
+         f"kNodePucks = {nodes['puck_left']}, kNodeExits = {nodes['exit_left']}, kNodeRims = {nodes['rim_0_0']}, kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
          "// Palette: a rim segment thin, thick, dim, or lit in its knob's tone while Shift is held, a facet each.",
          "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
-         f"const opxy::u32 kSegments = {SEGMENTS}, kDotCount = {DOT_COUNT};",
+         f"const opxy::u32 kSegments = {SEGMENTS}, kHaloArcs = {HALO_ARCS};",
          f"const opxy::i32 kRimR = {RIM_R};",
          f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",

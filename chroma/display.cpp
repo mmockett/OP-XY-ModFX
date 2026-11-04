@@ -180,20 +180,12 @@ void ribbon(Frame::path_type& path, const Point (&line)[32], i32 nx, i32 ny) {
 }
 
 // --- The rims: each facet's edge takes its own module's shape, and on top of it the
-// qualities the modules before it hand on (roughness, heaviness, wobble, doubling, wear,
-// and diffusion as dots), so the chain compounds without copying shapes. A rim is 16
-// fixed arc segments; each one's distance out, turn off the tangent, length and paint
-// make the edge's shape and quality. Sparse dots gather outside it where the edge is
-// fuzzy. ---
+// qualities the modules before it hand on (a fine ripple of roughness, a moving wobble,
+// heaviness, a blurred or doubled halo), so the chain compounds without copying shapes.
+// A rim is 16 fixed arcs placed along one smooth shape, each turned to its tangent and
+// scaled to it so they meet as one closed outline; its halo is 8 longer arcs on the same
+// shape a little further out. Nothing is ever broken off or scattered. ---
 
-// A fixed hash per element and purpose: Q10, -1024..1023.
-i32 hash(u32 i, u32 k) {
-    u32 x = i * 2654435761u ^ (k + 1) * 2246822519u;
-    x ^= x >> 15;
-    x *= 2246822519u;
-    x ^= x >> 13;
-    return static_cast<i32>((x >> 8) & 2047) - 1024;
-}
 i32 magnitude(i32 x) { return x < 0 ? -x : x; }
 
 struct Chain {
@@ -203,217 +195,154 @@ struct Chain {
     u32 swing, clock;
 };
 
-struct Segment {
-    i32 angle, out, turn, scale;  // its place round the rim and its turn, tenths; out from the rim, Q10 px; Q10
-    u32 weight;                   // 0 thin, 1 as drawn, 2 thick
-    bool dim, shown;
-};
-
-// Segment i of facet `stage`'s rim: its own module's shape, then what earlier modules hand on.
-Segment segment(const Chain& ch, u32 i, u32 stage) {
+// The shape of facet `stage`'s rim at an angle (tenths): how far out from the plain
+// circle, Q10 px. Its own module draws its shape; the modules before it hand on only
+// their qualities (roughness as a fine ripple, wobble as a moving wave). Every term is
+// smooth in the angle, so the rim stays one closed, continuous outline.
+i32 shape(const Chain& ch, u32 stage, i32 th) {
     const i32* v = ch.v;
-    Segment g = {static_cast<i32>(i) * 225, 0, 0, unit, 1, false, true};
-    const i32 c = sine(g.angle + 900), s = sine(g.angle);
-    const bool upper = s < 0;  // the left side
-
-    // Character: warm swells and softens it, drive clips it flat top and bottom, fuzz roughens
-    // it, howl ripples it (Tilt sets how wide), swell grows it round from one point.
+    const i32 c = sine(th + 900), s = sine(th);
+    const i32 phase = static_cast<i32>(ch.swing >> 16) * 3600 >> 16;  // the LFO, tenths
+    const i32 slow = static_cast<i32>(ch.clock % 7200u) / 2;           // a slow turn, tenths
     const i32 a = (ch.character == kCharacterOff ? 0 : v[kCharacterAmount]) >> 5;
-    if (stage != 0) {
-        // Past its own facet, Character hands on qualities, not its shape (see below).
-    } else if (ch.character == kWarm) {
-        g.out = px(1) + 4 * a;
-        g.weight = a > 154 ? 2 : 1;
-    } else if (ch.character == kDrive) {
-        const i32 e = clamp((magnitude(s) - 563) * 1024 / 461, 0, 1024);
-        g.out = -(a * 10 * e >> 10);
-        g.turn = -((a * 180 >> 10) * e >> 10) * ((s < 0) == (c < 0) ? 1 : -1);
-        g.weight = a > 307 ? 0 : 1;
-    } else if (ch.character == kFuzz) {
-        g.out = hash(i, 31) * a >> 10;
-        g.out = g.out * 9 / 2;
-        g.turn = (hash(i, 32) * a >> 10) * 400 >> 10;
-        g.weight = 0;
-    } else if (ch.character == kHowl) {
-        const u32 p = 1 + static_cast<u32>((v[kTilt] * 2 + 16384) >> 15);
-        const bool on = (i / p) % 2 == 0;
-        g.out = (on ? 4 : -4) * a;
-        g.weight = on ? 2 : 0;
-    } else if (ch.character == kSwell) {
-        const i32 frac = static_cast<i32>(i) * 64;
-        g.scale = clamp((frac + 154) * 1024 / (a > 154 ? a : 154), 512, unit);
-        g.dim = frac > 1024 - (717 * a >> 10);
-        g.out = -(3 * a * (1024 - frac) >> 10);
-    }
-
-    // Movement: vibe wobbles the rim, the sides apart; swirl turns it; trem pulses it, the
-    // sides opposite; twin doubles it with a late rim; pitch stretches it.
-    const i32 ma = ch.movement == kMovementOff ? 0 : v[kMovementAmount];
-    if (stage == 1 && ma) {
-        const i32 side = upper ? 1 : -1;
-        if (ch.movement == kVibe) {
-            const i32 back = static_cast<i32>(i % 8) * 1250 / 8;
-            const u32 phase = ch.swing - static_cast<u32>(ch.hz) * static_cast<u32>(back) * 4194u;
-            g.out += sway(kVibe, ma, v[kDrift], phase, ch.clock - static_cast<u32>(back), side) * 4;
-        } else if (ch.movement == kSwirl) {
-            const i32 m = sway(kSwirl, ma, v[kDrift], ch.swing, ch.clock, 1);
-            g.turn += (100 * (ma >> 5) >> 10) + (m * 80 >> 10);
-            g.angle += m * 172 >> 10;
-        } else if (ch.movement == kTrem) {
-            g.out += sway(kTrem, ma, v[kDrift], ch.swing, ch.clock, side) * 5;
-        } else if (ch.movement == kTwin) {
-            if (i & 1) {
-                g.out += share(px(3) + share(px(6), v[kRate]), ma);
-                g.dim = true;
-            }
-        } else if (ch.movement == kPitch) {
-            const i32 bend = ((v[kRate] - 16384) >> 4) * (ma >> 5) >> 10;
-            g.out += (bend * 7 >> 0) * sine(2 * g.angle + 900) >> 10;
-        }
-    }
-
-    // Diffuse: cloud loosens the edge outward, further with Time; dusk smears it, the upper
-    // half right and the lower left; tape wobbles it and drops a few; slice breaks it into
-    // panned arcs; back fades it in the other way round.
+    const i32 ma = (ch.movement == kMovementOff ? 0 : v[kMovementAmount]) >> 5;
     const i32 da = (ch.diffusion == kDiffusionOff ? 0 : v[kDiffusionAmount]) >> 5, tm = v[kTime] >> 5;
+    i32 out = 0;
+    if (stage == 0) {
+        // Character: warm swells it, drive flattens it top and bottom, fuzz ripples it,
+        // howl scallops it (Tilt sets three to five lobes), swell leaves it growing from the left.
+        if (ch.character == kWarm) out = px(1) + 4 * a;
+        else if (ch.character == kDrive) out = -(a * 10 * clamp((magnitude(s) - 563) * 1024 / 461, 0, 1024) >> 10);
+        else if (ch.character == kFuzz) out = (a * 3) * sine(4 * th) >> 10;
+        else if (ch.character == kHowl) out = 4 * a * sine((3 + ((v[kTilt] * 2 + 16384) >> 15)) * th + 900) >> 10;
+        else if (ch.character == kSwell) out = -(5 * a * (1024 - c) >> 11);
+    } else {
+        if (ch.character == kDrive || ch.character == kFuzz) {
+            const i32 rough = ch.character == kFuzz ? a : a >> 1;
+            out += (rough * 2) * sine(4 * th + 450) >> 10;
+        }
+    }
+    if (stage == 1 && ma) {
+        // Movement: vibe breathes it into a turning oval; swirl turns a three-lobed wave round
+        // it; trem pulses it, the upper (left) half against the lower; pitch stretches it.
+        if (ch.movement == kVibe) out += 4 * ma * sine(2 * th + phase) >> 10;
+        else if (ch.movement == kSwirl) out += (ma * 7 / 2) * sine(3 * th + phase) >> 10;
+        else if (ch.movement == kTrem) out -= (5 * ma * sine(phase) >> 10) * s >> 10;
+        else if (ch.movement == kPitch) out += ((((v[kRate] - 16384) >> 4) * ma >> 10) * 7) * sine(2 * th + 900) >> 10;
+    } else if (stage > 1 && (ch.movement == kVibe || ch.movement == kSwirl)) {
+        out += (ma * 5 / 2) * sine(3 * th + phase) >> 10;
+    }
     if (stage == 2 && da) {
-        if (ch.diffusion == kCloud) {
-            g.out += (magnitude(hash(i, 33)) * da >> 10) * (1536 + 5 * tm) >> 10;
-            g.turn += (hash(i, 34) * da >> 10) * 150 >> 10;
-            if (hash(i, 35) > 1024 - (717 * da >> 10)) g.dim = true;
-        } else if (ch.diffusion == kDusk) {
-            const i32 smear = upper ? -c : c;
-            g.out += (clamp(-smear, 0, 1024) * da >> 10) * (3072 + 4 * tm) >> 10;
-            if (smear < -307) g.weight = 2;
-            if (smear > 307) g.dim = true;
-        } else if (ch.diffusion == kTape) {
-            g.out += (sine(3 * static_cast<i32>(i) * 225) * da >> 10) * 5 / 2;
-            if (hash(i, 36) >= 1024 - (307 * da >> 10)) g.shown = false;
-        } else if (ch.diffusion == kSlice) {
-            const u32 size = tm < 512 ? 2 : 3;
-            if (i % size == size - 1) g.shown = false;
-            g.out += ((i / size) % 2 ? -4 : 4) * da;
-        } else if (ch.diffusion == kBack) {
-            if (1024 - static_cast<i32>(i) * 64 < (717 * da >> 10)) g.dim = true;
+        // Diffuse: cloud swells it a little (its blur is the halo); dusk smears it along a
+        // diagonal; tape wobbles it slowly; slice facets it, six or eight sides with Time.
+        if (ch.diffusion == kCloud) out += 3 * da >> 1;
+        else if (ch.diffusion == kDusk) out -= (da * (2048 + 4 * tm) >> 10) * sine(2 * th) >> 10;
+        else if (ch.diffusion == kTape) out += (da * 5 / 2) * sine(3 * th + slow) >> 10;
+        else if (ch.diffusion == kSlice) {
+            const i32 sides = tm < 512 ? 8 : 6, step = 3600 / sides;
+            const i32 off = ((th % step) + step) % step - step / 2;          // tenths from the facet's middle
+            const i32 facet = px(kRimR) * sine(900 - step / 2) / sine(900 - magnitude(off)) - px(kRimR);
+            out += facet * da >> 10;
         }
+    } else if (stage > 2 && ch.diffusion == kTape) {
+        out += (da * 5 / 2) * sine(3 * th + slow) >> 10;
     }
-
-    // Texture: tilt thins L toward its highs and R toward its lows; low and high fade one
-    // side away; press flattens it; cass bands it; worn drops it out and sags it; radio
-    // leaves a narrow band. Drift, on the same knob, unsettles it.
     if (stage == 3) {
-        const i32 ta = v[kTextureAmount] >> 5, u = (c + 1024) >> 1;
-        if (ch.texture == kBalance) {
-            const i32 s2 = (v[kTextureAmount] - 16384) >> 4, cut = upper ? u : 1024 - u;
-            if (s2 > 0 && cut > 1024 - (s2 * 922 >> 10)) {
-                g.weight = 0;
-                g.out -= (s2 * cut >> 10) * 4;
-                if (cut > 1024 - (s2 * 461 >> 10)) g.dim = true;
-            } else if (s2 < 0 && cut > 1024 + (s2 * 922 >> 10)) {
-                g.weight = 2;
-            }
-        } else if (ch.texture == kLow) {
-            if (u >= 1024 - (ta * 461 >> 10)) g.shown = false;
-            if (u > 1024 - ta) g.dim = true;
-        } else if (ch.texture == kHigh) {
-            if (u <= (ta * 461 >> 10)) g.shown = false;
-            if (u < ta) g.dim = true;
-        } else if (ch.texture == kPress) {
-            g.out -= 7 * ta * magnitude(s) >> 10;
-            g.turn = g.turn * (1024 - ta) >> 10;
-        } else if (ch.texture == kCass) {
-            if ((i & 1) && ta > 307) g.dim = true;
-            g.out += (sine(2 * static_cast<i32>(i) * 225 + static_cast<i32>(ch.clock % 5236u) * 688 / 1000) * ta >> 10) * 3 / 2;
-        } else if (ch.texture == kWorn) {
-            if (hash(i, 37) >= 1024 - (819 * ta >> 10)) g.shown = false;
-            g.out += 3 * ta * s >> 10;
-        } else if (ch.texture == kRadio) {
-            if (magnitude(s) >= 1024 - (768 * ta >> 10)) g.shown = false;
-            if (hash(i, 38) > 1024 - (410 * ta >> 10)) g.dim = true;
-        }
-        const i32 d = v[kDrift] >> 5;
-        if (d) {
-            g.out += (hash(i, 39) * d >> 10) * 3 * sine(static_cast<i32>(ch.clock % 4833u) * 745 / 1000 + static_cast<i32>(i) * 573) >> 10;
-            g.turn += (hash(i, 40) * d >> 10) * 250 >> 10;
-        }
+        // Texture: tilt flattens L's high side and R's low side (or swells them below the
+        // middle); low and high flatten one side; press flattens it top and bottom; cass
+        // gives it a wow; worn sags it; radio narrows it to a band. Drift wanders it.
+        const i32 ta = v[kTextureAmount] >> 5, s2 = (v[kTextureAmount] - 16384) >> 4;
+        const i32 diag = -sine(2 * th);  // 1 at the upper right and lower left
+        if (ch.texture == kBalance) out -= 4 * s2 * clamp(diag, 0, 1024) >> 10;
+        else if (ch.texture == kLow) out -= (6 * ta * clamp(c, 0, 1024) >> 10) * clamp(c, 0, 1024) >> 10;
+        else if (ch.texture == kHigh) out -= (6 * ta * clamp(-c, 0, 1024) >> 10) * clamp(-c, 0, 1024) >> 10;
+        else if (ch.texture == kPress) out -= 7 * ta * magnitude(s) >> 10;
+        else if (ch.texture == kCass) out += (ta * 3 / 2) * sine(2 * th + slow) >> 10;
+        else if (ch.texture == kWorn) out += 3 * ta * s >> 10;
+        else if (ch.texture == kRadio) out -= (12 * ta * s >> 10) * s >> 10;
+        out += ((v[kDrift] >> 5) * 5 / 2) * sine(2 * th + slow * 2) >> 10;
     }
-
-    // What earlier modules hand on: not their rims but their qualities, applied to this
-    // facet's own shape. Roughness from drive and fuzz; heaviness from warm; wobble from
-    // vibe, swirl and tape, moving with the LFO; doubling from twin and dusk; wear from
-    // slice. (Diffusion is the dots outside the rim: fuzziness, below.)
-    if (stage > 0) {
-        i32 rough = 0, wobble = 0, twice = 0, wear = 0;
-        const bool heavy = ch.character == kWarm && a > 154;
-        if (ch.character == kDrive) rough = a >> 1;
-        if (ch.character == kFuzz) rough = a;
-        if (stage > 1 && (ch.movement == kVibe || ch.movement == kSwirl)) wobble += ma >> 5;
-        if (stage > 1 && ch.movement == kTwin) twice += ma >> 5;
-        if (stage > 2 && ch.diffusion == kTape) wobble += da;
-        if (stage > 2 && ch.diffusion == kDusk) twice += da;
-        if (stage > 2 && ch.diffusion == kSlice) wear += da;
-        if (rough) {
-            g.out += (hash(i, 51) * rough >> 10) * 7 / 2;
-            g.turn += (hash(i, 52) * rough >> 10) * 350 >> 10;
-            if (rough > 307 && !heavy) g.weight = 0;
-        }
-        if (wobble) {
-            const i32 phase = static_cast<i32>(ch.swing >> 16) * 3600 >> 16;
-            g.out += (sine(3 * static_cast<i32>(i) * 225 + phase) * clamp(wobble, 0, 1024) >> 10) * 5 / 2;
-        }
-        if (twice && (i & 1)) {
-            g.out += 4 * clamp(twice, 0, 1024);
-            if (twice > 205) g.dim = true;
-        }
-        if (wear && hash(i, 53) >= 1024 - (wear * 358 >> 10)) g.shown = false;
-        if (heavy && g.weight == 1) g.weight = 2;
-    }
-    return g;
+    return clamp(out, -px(10), px(9));
 }
 
-// How fuzzy the edge is after modules 0..stage, Q10: fuzz, then cloud or tape, then Drift.
-i32 fuzziness(const Chain& ch, u32 stage) {
+// How a whole rim is drawn: its weight (0 thin, 1 as drawn, 2 thick), whether it's dimmed,
+// and its halo, a faint echo of the outline just outside it (or inside, for back): how far
+// out, Q10 px, 0 for none. Fuzz, cloud, tape and Drift blur it; twin and dusk double it.
+struct Look {
+    u32 weight;
+    bool dim;
+    i32 halo;
+};
+Look look(const Chain& ch, u32 stage) {
     const i32* v = ch.v;
-    i32 f = ch.character == kFuzz ? (v[kCharacterAmount] >> 5) * 819 >> 10 : 0;
-    if (stage >= 2 && (ch.diffusion == kCloud || ch.diffusion == kTape)) f += (v[kDiffusionAmount] >> 5) * (410 + (v[kTime] >> 5)) >> 10;
-    if (stage >= 3) f += (v[kDrift] >> 5) * 614 >> 10;
-    return f;
+    const i32 a = (ch.character == kCharacterOff ? 0 : v[kCharacterAmount]) >> 5;
+    const i32 ma = (ch.movement == kMovementOff ? 0 : v[kMovementAmount]) >> 5;
+    const i32 da = (ch.diffusion == kDiffusionOff ? 0 : v[kDiffusionAmount]) >> 5, tm = v[kTime] >> 5;
+    const i32 ta = v[kTextureAmount] >> 5;
+    Look l = {1, false, 0};
+    i32 blur = 0, twice = 0;
+    if (ch.character == kWarm && a > 154) l.weight = 2;          // warmth: heavier, carried on
+    if (ch.character == kFuzz) blur += a * 820 >> 10;              // fuzz: a blur, carried on
+    if (ch.character == kDrive && a > 307) l.weight = 0;           // drive: harder, thinner
+    if (stage >= 1 && ch.movement == kTwin) twice += ma;           // a late copy, carried on
+    if (stage >= 2) {
+        if (ch.diffusion == kCloud || ch.diffusion == kTape) blur += da * (410 + tm) >> 10;
+        if (ch.diffusion == kDusk) twice += da;
+        if (ch.diffusion == kSlice && stage > 2 && da > 512) l.weight = 0;  // wear, carried on: thinner
+    }
+    if (stage == 3) {
+        blur += (v[kDrift] >> 5) * 614 >> 10;
+        if ((ch.texture == kCass || ch.texture == kWorn) && ta > 410) l.dim = true;
+        if (ch.texture == kCass || ch.texture == kRadio) l.weight = 0;
+    }
+    const i32 most = clamp(blur > twice ? blur : twice, 0, 1536);
+    if (most > 52) l.halo = px(3) + 3 * most;
+    if (stage == 2 && ch.diffusion == kBack && da > 52) l.halo = -(px(3) + 3 * da);  // back: the echo comes first, inside
+    return l;
+}
+
+// The rim's shape averaged over a quarter turn, for its halo: a ripple of four or more
+// lobes smooths away, so the halo's eight arcs follow it without breaking.
+i32 smoothed(const Chain& ch, u32 stage, i32 th) {
+    return (shape(ch, stage, th - 337) + shape(ch, stage, th - 112) + shape(ch, stage, th + 112) + shape(ch, stage, th + 337)) / 4;
 }
 
 // Q10 to the nearest half pixel, still Q10.
 i32 half(i32 q10) { return floor_q10(2 * q10 + 512) * unit / 2; }
 
-void put_segment(Frame& frame, const Chain& ch, u32 k, u32 i, bool lit) {
-    const u32 n = kNodeRims + k * kSegments + i;
-    const Segment g = segment(ch, i, k);
-    if (!g.shown) {
-        hide(frame, n);
-        return;
-    }
-    const i32 r = px(kRimR) + clamp(g.out, -px(9), px(8));
-    const i32 x = px(kX[k]) + ((r >> 5) * sine(g.angle + 900) >> 5), y = px(kY) + ((r >> 5) * sine(g.angle) >> 5);
-    const i32 scale = clamp((g.scale + 64) >> 7 << 7, 512, unit);
-    if (lit) place(frame, n, half(x), half(y), scale, kRimLit + k, stroke);
-    else if (g.dim) place(frame, n, half(x), half(y), scale, kRimDim + k, stroke);
-    else if (g.weight != 1) place(frame, n, half(x), half(y), scale, (g.weight ? kRimThick : kRimThin) + k, stroke);
-    else place(frame, n, half(x), half(y), scale, 0, keep);
-    const i32 t = g.angle + g.turn;
+// Places an arc of a rim (radius `authored` px, drawn upright through its origin) on the
+// rim's shape at angle `th`, `out` beyond it, turned to the shape's tangent and scaled to
+// its size, so neighbouring arcs meet as one outline.
+void on_rim(Frame& frame, u32 n, const Chain& ch, u32 k, i32 th, i32 out, i32 authored, u32 shade, Paint paint, bool smooth = false) {
+    i32 (*const f)(const Chain&, u32, i32) = smooth ? smoothed : shape;
+    const i32 r = px(kRimR) + f(ch, k, th) + out;
+    const i32 slope = (f(ch, k, th + 56) - f(ch, k, th - 56)) * 1024 / 200;  // dr/dangle, Q10 px a radian
+    const i32 psi = clamp(slope * 1024 / r, -700, 700);                                // Q10 radians
+    const i32 x = px(kX[k]) + ((r >> 5) * sine(th + 900) >> 5), y = px(kY) + ((r >> 5) * sine(th) >> 5);
+    const i32 scale = clamp((r / authored) * (1024 + (psi * psi >> 11)) >> 10, 640, 1536);
+    place(frame, n, half(x), half(y), scale, shade, paint);
+    const i32 t = th - (psi * 573 >> 10);
     turn(frame, n, rotation((t + (t < 0 ? -5 : 5)) / 10 * 10));
 }
 
-void put_dot(Frame& frame, const Chain& ch, u32 k, u32 j) {
-    const u32 n = kNodeDots + k * kDotCount + j;
-    const i32 f = fuzziness(ch, k);
-    if (static_cast<i32>(j) >= clamp((f * static_cast<i32>(kDotCount) + 512) >> 10, 0, static_cast<i32>(kDotCount))) {
+void put_segment(Frame& frame, const Chain& ch, u32 k, u32 i, bool lit) {
+    const Look l = look(ch, k);
+    const u32 n = kNodeRims + k * kSegments + i;
+    const i32 th = static_cast<i32>(i) * 225;
+    if (lit) on_rim(frame, n, ch, k, th, 0, kRimR, kRimLit + k, stroke);
+    else if (l.dim) on_rim(frame, n, ch, k, th, 0, kRimR, kRimDim + k, stroke);
+    else if (l.weight != 1) on_rim(frame, n, ch, k, th, 0, kRimR, (l.weight ? kRimThick : kRimThin) + k, stroke);
+    else on_rim(frame, n, ch, k, th, 0, kRimR, 0, keep);
+}
+
+void put_halo(Frame& frame, const Chain& ch, u32 k, u32 j) {
+    const Look l = look(ch, k);
+    const u32 n = kNodeHalos + k * kHaloArcs + j;
+    if (!l.halo) {
         hide(frame, n);
         return;
     }
-    const u32 seed = j + 17 * k;
-    const i32 angle = static_cast<i32>(j) * 3600 / static_cast<i32>(kDotCount) + (hash(seed, 41) * 286 >> 10);
-    i32 r = px(kRimR + 3) + magnitude(hash(seed, 42)) * (2048 + 7 * clamp(f, 0, 1536)) / 1024;
-    r += (hash(j, 43) * (ch.v[kDrift] >> 5) >> 10) * 2 * sine(static_cast<i32>(ch.clock % 5712u) * 630 / 1000 + static_cast<i32>(j) * 573) >> 10;
-    const i32 x = px(kX[k]) + ((r >> 5) * sine(angle + 900) >> 5), y = px(kY) + ((r >> 5) * sine(angle) >> 5);
-    place(frame, n, floor_q10(x + 512) * unit, floor_q10(y + 512) * unit, unit, 0, keep);
+    on_rim(frame, n, ch, k, static_cast<i32>(j) * 3600 / static_cast<i32>(kHaloArcs), l.halo, kRimR, 0, keep, true);
 }
 
 // Q10 to the nearest whole pixel, still Q10.
@@ -629,14 +558,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         sign(frame.paths[kNodeBand]);
     }
 
-    // --- The rims and their dots, refreshed a few at a time so a moving LFO never redraws
+    // --- The rims and their halos, refreshed a few at a time so a moving LFO never redraws
     // them all: 8 a frame past Character's rim while only time moves, 16 a frame through
     // all of them while a control turns or Shift changes, every one on the first frame. ---
     {
         const Chain ch = {v, character, movement, diffusion, texture, hz, state.swing, clock};
         u32 key = character | movement << 3 | diffusion << 6 | texture << 9 | input.shift << 12;
         for (u32 i = 0; i < 8; ++i) key = key * 31 + static_cast<u32>(v[i]);
-        const u32 rims = 4 * kSegments, total = rims + 4 * kDotCount;
+        const u32 rims = 4 * kSegments, total = rims + 4 * kHaloArcs;
         const bool lit = input.shift != 0;
         if (fresh) state.sweep = 0;
         const bool turned = key != state.key;
@@ -645,7 +574,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             if (!fresh && !turned && state.sweep < kSegments) state.sweep = kSegments;
             const u32 at = state.sweep;
             if (at < rims) put_segment(frame, ch, at / kSegments, at % kSegments, lit);
-            else put_dot(frame, ch, (at - rims) / kDotCount, (at - rims) % kDotCount);
+            else put_halo(frame, ch, (at - rims) / kHaloArcs, (at - rims) % kHaloArcs);
             state.sweep = at + 1 < total ? at + 1 : 0;
         }
         state.key = key;
