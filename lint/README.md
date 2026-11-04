@@ -57,8 +57,8 @@ setting was measured.
 
 ![Lint's screen in its six presets](screens.png)
 
-Under the two pages, four scopes, one under each encoder and drawn in that
-encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
+Under the two pages, four scopes, one under each encoder, each on a disc in
+that encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
 encoders and the header's bar run. Each scope traces one cycle of the sound
 against itself, so a section that does nothing leaves a plain ring.
 
@@ -72,12 +72,23 @@ against itself, so a section that does nothing leaves a plain ring.
 - **spring:** the ring winds into a spiral, more turns the harder the tank is
   driven, leaning with tone.
 
-Under each scope is its place in the order; a line joins neighbours the order
+Inside the scopes, a grain passes through the sections in the chosen order,
+and each scope shows it as its section leaves it: the last in the order holds
+the whole chain, so the order changes what it looks like. Dust crushes it into
+bright blocks, heavier on top once lopsided, and snaps any echoes before it to
+the grid. Phase cuts two gaps through it where the lamp holds its notches.
+Echo turns the rows below the first into hollow copies of it, each shifted
+further by time, as many as the feedback holds, outgrowing it past Madness.
+Spring pushes the rows apart and makes the grain finer and brighter, or
+coarser and darker, with tone. Tape 2 bands the rows of the last scope.
+
+Under each scope is its place in the order; a bar joins neighbours the order
 runs straight through. A section patched into the echo's loop loses its place,
-and the loop reaches it from under the echo. LFO 2's mark, in its shape, sits
-over what it wobbles. Holding Shift lights the order's line and enlarges the
-places. On the shift row, `lamp` is the phaser. The header captions rate in
-hertz, time in milliseconds (then seconds from 0.1 s) and tone from -100 to 100.
+the loop reaches it from under the echo, and it works on the echo's copies.
+LFO 2's mark, in its shape, sits over what it wobbles. Holding Shift lights the
+order's bars and enlarges the places. On the shift row, `lamp` is the phaser.
+The header captions rate in hertz, time in milliseconds (then seconds from
+0.1 s) and tone from -100 to 100.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
 0..15 and the order's places in 16..19, so it needs the 32-slot limit an SDK 1.7

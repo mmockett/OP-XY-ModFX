@@ -64,6 +64,104 @@ void spring(Frame::path_type& a, Frame::path_type& b, i32 drive, i32 tone, i32 s
         }
     }
 }
+
+// The material inside the scopes, passed along the order: each scope shows it
+// as its section leaves it, so the last in the order holds the whole chain.
+struct Material {
+    i32 size, jitter, level, spread;   // Q10 px, Q10 px, Q10 grey steps (0..3), Q10 steps
+    i32 lop;                           // Q15: top rows heavier
+    i32 ripple;                        // Q10 px: alternate rows pushed apart by the spring
+    i32 notch, notch_y;                // Q15 depth of phase's gaps; Q10 px from the top
+    i32 copies, gap, copy_h[5];        // echo: rows that copy the top row, each shifted `gap`
+    i32 copy_jit;                      // Q10 px: the copies shimmer
+    bool copy_holes;                   // the lamp in the echo's loop cuts its copies
+    i32 band;                          // Q15: tape 2's banding
+};
+
+void op_dust(Material& m, i32 d) {
+    m.size = m.size + ((px(10) - m.size) * d >> 15);
+    m.jitter = m.jitter * (32767 - d) >> 15;
+    m.ripple = m.ripple * (32767 - d) >> 15;
+    m.level += share(1536, d);
+    m.spread = m.spread * (32767 - share(28000, d)) >> 15;
+    m.lop = clamp((d - 18000) * 2, 0, 32767);
+    // It crushes what came before it too: the echo's copies snap to the grid.
+    if (m.copies) m.gap = (m.gap + px(kPitch / 2)) / px(kPitch) * px(kPitch);
+}
+
+void op_phase(Material& m, i32 depth, i32 glow) {
+    m.notch = clamp(depth * 3 / 2, 0, 32767);
+    m.notch_y = (px(8) + share(px(40), glow)) & ~(px(2) - 1);
+}
+
+void op_echo(Material& m, i32 e, i32 time) {
+    if (e <= 328) return;
+    const i32 fb = e < 27853 ? e * 903 >> 10 : 24576 + ((e - 27853) * 2731 >> 10);
+    i32 h = e < 27853 ? e * 32767 / 27853 : 32767;
+    m.gap = px(3) + share(px(22), time);
+    m.copies = 0;
+    for (u32 k = 1; k < 5; ++k) {
+        if (h < 2600) break;
+        m.copy_h[k] = h;
+        ++m.copies;
+        h = clamp(h * fb >> 15, 0, 40000);
+    }
+}
+
+void op_spring(Material& m, i32 drive, i32 tone) {
+    if (drive <= 328) return;
+    const i32 t = tone - 16384;                          // bass .. treble
+    m.size = m.size * (1024 - (t * 400 >> 14)) >> 10;    // treble finer, bass coarser
+    m.level += t * 900 >> 14;                            // treble brighter
+    m.jitter += share(px(1) + 512, drive);
+    m.ripple = share(px(4), drive);
+    if (m.copies) m.copy_jit = share(px(3), drive);
+}
+
+void texture(Frame& frame, u32 s, const Material& m) {
+    const i32 cx = px(kCX[s]), cy = px(kCY);
+    for (u32 k = 0; k < 25; ++k) {
+        const u32 node = kNodeGrain00 + s * 25 + k;
+        const i32 c = static_cast<i32>(k % 5), r = static_cast<i32>(k / 5);
+        if ((c == 0 || c == 4) && (r == 0 || r == 4)) { hide(frame, node); continue; }
+        // Rows below the first may be the echo's copies of it, each shifted further.
+        const i32 q = r >= 1 && r <= m.copies ? r : 0;
+        const i32* j = kJitter[s][q ? c : k];
+        i32 size = m.size, level = m.level + (m.spread * j[2] >> 10);
+        const i32 row = q ? 0 : r;
+        if (m.lop) {
+            size = size * (row < 2 ? 1024 + (m.lop * 380 >> 15) : 1024 - (m.lop * 420 >> 15)) >> 10;
+            level += row < 2 ? m.lop >> 5 : -(m.lop >> 5);
+        }
+        i32 lx = (c - 2) * px(kPitch) + (m.jitter * j[0] >> 10) + (r & 1 ? m.ripple : -m.ripple);
+        i32 ly = (r - 2) * px(kPitch) + (m.jitter * j[1] >> 10);
+        u32 shade;
+        if (q) {
+            const i32 h = m.copy_h[q];
+            lx += m.gap * q;
+            while (lx > px(kPitch * 2 + 4)) lx -= px(kPitch * 5);
+            const i32* own = kJitter[s][k];
+            lx += m.copy_jit * own[0] >> 10;
+            ly += m.copy_jit * own[1] >> 10;
+            size = size * (760 + (h * 420 >> 15)) >> 10;     // past Madness, larger than the first
+            shade = h > 20000 ? kShadeCopy0 : kShadeCopy1;
+            if (m.copy_holes && ((c + r) & 1)) { hide(frame, node); continue; }
+        } else {
+            if (m.band) level += r & 1 ? -share(2560, m.band) : share(768, m.band);
+            shade = kShadeG0 + static_cast<u32>(clamp(level >> 10, 0, 3));
+        }
+        if (m.band && (r == 0 || r == 4)) size = size * (1024 - (m.band * 600 >> 15)) >> 10;
+        const i32 x = (cx + lx) & ~(unit - 1), y = (cy + ly) & ~(unit - 1);
+        place(frame, node, x, y, clamp(size / 8, 320, 1400) & ~31, shade, fill_and_stroke);
+    }
+    // Phase's gaps, cut through the material where the lamp holds its notches.
+    for (u32 k = 0; k < 2; ++k) {
+        const u32 node = kNodeGap00 + s * 2 + k;
+        if (!m.notch) { hide(frame, node); continue; }
+        const i32 y = cy - px(30) + m.notch_y + static_cast<i32>(k) * px(20);
+        place(frame, node, cx, y, (420 + (m.notch * 604 >> 15)) & ~31, 0, keep);
+    }
+}
 }
 
 void display_reset(DisplayState& state) {
@@ -88,7 +186,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 dist = px(kR + 18) - share(px(20), level);
     for (u32 k = 0; k < 4; ++k) {
         const i32 sx = k < 2 ? 1 : -1, sy = k == 0 || k == 3 ? 1 : -1;
-        place(frame, kNodeCorner0 + k, px(kCX[0]) - sx * dist, px(kCY) - sy * dist, unit, level > 328 ? kShadeLit1 : kShadeGuide, stroke);
+        place(frame, kNodeCorner0 + k, px(kCX[0]) - sx * dist, px(kCY) - sy * dist, unit, level > 328 ? kShadeLit1 : kShadeGuide, fill_and_stroke);
     }
 
     // Phase, under encoder 2: its lean follows the lamp, lagging the LFO's light.
@@ -96,6 +194,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const bool lamp = depth > 328;
     const i32 light = ((n.wobble == kWobblePhaser ? n.lfo2 : n.lfo1) + 32767) >> 1;
     const i32 lean = share(clamp(depth * 3 / 2, 0, 32767), lamp ? 6000 + share(26767, light * light >> 15) : 0);
+    const i32 glow_tex = lamp ? light * light >> 15 : 16384;
     place(frame, kNodePhase, px(kCX[1]), px(kCY), unit, kShadeT2, stroke);
     const u32 phase_key = 1 + static_cast<u32>(lean >> 8);
     if (frame.paths[kNodePhase].key != phase_key || fresh) { frame.paths[kNodePhase].key = phase_key; phase(frame.paths[kNodePhase], lean); }
@@ -106,10 +205,10 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     for (u32 k = 0; k < 4; ++k) {
         if (!lamp) { hide(frame, kNodeOrbit0 + k); continue; }
         const i32 a = at - static_cast<i32>(k) * trail - 900;
-        place(frame, kNodeOrbit0 + k, px(kCX[1]) + (kR + 8) * cos10(a), px(kCY) + (kR + 8) * sin10(a), unit, kShadeLit2, stroke);
+        place(frame, kNodeOrbit0 + k, px(kCX[1]) + (kR + 8) * cos10(a), px(kCY) + (kR + 8) * sin10(a), unit, kShadeLit2, fill_and_stroke);
     }
     for (u32 k = 0; k < 3; ++k) {
-        if ((lamp || lit) && k == n.shape) place(frame, kNodeLfoSine + k, px(kCX[1] + kR + 4), px(kCY + kR + 10), unit, kShadeLit2, stroke);
+        if ((lamp || lit) && k == n.shape) place(frame, kNodeLfoSine + k, px(kCX[1] + kR + 4), px(kCY + kR + 10), unit, 0, keep);
         else hide(frame, kNodeLfoSine + k);
     }
 
@@ -150,6 +249,39 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         else hide(frame, kNodeMarkSine + k);
     }
 
+    // The material, passed along the order.
+    {
+        Material m = {};
+        m.size = px(3) + 512;
+        m.jitter = px(2) + 512;
+        m.level = unit + 256;
+        m.spread = 1100;
+        Material at[4];
+        i32 last = 0, echo_col = 2;
+        for (u32 p = 0; p < 4; ++p) {
+            const char c = kOrders[n.order][p];
+            const i32 col = c == 'D' ? 0 : c == 'P' ? 1 : c == 'E' ? 2 : 3;
+            if (col == n.patched) continue;
+            if (col == 0 && v[kDust] > 328) op_dust(m, v[kDust]);
+            if (col == 1 && depth > 328) op_phase(m, depth, glow_tex);
+            if (col == 2) {
+                op_echo(m, v[kEcho], v[kTime]);
+                if (n.loop == kLoopTape) m.band = level;
+                if (n.loop == kLoopPhaser) m.copy_holes = m.copies > 0;
+                if (n.loop == kLoopSpring && m.copies) m.copy_jit = px(3);
+                echo_col = col;
+            }
+            if (col == 3) op_spring(m, drive, v[kTone]);
+            at[col] = m;
+            last = col;
+        }
+        // Tape 2 after the chain: the last scope shows it.
+        if (n.loop != kLoopTape && level > 328) { at[last].band = level; }
+        // A section in the echo's loop shows the echo's material.
+        if (n.patched >= 0) at[n.patched] = at[echo_col];
+        for (u32 s = 0; s < 4; ++s) texture(frame, s, at[s]);
+    }
+
     // The order: each scope's place under it, and the line between neighbours
     // that the order runs straight through; a section in the echo's loop has no
     // place, and the loop reaches it from under the echo.
@@ -171,7 +303,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             if (node < 0) continue;
             if (on[piece])
                 place(frame, static_cast<u32>(node), px(kPieces[piece][part][1]), px(kPieces[piece][part][2]), unit,
-                      piece >= 5 ? kShadeLit3 : lit ? kShadeLit1 : kShadeGuide, stroke);
+                      piece >= 5 ? kShadeLit3 : lit ? kShadeLit1 : kShadeGuide, piece >= 5 ? stroke : fill_and_stroke);
             else
                 hide(frame, static_cast<u32>(node));
         }
