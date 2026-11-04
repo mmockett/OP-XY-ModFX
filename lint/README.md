@@ -58,53 +58,68 @@ setting was measured.
 ![Lint's screen in its six presets](screens.png)
 
 Under the two pages, four scopes, one under each encoder. Each scope is its
-rim: one continuous outline in that encoder's grey (dark grey, mid grey, light grey and white, as the OP-XY's
-encoders and the header's bar run, the darker greys drawn heavier so all four
-read alike), and it is the readout: its own section's shape, distorted further
-by what the sections before it in the order pass on. Every part is a curve,
-and inside each rim is one simple physical object, line-drawn in its grey.
+rim: one continuous outline in that encoder's grey (dark grey, mid grey, light
+grey and white, as the OP-XY's encoders and the header's bar run, the darker
+greys drawn heavier so all four read alike), and it is the readout: its own
+section's shape, distorted further by what the sections before it in the order
+pass on. Inside each rim is one simple physical object, line-drawn in its grey.
 
-- **dust:** the rim squares as the diodes clip, its top flatter once they
+- **dust:** the rim squares as the diodes clip, its top squarer once they
   lopside. Inside, a diode clipper: a ball in a channel between two stops, which
-  close in as the drive rises (the top one further once the diodes lopside); the
-  ball swings into them as a change arrives. Tape 2's two arcs, either side,
-  close in with its level.
+  close in as the drive rises (the top one further once the diodes lopside); as
+  a change arrives the ball swings and rebounds a little off a stop. Tape 2's
+  guides sit either side, the signal's line threading between them, and close
+  in with its level, catching a little wow as it moves.
 - **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
-  two smooth notches ride along its top where the lamp holds them. LFO 1's mark
-  orbits it, its trail wider the faster the rate, with its shape beside it.
-  Inside, the phaser's lamp: its filament glows and its light spreads in arcs
-  as the LFO brightens it, as far as the depth lets it.
-- **echo:** the rim steps out a copy of its own shape at the echo's time; past
-  Madness it thickens. Inside, a ball bouncing along a floor: each bounce a
-  repeat, spaced by the time, each lower by the feedback, higher past Madness.
+  two notches ride its upper quarters where the lamp holds them. Inside, the
+  phaser's lamp: its filament glows first and its light then spreads in arcs,
+  as far as the depth reaches, pulsing with the LFO and lagging it as a bulb
+  does. LFO 1's beads ride the rim, spaced by the rate, its shape beside it.
+- **echo:** the rim draws a copy of itself just inside at the echo's time;
+  past Madness it thickens. Inside, a ball bouncing along a floor, each bounce
+  a repeat, spaced by the time, each lower by the feedback, higher past
+  Madness. The ball rests at the end of its trail; as a change arrives it is
+  lifted to the top of the first bounce and runs the trail again.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
-  the ripple. Inside, a coil spring: tighter the brighter the tone, larger the
-  harder it is driven, ringing as a change strikes it.
+  the ripple. Inside, a coil stretched between two posts, wound with more turns
+  the brighter the tone and larger the harder it is driven; struck by a change
+  to its drive or tone, it sways along its length and settles with a last
+  small wobble.
 
 What passes along the order is the quality of each section, never its shape:
 after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
-with the lamp; after echo, it is drawn doubled, heavier and brighter; after spring, it
-shimmers with a fine ripple and rings briefly as changes arrive. Tape 2, after
-the chain, makes the last rim unsteady, thinner and dimmer, and LFO 2 wavers
-the rim it wobbles and makes the rims after it unsteady. A section in the echo's
-loop puts its quality into the echo's rim. So the order changes the picture:
-dust before echo roughens the echo's rim; echo before dust doubles dust's square.
+with the lamp; after echo, it is drawn doubled, its copy smooth as an echo's
+repeats are darker; after spring, it shimmers with a fine ripple and rings as
+changes arrive. Tape 2, after the chain, makes the last rim unsteady, thinner and
+dimmer, and LFO 2 wavers the rim it wobbles (its shape beside it) and makes the
+rims after it unsteady. A section in the echo's loop puts its quality into the
+echo's rim. So the order changes the picture: dust before echo roughens the
+echo's rim; echo before dust doubles dust's square. A change travels: turn a
+control and it passes along the order a rim at a time. Otherwise only the LFOs
+move the screen.
 
-A change travels: turn a control and it passes along the order a rim at a
-time. As it arrives, dust's rim judders, the echo's copies step out and the
-spring's rim rings, with the rim after it. Otherwise only the LFOs move it.
+**The signal path** is drawn as one line through the scopes in the chosen
+order: straight between neighbours, over or under the scopes it skips, in at a
+short arrow and out at another, never crossing itself (`tools/route.py` lays out
+all six orders with each loop). The echo's loop leaves the echo and comes back to
+it: through the section patched into it, which then leaves the chain, or for
+tape 2 as a loop of tape hanging from the echo, its guides moved onto the loop.
+Every line meets the rims at their compass points, and every distortion of a rim
+is a shape that is nothing there, so the lines meet the rims exactly however the
+rims move, and never have to be redrawn for them; where a doubled rim is joined
+to its copy, the join carries the incoming line on to the copy. Holding Shift
+lights the path. On the shift row, `lamp` is the phaser. The header captions
+rate in hertz, time in milliseconds (then seconds from 0.1 s) and tone from -100
+to 100.
 
-Under each scope is its place in the order; a bar joins neighbours the order
-runs straight through. A section patched into the echo's loop loses its place,
-the loop reaches it from under the echo, and it works on the echo's copies.
-LFO 2's mark, in its shape, sits over what it wobbles. Holding Shift lights the
-order's bars and enlarges the places. On the shift row, `lamp` is the phaser.
-The header captions rate in hertz, time in milliseconds (then seconds from
-0.1 s) and tone from -100 to 100.
+`tests/screen.cpp` sweeps the screen on the host (every control through its 128
+values in every order and loop, each turned, every shift combination at rest
+and at the heaviest settings, the LFOs at every rate, shape and wobble) and
+checks every frame as the device draws it, including that every end of the
+signal path is within half a pixel of its rim.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
-0..15 and the order's places in 16..19, so it needs the 32-slot limit an SDK 1.7
-display may declare.
+0..15.
 
-`tools/make_panel.py` writes the artwork and `panel.h`, `tools/make_tables.py`
+`tools/make_panel.py` writes the artwork and `panel.h` (with the routes from `tools/route.py`), `tools/make_tables.py`
 writes `tables.h`, and `tools/mockup.py` drew the first proposal (`mockup.png`).
