@@ -62,27 +62,31 @@ rim: one continuous outline in that encoder's grey (dark grey, mid grey, light
 grey and white, as the OP-XY's encoders and the header's bar run, the darker
 greys drawn heavier so all four read alike), and it is the readout: its own
 section's shape, distorted further by what the sections before it in the order
-pass on. Inside each rim is one simple physical object, line-drawn in its grey.
+pass on. Inside each rim is one simple physical object, after the stock screens: a
+few bold parts, the solid ones filled flat in its section's grey, outline kept for
+the accents (the coil's wire, the lamp's light, the bounces' trail).
 
 - **dust:** the rim squares as the diodes clip, keeping its area (the corners
-  reach out as the sides come in), its top squarer once they lopside; grit, a
-  faint static of short marks, gathers either side of the channel once it
-  audibly crushes. Inside, a diode clipper: a ball in a channel between two stops, which
+  reach out as the sides come in), its top squarer once they lopside; grit, small
+  blocks stepping dark to light, roughens the channel's walls once it audibly
+  crushes. Inside, a diode clipper: a ball in a channel between two stops, which
   close in as the drive rises (the top one further once the diodes lopside); as
   a change arrives the ball swings and rebounds a little off a stop. Tape 2's
   guides sit either side, the signal's line threading between them, and close
   in with its level, catching a little wow as it moves.
 - **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
   two notches ride its upper quarters where the lamp holds them. Inside, the
-  phaser's lamp: its filament glows first and its light then spreads in arcs,
+  phaser's lamp, its glass filled: dark unlit, then its grey, then white at full
+  glow, the filament dark against it; it lights first and its light then spreads in arcs,
   as far as the depth reaches, pulsing with the LFO and lagging it as a bulb
   does. LFO 1's beads ride the rim, spaced by the rate, its shape beside it.
 - **echo:** the rim draws a copy of itself just inside at the echo's time;
   past Madness it thickens. Inside, a ball bouncing along a floor, each bounce
   a repeat, spaced by the time, each lower by the feedback, higher past
   Madness. The ball rests at the end of its trail; as a change arrives it is
-  lifted to the top of the first bounce and runs the trail again. Hiss gathers
-  over the bounces as the repeats build, most past Madness.
+  lifted to the top of the first bounce and runs the trail again. The floor is a
+  slab, its front face a step darker. Hiss, a row of small blocks, gathers over
+  the bounces as the repeats build, most past Madness.
 - **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
   the ripple. Inside, a coil stretched between two posts, wound with more turns
   the brighter the tone and larger the harder it is driven; struck by a change
@@ -94,18 +98,20 @@ after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
 with the lamp; after echo, it is drawn doubled, its copy smooth as an echo's
 repeats are darker; after spring, it shimmers with a fine ripple and rings as
 changes arrive. Tape 2, after the chain, makes the last rim unsteady, thinner and
-dimmer, with its hiss and wear as a faint static under the object, and LFO 2 wavers the rim it wobbles (its shape beside it) and makes the
+dimmer, with its hiss and wear as a row of small blocks under the object, and LFO 2 wavers the rim it wobbles (its shape beside it) and makes the
 rims after it unsteady. A section in the echo's loop puts its quality into the
 echo's rim. So the order changes the picture: dust before echo roughens the
 echo's rim; echo before dust doubles dust's square. A change travels: turn a
 control and it passes along the order a rim at a time. Otherwise only the LFOs
 move the screen. A doubled rim's two lines are each thinner, so the pair weighs
-about what one rim does. The noise marks keep to bands clear of the object and
+about what one rim does. The noise blocks keep to rows clear of the object and
 the rim however both move, re-seed a few at a time as a change arrives, and are
 still at rest.
 
 **The signal path** is drawn as one line through the scopes in the chosen
-order: straight between neighbours, over or under the scopes it skips, in at a
+order, each stretch in the grey of the section it has just left, so the line
+brightens as it passes through the chain, dry at the way in: straight between
+neighbours, over or under the scopes it skips, in at a
 short arrow and out at another, never crossing itself (`tools/route.py` lays out
 all six orders with each loop). The echo's loop leaves the echo and comes back to
 it: through the section patched into it, which then leaves the chain, or for

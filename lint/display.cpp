@@ -215,9 +215,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
 
     // The objects' fixed parts: dust's channel, the lamp's glass and base, the echo's floor, the coil's posts.
     place(frame, kNodeChannel, px(kCX[0]), px(kCY), unit, 0, keep);
-    place(frame, kNodeBulb, px(kCX[1]), px(kCY), unit, 0, keep);
     place(frame, kNodeBulbBase, px(kCX[1]), px(kCY), unit, 0, keep);
     place(frame, kNodeFloor, px(kCX[2]), px(kCY), unit, 0, keep);
+    place(frame, kNodeFloorFace, px(kCX[2]), px(kCY), unit, 0, keep);
 
     // The signal path, as the order and the loop lay it out (tools/route.py):
     // every line meets the rims at their compass points, which never move. A new
@@ -226,7 +226,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     {
         const i32 shown = state.extra[4] - 1;   // the route drawn, -1 before the first
         const bool swap = shown >= 0 && shown != static_cast<i32>(route) && !instant;
-        const u32 paint_shade = lit ? kShadeWireLit : kShadeWire;
+        // The line after each section carries its grey: the beam changes as it passes each one.
+        static const u32 kCarried[4] = {kShadeT1D, kShadeT2D, kShadeT3D, kShadeT4D};
         for (u32 node = kNodeWireFirst; node < kNodeWireEnd; ++node) hide(frame, node);
         const i32 draw = swap ? shown : static_cast<i32>(route);
         for (i32 k = 0; k < kRouteParts; ++k) {
@@ -238,7 +239,8 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 for (i32 j = 0; j < kRouteParts && kRoute[route][j][0] >= 0; ++j)
                     if (kRoute[route][j][0] == part[0] && kRoute[route][j][1] == part[1] && kRoute[route][j][2] == part[2]) keep_it = true;
             }
-            if (keep_it) place(frame, static_cast<u32>(part[0]), part[1], part[2], unit, paint_shade, fill_and_stroke);
+            if (keep_it) place(frame, static_cast<u32>(part[0]), part[1], part[2], unit,
+                               lit ? kShadeWireLit : part[3] < 0 ? kShadeWire : kCarried[part[3]], fill_and_stroke);
         }
         state.extra[4] = (swap ? shown : static_cast<i32>(route)) + 1;
         if (swap) state.extra[4] = static_cast<i32>(route) + 1;   // drawn whole next frame
@@ -252,12 +254,12 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const i32 level = looped && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
         if (level - state.tape > 400 || state.tape - level > 400) { state.tape = level; state.tape_since = now; }
         const i32 wow = instant ? 0 : swing((now - state.tape_since) & ~31, 3 * 1024, 420) * 18 >> 10;   // tenths of a degree, 30 times a second
-        const u32 shade = level > 328 ? kShadeT1 : kShadeWire;
+        const u32 shade = level > 328 ? kShadeT1 : kShadeWire;   // solid rollers: filled in the grey too
         const Turn tilt = Turn{cos10(wow), sin10(wow)};
         if (!looped) {
             const i32 scale = (1024 - share(150, level)) & ~7;
             for (u32 k = 0; k < 4; ++k) {
-                place(frame, kNodeGuideLt + k, px(kCX[0]), px(kCY), scale, shade, stroke);
+                place(frame, kNodeGuideLt + k, px(kCX[0]), px(kCY), scale, shade, fill_and_stroke);
                 turn(frame, kNodeGuideLt + k, k < 2 ? tilt : Turn{cos10(-wow), sin10(-wow)});
             }
             hide(frame, kNodeTguideL);
@@ -265,7 +267,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         } else {
             const i32 scale = (1024 - share(260, level)) & ~7;
             for (u32 k = 0; k < 2; ++k) {
-                place(frame, kNodeTguideL + k, px(kCX[2]), px(kCY + kTearY), scale, shade, stroke);
+                place(frame, kNodeTguideL + k, px(kCX[2]), px(kCY + kTearY), scale, shade, fill_and_stroke);
                 turn(frame, kNodeTguideL + k, tilt);
             }
             for (u32 k = 0; k < 4; ++k) hide(frame, kNodeGuideLt + k);
@@ -291,8 +293,10 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             for (u32 k = 0; k < 3; ++k)                                               // each arc ~25 ms behind the one inside it
                 state.light[k] = lag(state.light[k], k ? state.light[k - 1] : state.lamp, clamp(dt * (34 - 7 * static_cast<i32>(k)), 0, 1024));
         }
-        place(frame, kNodeFilament, px(kCX[1]), px(kCY), unit,
-              state.lamp > 21000 ? kShadeLampHot : state.lamp > 5000 ? kShadeT2 : kShadeWire, stroke);
+        // The glass: dark unlit, then its grey, then white at full glow; the filament dark against it once lit.
+        place(frame, kNodeBulb, px(kCX[1]), px(kCY), unit,
+              state.lamp > 21000 ? kShadeLampHot : state.lamp > 5000 ? kShadeT2 : kShadeGlassOff, fill_and_stroke);
+        place(frame, kNodeFilament, px(kCX[1]), px(kCY), unit, state.lamp > 5000 ? kShadeInk : kShadeWire, stroke);
         for (u32 k = 0; k < 3; ++k) {
             const i32 lit_k = state.light[k] - static_cast<i32>(k) * 7000;           // the outer arcs need more light
             if (lit_k <= 2500) { hide(frame, kNodeGlow0 + k); continue; }
@@ -319,11 +323,11 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         i32 x = px(kCX[2] - 24);
         for (u32 k = 0; k < 6; ++k) {
             // A bounce's width follows its height, as a ball's does; the spacing is the time.
-            const i32 scale = 300 + (clamp(h, 0, 40000) * 724 >> 15);
+            const i32 scale = 480 + (clamp(h, 0, 40000) * 544 >> 15);
             const i32 w = px(kHopW) * scale >> 10;
             if (e <= 328 || h < 2000 || x + w > px(kCX[2] + kFloorW - 9)) { hide(frame, kNodeBounce0 + k); continue; }
             place(frame, kNodeBounce0 + k, x, px(kCY + kFloorY), scale & ~15,
-                  scale > 700 ? kShadeTrail : kShadeTrailThin, stroke);
+                  kShadeTrail, stroke);
             hop_x[hops] = x;
             hop_s[hops++] = scale & ~15;
             end_x = x + w;
@@ -492,7 +496,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 turn(frame, kNodeCoil0 + static_cast<u32>(k), Turn{cos10(-150), sin10(-150)});
             }
         }
-        place(frame, s, px(kCX[s]), px(kCY), unit, r.worn ? kShadeWorn : r.copies && r.mad ? kShadeMad : twin ? kDoubled[s] : kTones[s], stroke);
+        place(frame, s, px(kCX[s]), px(kCY), unit, r.worn ? kShadeTrail : r.copies && r.mad ? kShadeMad : twin ? kDoubled[s] : kTones[s], stroke);
         Frame::path_type& path = frame.paths[s];
         rim(path, r, l, twin, kInto[route][s]);
         path.key = checksum(path);
@@ -503,7 +507,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
                 const i32 rp = radius(r, l, a);   // what moves the rim live is nothing here
                 if (!(kDustPorts[route] >> k & 1) || rp > px(kR0) - unit / 4) { hide(frame, kNodeLeadR + k); continue; }
                 const Point at = at_angle(rp, a);
-                place(frame, kNodeLeadR + k, px(kCX[0]) + at.x, px(kCY) + at.y, unit, lit ? kShadeWireLit : kShadeWire, fill_and_stroke);
+                const i32 carrier = kDustCarriers[route][k];
+                place(frame, kNodeLeadR + k, px(kCX[0]) + at.x, px(kCY) + at.y, unit,
+                      lit ? kShadeWireLit : carrier < 0 ? kShadeWire : kDoubled[carrier], fill_and_stroke);
             }
         }
         // A soft halo where roughness has been carried.
@@ -522,21 +528,24 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
     }
 
-    // Noise, where the sound has it, inside the rim: grit in dust's crush, hiss on
-    // the echo's repeats (more past Madness), tape 2's hiss and wear on the rim it
-    // works on. Each mark keeps to a band clear of the object and the rim however
-    // they move; as a change arrives a third of the marks re-seed 12 times a
-    // second, in turn, and at rest they are still.
+    // Noise, where the sound has it, as a texture of the object: grit along the
+    // walls of dust's channel, hiss in a row over the echo's bounces (more past
+    // Madness), tape 2's hiss and wear in a row under the object it works on.
+    // Each mark a small block, their greys stepping dark to light, jittered as
+    // the stock screens' noise is; as a change arrives a third of them re-seed 12
+    // times a second, in turn, and at rest they are still.
     {
         const i32 tape_col = n.loop == kLoopTape ? echo_col : last;
         const i32 tape_amt = n.loop == kLoopTape && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
         const i32 hiss = e <= 328 ? 0 : e > 27853 ? 32767 : share(26000, e);
-        struct Group { u32 first, most; i32 col, amount, from, span, r0, r1, from_amount; };
-        const i32 tape_r0 = tape_col == 1 ? 29 : 24, tape_r1 = tape_col == 1 ? 34 : tape_col == 2 ? 29 : 31;
+        // A group: its first node, how many, its scope, its amount, from what amount it shows, and its row:
+        // x from x0 across w, y from y0 down h (px from the scope's centre); a column pair for grit.
+        struct Group { u32 first, most; i32 col, amount, from_amount, x0, w, y0, h; };
+        const i32 tape_y = tape_col == 1 ? 28 : tape_col == 2 ? kFloorY + 7 : 22, tape_w = tape_col == 3 ? 30 : tape_col == 2 ? 24 : 20;
         const Group groups[3] = {
-            {kNodeGrit0, 7, 0, v[kDust], 0, 2000, 20, 35, 9800},                  // two lobes, either side of the channel; once it audibly crushes
-            {kNodeHiss0, 6, echo_col, hiss, 2450, 900, 17, 23, 14000},           // over the bounces, clear of the lamp's lean; once the repeats build
-            {kNodeWear0, 5, tape_col, tape_amt, 600, 600, tape_r0, tape_r1, 5000}};   // under the object
+            {kNodeGrit0, 7, 0, v[kDust], 9800, 12, 2, -27, 54},           // either wall of the channel; once it audibly crushes
+            {kNodeHiss0, 6, echo_col, hiss, 14000, -5, 20, -24, 3},        // a row over the bounces, clear of the lamp's lean; once the repeats build
+            {kNodeWear0, 5, tape_col, tape_amt, 5000, -tape_w / 2, tape_w, tape_y, 3}};   // a row under the object
         for (u32 g = 0; g < 3; ++g) {
             const Group& G = groups[g];
             // From a few marks, as the noise becomes audible, to all of them.
@@ -545,20 +554,22 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             // 12 steps a second, each group a couple of frames after the one before, so their redraws don't pile up.
             const i32 lead_in = static_cast<i32>(g) * 28;
             const bool step = (((now + lead_in) * 12) >> 10) != (((now - dt + lead_in) * 12) >> 10);
-            if (active && step) ++state.noise_seed[g];   // each step re-seeds a third of the marks, in turn
+            if (active && step) ++state.noise_seed[g];
             state.noise_n[g] = count;
-            const i32 scale = (870 + share(300, G.amount)) & ~15;
             for (u32 k = 0; k < G.most; ++k) {
                 if (static_cast<i32>(k) >= count) { hide(frame, G.first + k); continue; }
                 const u32 h = mix(((state.noise_seed[g] + k) / 3) * 31u + k * 7919u + g * 131u);
-                const i32 sector = G.span / count;
-                i32 a = G.from + sector * static_cast<i32>(k) + (sector * (200 + static_cast<i32>(h & 511) * 600 / 512) >> 10);
-                if (g == 0) a = a < 1000 ? a - 500 : a + 300;   // grit: within 50 degrees of either side
-                const i32 r = px(G.r0) + static_cast<i32>((h >> 9) & 1023) * (px(G.r1 - G.r0) >> 10);
-                const Point at = at_angle(r, a);
-                place(frame, G.first + k, (px(kCX[G.col]) + at.x) & ~511, (px(kCY) + at.y) & ~511, scale, 0, keep);
-                const i32 rot = static_cast<i32>((h >> 19) % 1800);
-                turn(frame, G.first + k, Turn{cos10(rot), sin10(rot)});
+                const i32 jx = static_cast<i32>(h & 1023), jy = static_cast<i32>((h >> 10) & 1023);   // Q10 of a step
+                i32 x, y;
+                if (g == 0) {   // a column on each wall
+                    const i32 side = k & 1 ? 1 : -1, slots = (count + 1 - static_cast<i32>(k & 1)) / 2, j = static_cast<i32>(k >> 1);
+                    x = side * (px(G.x0) + jx * G.w);
+                    y = px(G.y0) + (px(G.h) * (2 * j + 1) / (2 * slots)) + (jy - 512) * 6;
+                } else {        // a row
+                    x = px(G.x0) + px(G.w) * (2 * static_cast<i32>(k) + 1) / (2 * count) + (jx - 512) * 3;
+                    y = px(G.y0) + jy * G.h;
+                }
+                place(frame, G.first + k, (px(kCX[G.col]) + x) & ~511, (px(kCY) + y) & ~511, unit, 0, keep);
             }
         }
     }
