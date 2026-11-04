@@ -4,24 +4,32 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 109, kTexts = 16, kPalette = 16;
-enum Node { kNodeRims = 0, kNodeArcs = 4, kNodeLinks = 47, kNodePosts = 79, kNodeStops = 81, kNodeRods = 84, kNodeBobs = 86, kNodeCase = 83, kNodeWalls = 88, kNodeDrop = 90, kNodeBlades = 91, kNodeSpecks = 29, kNodeHalos = 93, kNodeBars = 101 };
+const opxy::u32 kNodes = 160, kTexts = 16, kPalette = 16;
+enum Node { kNodeRims = 0, kNodeArcs = 4, kNodeLinks = 47, kNodePosts = 79, kNodeRods = 81, kNodeBobs = 83, kNodeDrop = 85, kNodeBoard = 86, kNodeStopWarm = 90, kNodeStopDrive = 92, kNodeStopFuzz = 94, kNodeHole = 95, kNodeCases = 96, kNodeWalls = 112, kNodeBlades = 128, kNodeSpecks = 29, kNodeHalos = 144, kNodeBars = 152 };
 // Palette: a rim as drawn, thin or thick in its knob's tone, a facet each; lit while Shift
 // is held; Texture's dimmed; a metronome's weight, and its glint.
 enum Shade { kRimNormal = 0, kRimThin = 4, kRimThick = 8, kRimLit = 12, kRimDim = 13, kWeight = 14, kGlint = 15 };
 const opxy::i32 kRimR = 46, kHaloR = 50;
 const opxy::u32 kLinks = 16, kSpecks = 6;
-const opxy::i32 kY = 130, kSpan = 32, kStop = 14;
-const opxy::i32 kPivotX = 16, kPivotY = 22;
-const opxy::i32 kBladeY = 17, kRoom = 16;
+const opxy::i32 kY = 130, kSpan = 27, kStop = 11;
+const opxy::i32 kPivotX = 14, kPivotY = -3;
+const opxy::i32 kBladeY = 22016, kRoom = 16;  // kBladeY: Q10
+const opxy::i32 kBoardX = 32768, kBoardY = 18432, kSwellH = 7168, kCaseTop = -3072;
+// Each effect's solid pieces: Movement's case, Diffuse's walls (upper pieces first, then
+// the lower), in the shift row's order; Texture's blades are two each, upper then lower.
+const opxy::u32 kCaseFirst[6] = {0, 2, 6, 8, 12, 14}, kCaseCount[6] = {2, 4, 2, 4, 2, 2};
+const opxy::u32 kWallFirst[6] = {0, 2, 4, 6, 12, 14}, kWallCount[6] = {2, 2, 2, 6, 2, 2};
+// Every effect piece's extent in its own coordinates (Q10 px: left, top, right, bottom), from
+// kNodeStopWarm on, for the display's and the test's checks.
+const opxy::u32 kBoxFirst = 90, kBoxCount = 54;
+const opxy::i32 kBox[54][4] = {{-10240, -5120, 10240, 0}, {-10240, 0, 10240, 5120}, {-9216, -3277, 9216, 0}, {-9216, 0, 9216, 3277}, {-11264, -4608, 11264, 0}, {-7168, -7168, 7168, 7168}, {-26461, -3072, 26461, 22528}, {-22528, -3072, 22528, -1229}, {-26542, -3072, -4178, 22528}, {4178, -3072, 26542, 22528}, {-23552, -3072, -7168, -1229}, {7168, -3072, 23552, -1229}, {-26624, -3072, 26624, 22528}, {-12288, -3072, 12288, -1229}, {-24576, -3072, 24576, 3072}, {-25600, 6144, 25600, 12288}, {-26624, 15360, 26624, 22528}, {-22528, -3072, 22528, -1229}, {-26624, -3072, 26624, 22528}, {-14336, -3072, 14336, -1229}, {-22528, -3072, 22528, 22528}, {-20480, -3072, 20480, -1229}, {-20480, -5632, 20480, 0}, {-20480, 0, 20480, 5632}, {-20480, -3277, 24576, 0}, {-20480, 0, 24576, 3277}, {-20449, -2048, 20449, 2048}, {-20449, -2048, 20449, 2048}, {-20480, -3277, -9216, 0}, {-5632, -3277, 5632, 0}, {9216, -3277, 20480, 0}, {-20480, 0, -9216, 3277}, {-5632, 0, 5632, 3277}, {9216, 0, 20480, 3277}, {-20480, -5632, 20480, 0}, {-20480, 0, 20480, 5632}, {-20480, -2458, 20480, 0}, {-20480, 0, 20480, 2458}, {-24576, -8192, 24576, 0}, {-24576, 0, 24576, 8192}, {-24576, -8192, 24576, 4096}, {-24576, -4096, 24576, 8192}, {-24576, -8192, 24576, 4096}, {-24576, -4096, 24576, 8192}, {-20480, -10240, 20480, 0}, {-20480, 0, 20480, 10240}, {-24576, -6144, 24576, 4096}, {-24576, -4096, 24576, 6144}, {-24576, -8192, 24576, 3072}, {-24576, 0, 24576, 11264}, {-24576, -6144, 24576, 3072}, {-24576, -3072, 24576, 6144}, {-24576, -3072, 24576, 0}, {-24576, 0, 24576, 3072}};
 const opxy::i32 kX[4] = {60, 180, 300, 420};
 const opxy::i32 kArcX = 280, kWallX = 297;
 // How far each part reaches from its node's origin, Q10 px, round ends included: the screen
 // test keeps every one inside its rim.
-const opxy::i32 kReachLink = 4301, kReachPost = 7680, kReachStop = 10240;
-const opxy::i32 kReachRod = 43930, kWeightX = 5734, kWeightY = 3686;
-const opxy::i32 kReachWall = 17408, kWallHalf = 2048, kCaseX = 24576, kCaseTop = 24576, kCaseFoot = 25600, kReachRipple = 26829;
-const opxy::i32 kReachBlade = 24576, kBladeHalf = 2253;
+const opxy::i32 kReachLink = 3981, kReachPost = 6144;
+const opxy::i32 kReachRod = 28570, kWeightX = 5734, kWeightY = 3686;
+const opxy::i32 kReachRipple = 26829, kGap = 17408;  // kGap: half the blades' gap at rest
 // The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.
 // A squircle's reach beyond its circle, Q10 of the radius, from 0 to 90 degrees in 32 steps:
 // nothing on the axes, most at 45 degrees. It makes a side squarer while the axis point holds.

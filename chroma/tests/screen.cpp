@@ -93,7 +93,9 @@ bool line_ok(const opxy::draw::Input&) {
     return true;
 }
 
-// Every mechanism stays inside its rim, clear of its outline by 1.5 px (the rim's stroke and a
+// Every mechanism stays inside its rim, clear of its outline by 1.5 px, and no part crosses
+// another: the string, bridges and stops lie on the soundboard; the pendulums stand above
+// their case and clear of each other; the blades never touch. Every part stays inside its rim (the rim's stroke and a
 // little air), however the rim distorts: each part's furthest reaches, from its node's place and
 // turn, must lie inside the rim's outline and not near it.
 bool inside(unsigned k, double x, double y, double clearance = 1.5) {
@@ -131,41 +133,111 @@ bool ends_inside(unsigned k, unsigned node, int along, int across = 0) {
     return true;
 }
 const char* stray = "";
+// The point a node's artwork offset (ox, oy) (Q10) lands on screen, in px.
+void land(const opxy::draw::Node& d, double ox, double oy, double& x, double& y) {
+    const double s = d.scale / 1024.0, c = d.cos / 1024.0, n = d.sin / 1024.0;
+    x = d.x / 1024.0 + s * (ox / 1024.0 * c - oy / 1024.0 * n);
+    y = d.y / 1024.0 + s * (ox / 1024.0 * n + oy / 1024.0 * c);
+}
+bool hidden(const opxy::draw::Node& d) { return d.x >= opxy::draw::hidden_x * opxy::draw::unit; }
+
+// A shown effect piece's extent (panel.h kBox) inside its rim, all four corners as turned.
+bool box_inside(unsigned k, unsigned node) {
+    const opxy::draw::Node& d = frame.nodes[node];
+    if (hidden(d)) return true;
+    const int* box = chroma::panel::kBox[node - chroma::panel::kBoxFirst];
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j) {
+            double x, y;
+            land(d, box[i * 2], box[1 + j * 2], x, y);
+            if (!inside(k, x, y)) return false;
+        }
+    return true;
+}
+
 bool parts_inside() {
     using namespace chroma::panel;
+    // Character: the soundboard inside the rim; the string, bridges and stops on the board (on
+    // swell's wedge, within its taper).
+    const double bx = kBoardX / 1024.0, by = kBoardY / 1024.0;
+    for (int i = -1; i <= 1; i += 2)
+        for (int j = -1; j <= 1; j += 2)
+            if (!inside(0, kX[0] + i * (bx - 0.6), kY + j * (by - 0.6))) return stray = "the soundboard", false;
+    const bool wedge = !hidden(frame.nodes[kNodeBoard + 2]);
+    const auto on_board = [&](unsigned node, int along, int across) {
+        for (int i = -1; i <= 1; i += 2)
+            for (int j = -1; j <= 1; j += 2) {
+                double x, y;
+                land(frame.nodes[node], i * along, j * across, x, y);
+                const double u = (x - kX[0] + bx) / (2 * bx), half = wedge ? kSwellH / 1024.0 + (by - kSwellH / 1024.0) * u : by;
+                if (std::fabs(x - kX[0]) > bx - 0.4 || std::fabs(y - kY) > half - 0.4) return false;
+            }
+        return true;
+    };
     for (unsigned i = 0; i < 2 * kLinks; ++i)
-        if (!ends_inside(0, kNodeLinks + i, kReachLink)) return stray = "the string", false;
+        if (!on_board(kNodeLinks + i, kReachLink - 1024, 1024)) return stray = "the string off its board", false;
     for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(0, kNodePosts + i, 1638, kReachPost) || !ends_inside(0, kNodeStops + i, kReachStop, 1638)) return stray = "a post or stop", false;
+        if (!on_board(kNodePosts + i, 1536, kReachPost)) return stray = "a bridge off its board", false;
+    for (unsigned n = kNodeStopWarm; n <= kNodeStopFuzz; ++n) {
+        const opxy::draw::Node& d = frame.nodes[n];
+        if (hidden(d)) continue;
+        const int* box = kBox[n - kBoxFirst];
+        if (std::fabs(d.y / 1024.0 + (box[1] < 0 ? box[1] : box[3]) / 1024.0 - kY) > by - 0.4) return stray = "a stop off its board", false;
+    }
+    // Movement: the case inside the rim; the pendulums inside it, above the case, clear of each other.
+    for (unsigned n = kNodeCases; n < kNodeWalls; ++n)
+        if (!box_inside(1, n)) return stray = "the case", false;
+    double tips[2], inner[2][2];
     for (unsigned i = 0; i < 2; ++i) {
-        // A rod reaches from its pivot up (its node's origin is the pivot), so only its tip.
         const opxy::draw::Node& d = frame.nodes[kNodeRods + i];
-        if (!inside(1, d.x / 1024.0 + kReachRod / 1024.0 * d.sin / 1024.0, d.y / 1024.0 - kReachRod / 1024.0 * d.cos / 1024.0)) return stray = "a rod", false;
+        double x, y;
+        land(d, 0, -kReachRod, x, y);
+        if (!inside(1, x, y)) return stray = "a rod", false;
+        tips[i] = x;
         if (!ends_inside(1, kNodeBobs + i, kWeightX, kWeightY)) return stray = "a weight", false;
+        inner[i][0] = 1e9;
+        inner[i][1] = -1e9;
+        for (int a = -1; a <= 1; a += 2)
+            for (int b = -1; b <= 1; b += 2) {
+                land(frame.nodes[kNodeBobs + i], a * kWeightX, b * kWeightY, x, y);
+                if (y > kY + kCaseTop / 1024.0 - 0.5) return stray = "a weight over the case", false;
+                if (x < inner[i][0]) inner[i][0] = x;
+                if (x > inner[i][1]) inner[i][1] = x;
+            }
     }
-    {
-        // The case: its foot's corners and its top's.
-        const double x = kX[1], y = kY, w = kCaseX / 1024.0, f = kCaseFoot / 1024.0, t = kCaseTop / 1024.0;
-        if (!inside(1, x - w, y + f) || !inside(1, x + w, y + f) || !inside(1, x - 9.2, y - t) || !inside(1, x + 9.2, y - t)) return stray = "the case", false;
-    }
-    for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(2, kNodeWalls + i, kReachWall, kWallHalf)) return stray = "a wall", false;
+    if (tips[0] > tips[1] - 1 || inner[0][1] > inner[1][0] - 1) return stray = "the pendulums crossing", false;
+    // Diffuse: the walls inside the rim; the ripples' furthest reach.
+    for (unsigned n = kNodeWalls; n < kNodeBlades; ++n)
+        if (!box_inside(2, n)) return stray = "a wall", false;
     for (unsigned e = 0; e < 25; ++e) {
         const opxy::draw::Node& d = frame.nodes[kNodeArcs + e];
-        if (d.x >= opxy::draw::hidden_x * opxy::draw::unit) continue;
+        if (hidden(d)) continue;
         if (!inside(2, d.x / 1024.0 + kReachRipple / 1024.0 * d.scale / 1024.0, d.y / 1024.0)) return stray = "a ripple", false;
     }
-    for (unsigned i = 0; i < 2; ++i)
-        if (!ends_inside(3, kNodeBlades + i, kReachBlade, kBladeHalf)) return stray = "a blade", false;
-    // The noise specks: inside their rims, clear of the outline by their own size and more.
+    // Texture: the blades inside the rim, and apart: 2 px or more between them at both ends.
+    for (unsigned n = kNodeBlades; n < kNodeBlades + 16; ++n)
+        if (!box_inside(3, n)) return stray = "a blade", false;
+    for (unsigned n = kNodeBlades; n < kNodeBlades + 16; n += 2) {
+        if (hidden(frame.nodes[n])) continue;
+        const int* top = kBox[n - kBoxFirst];
+        const int* bottom = kBox[n + 1 - kBoxFirst];
+        for (int end = 0; end < 2; ++end) {
+            double x0, y0, x1, y1;
+            land(frame.nodes[n], end ? top[2] : top[0], top[3], x0, y0);
+            land(frame.nodes[n + 1], end ? bottom[2] : bottom[0], bottom[1], x1, y1);
+            if (y1 - y0 < 2) return stray = "the blades touching", false;
+        }
+    }
+    // The noise specks: inside their rims, clear of the outline, the line and every body.
     static const unsigned kFacets[3] = {0, 2, 3};
     for (unsigned f = 0; f < 3; ++f)
         for (unsigned i = 0; i < kSpecks; ++i) {
             const opxy::draw::Node& d = frame.nodes[kNodeSpecks + f * kSpecks + i];
-            if (d.x >= opxy::draw::hidden_x * opxy::draw::unit) continue;
+            if (hidden(d)) continue;
             if (!inside(kFacets[f], d.x / 1024.0, d.y / 1024.0, 2.6)) return stray = "a noise speck", false;
             const double dy = d.y / 1024.0 - kY, dx = d.x / 1024.0 - kX[kFacets[f]];
             if (dy * dy < 0.2 * (dx * dx + dy * dy)) return stray = "a noise speck by the line", false;
+            if (chroma::in_body(frame, kFacets[f], d.x, d.y)) return stray = "a noise speck on a body", false;
         }
     return true;
 }
