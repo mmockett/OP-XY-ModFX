@@ -2,50 +2,94 @@
 """Writes Chroma's screen artwork (panel.svg.fragment) and the numbers display.cpp
 draws it with (panel.h). Run it after changing a shape here and commit all three.
 
-The screen is an optical bench seen from the side, on its rail, left to right as
-the sound goes: a lamp (Character), a tilting card in front of it, a glass prism
-(Movement), its light fanning out (Diffusion), and a screen that catches it
-(Texture). Upper rays are the left channel, lower the right.
+The screen is a Victorian optical bench from the side, on its rail, left to right
+as the sound goes: a magic lantern (Character), the glass plate Tilt turns in
+front of it, a prism rocking on a knife edge like a metronome (Movement), its
+light fanning out (Diffuse) and a ground-glass screen that slides along the rail
+with Time (Texture). Upper light is the left channel, lower the right.
+
+Each part is a flat, solid silhouette in its encoder's grey, the header's value
+steps from dark to white: the lantern dark, the prism mid, the light light and
+the screen white. Only the beam is drawn as a line: it leaves the lantern's lens,
+runs through the plate and the prism and ends on the screen, the spine of the
+picture. Parts touch where they are joined and never cross, and each effect gives
+its part its own recognisable form.
 
 Every shape is one path with one closed outline of at most 64 points, as the
 device's SVG loader takes them, and check() holds it to that. Paths draw in the
-order written here, so dark static bodies hide what's behind them. Node, text
-and palette numbers are listed in NODES, TEXTS and PALETTE."""
+order written here, so nearer parts hide what runs behind them: the beam and the
+light end inside the prism and behind the screen."""
 import math
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ID = "chroma"
 FONT = 'font-family="UniversNextPro-Light"'
-FAINT, DIM, MID, LIGHT, BRIGHT = "#3c3c3c", "#5a5a5a", "#8c8c8c", "#b4b4b4", "#ebebeb"
 
-# Screen pixels, below the two-page header.
-AXIS = 116          # the optical axis
-RAIL = 196          # the rail's top
-LAMP_X = 56
-CARD_X = 130
-PRISM_X, PRISM_Y, PRISM_R = 214, AXIS + 2, 42
-SCREEN_NEAR, SCREEN_FAR = 300, 430   # the screen's nearest and furthest places, with Time
-SCREEN_H, SCREEN_W = 66, 28          # its half height at its near edge, its width
-TEETH, TOOTH = 6, 5  # rays to a path, points along a ray's edge
-assert TEETH * TOOTH * 2 + 4 == 64
-BOB_LOW, BOB_TRAVEL = RAIL - 15, 16  # the metronome's weight, slow to fast
+# The header's value cells, dark to white: each encoder's grey, and its part's.
+CHARACTER, MOVEMENT, DIFFUSE, TEXTURE = "#323232", "#646464", "#969696", "#CDCDCD"
+LIGHT = "#F2F2F2"          # the light itself: the flame and the beam
+RAIL = "#1E1E1E"           # the bench under it all, darker than any part
+BLACK = "#000000"
+# The screen's shades as a blade closes on it, white to dark through the header's steps.
+SHADES = [TEXTURE, "#AFAFAF", DIFFUSE, "#7D7D7D", MOVEMENT, CHARACTER]
 
-# Static parts have a dark body, so that nearer parts hide what's behind them.
-BODY, COLLAR = "#141414", "#242424"
-# A palette entry lends its stroke's width too, and the node's scale then multiplies it: rays are drawn at scale 2.
-PALETTE = [("#000000", BRIGHT, 1.2), ("#000000", DIM, 1.2), ("#000000", BRIGHT, 0.35), ("#000000", DIM, 0.35),
-           ("#000000", BRIGHT, 0.6), ("#000000", DIM, 0.6), ("#000000", LIGHT, 0.6), ("#000000", MID, 0.6)]
-SCREEN_PARTS = ["frame", "glass", "slab", "post", "rider", "knob", "glint_a", "glint_b"]
-GLYPHS = {"warm": 2, "drive": 1, "fuzz": 3, "howl": 5, "swell": 2}
-NODES = (["ray_up", "ray_up_far", "ray_down", "ray_down_far"] + [f"screen_{p}" for p in SCREEN_PARTS] +
-         ["mask_a", "mask_b"] + [f"line_{i}" for i in range(6)] + [f"crack_{i}" for i in range(5)] + [f"static_{i}" for i in range(12)] +
-         ["card", "beam_top", "beam_bottom", "prism", "prism_side", "prism_glint", "ghost"] + [f"inner_{i}" for i in range(3)] +
-         ["shutter", "stop_a", "stop_b", "bob"] +
-         [f"glyph_{g}_{i}" for g, n in GLYPHS.items() for i in range(n)] + ["straight"] + [f"halo_{i}" for i in range(3)] + [f"mote_{i}" for i in range(8)] +
-         [f"bar_{i}" for i in range(8)])
+# The whole bench is drawn at K times its design size about (240, 130), so it fills
+# the screen under the header. Design units below; panel.h gets screen pixels.
+K = 1.1
+
+
+def S(x, y):
+    return (240 + (x - 240) * K, 130 + (y - 130) * K)
+
+
+AXIS = 124                  # the optical axis
+RAIL_TOP, RAIL_BOTTOM = 194, 204
+LAMP_X = 58
+LENS_X = LAMP_X + 48        # where the beam leaves the lens
+PLATE_X = 124
+TILT = 28                   # the plate turns this far either way, degrees
+PRISM_X, PIVOT_Y = 198, 152  # the knife edge under the middle of the prism's base
+SIDE = 72                   # the prism's side
+HEIGHT = SIDE * math.sqrt(3) / 2
+CRADLE = 172                # the cradle bar's underside
+THROW = 15                  # the furthest the prism rocks, degrees
+ROD = 34                    # the metronome's rod above the apex
+SCREEN_NEAR, SCREEN_FAR = 318, 424   # the screen's face, nearest and furthest, with Time
+SCREEN_H, SCREEN_W, SCREEN_SLANT = 60, 18, 6
+BANDS = 8                   # the screen is drawn as bands, so a blade can shade it from either end
+CRACKS, BLOCKS = 4, 12
+TWIN = 0.6                  # a twin prism's size, as a share of the prism's; the late one 0.52..0.66
+
+# Each light's blade: its angular width in degrees, its blades a side, and slice's pieces along it.
+BLADE_W = {"cloud": 8.0, "dusk": 2.6, "tape": 3.6, "slice": 3.6, "back": 2.6}
+BLADE_COUNT = {"cloud": 1, "dusk": 3, "tape": 2, "slice": 2, "back": 2}
+SLICES = [(0.0, 0.46), (0.56, 1.0)]
+# Where each blade lands on the screen, from the fan's middle: design pixels at Amount 0 and 100.
+LANDING = {"cloud": [(21, 42)], "dusk": [(10, 15), (22, 33), (35, 50)], "tape": [(14, 22), (32, 48)],
+           "slice": [(14, 22), (32, 48)], "back": [(14, 22), (32, 48)]}
+LANDING_MAX = 55            # no light's outer edge lands further than this from the fan's middle
+EFFECTS = ["cloud", "dusk", "tape", "slice", "back"]
+
+# A palette entry lends its stroke's width too, and a node's scale multiplies it: the beam is drawn at scale 2.
+PALETTE = ([("#000000", LIGHT, 0.55), ("#000000", DIFFUSE, 0.55)] + [(g, g, 0.4) for g in SHADES] +
+           [(LIGHT, LIGHT, 0.3), (DIFFUSE, DIFFUSE, 0.3)])
+SHADE_FIRST = 2             # the screen's shades start here
+BAR_ON, BAR_OFF = 2 + len(SHADES), 3 + len(SHADES)
+
+FLAMES = ["warm", "drive", "fuzz", "howl", "swell_a", "swell_b"]
+
+
+def blade_nodes(e):
+    return BLADE_COUNT[e] * 2 * (len(SLICES) if e == "slice" else 1)
+
+
+NODES = (["beam"] + [f"blade_{e}_{i}" for e in EFFECTS for i in range(blade_nodes(e))] +
+         ["bar"] + [f"flame_{f}" for f in FLAMES] + ["plate", "knife", "knife_a", "knife_b", "stop_a", "stop_b", "rod", "weight",
+                                                     "prism", "twin", "wedge", "hollow", "slat_0", "slat_1", "slat_2", "hole"] +
+         ["screen_post"] + [f"band_{i}" for i in range(BANDS)] + [f"crack_{i}" for i in range(CRACKS)] + [f"block_{i}" for i in range(BLOCKS)] +
+         [f"header_{i}" for i in range(8)])
 HEADER_TEXTS = 16
-TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["left", "right"]
 
 
 def num(v):
@@ -57,19 +101,30 @@ def outline(points):
     return "M" + " L".join(f"{num(x)},{num(y)}" for x, y in points) + " Z"
 
 
-def path(shapes):
-    return " ".join(outline(s) for s in shapes)
+def arc(r, a0, a1, steps, cx=0, cy=0):
+    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / steps)),
+             cy + r * math.sin(math.radians(a0 + (a1 - a0) * i / steps))) for i in range(steps + 1)]
 
 
-def ribbon(line, width=0.8):
+def rounded(x0, y0, x1, y1, r, steps=3):
+    return (arc(r, 180, 270, steps, x0 + r, y0 + r) + arc(r, 270, 360, steps, x1 - r, y0 + r) +
+            arc(r, 0, 90, steps, x1 - r, y1 - r) + arc(r, 90, 180, steps, x0 + r, y1 - r))
+
+
+def scaled(points, k=K):
+    return [(x * k, y * k) for x, y in points]
+
+
+def ribbon(line, width):
     """A polyline as a thin closed outline: out along one edge, back along the other."""
-    def normal(a, b):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = math.hypot(dx, dy)
-        return (-dy / length, dx / length)
     left, right = [], []
     for i, p in enumerate(line):
-        ns = [normal(line[j], line[j + 1]) for j in (i - 1, i) if 0 <= j < len(line) - 1]
+        ns = []
+        for j in (i - 1, i):
+            if 0 <= j < len(line) - 1:
+                a, b = line[j], line[j + 1]
+                length = math.hypot(b[0] - a[0], b[1] - a[1])
+                ns.append((-(b[1] - a[1]) / length, (b[0] - a[0]) / length))
         nx, ny = sum(n[0] for n in ns), sum(n[1] for n in ns)
         length = math.hypot(nx, ny)
         nx, ny = nx / length, ny / length
@@ -80,264 +135,212 @@ def ribbon(line, width=0.8):
     return left + right[::-1]
 
 
-def arc(r, a0, a1, steps, cx=0, cy=0):
-    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / steps)),
-             cy + r * math.sin(math.radians(a0 + (a1 - a0) * i / steps))) for i in range(steps + 1)]
-
-
-def circle(r, steps=24, cx=0, cy=0):
-    return arc(r, 0, 360, steps, cx, cy)[:-1]
-
-
-def rounded(x0, y0, x1, y1, r, steps=4):
-    return (arc(r, 180, 270, steps, x0 + r, y0 + r) + arc(r, 270, 360, steps, x1 - r, y0 + r) +
-            arc(r, 0, 90, steps, x1 - r, y1 - r) + arc(r, 90, 180, steps, x0 + r, y1 - r))
-
-
-def box(x0, y0, x1, y1):
-    return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-
-
-def triangle(r):
-    return [(r * math.cos(math.radians(a)), r * math.sin(math.radians(a))) for a in (-90, 30, 150)]
-
-
-def ring(r, width=0.6, steps=32, cx=0, cy=0):
-    """A thin circle as one closed outline, cut where a line can't be seen to close."""
-    return arc(r + width / 2, 2, 358, steps, cx, cy) + arc(r - width / 2, 358, 2, steps, cx, cy)
-
-
-def profile(x, widths):
-    """A turned part, from its half widths down its length: one closed outline."""
-    return [(x - w, y) for w, y in widths] + [(x + w, y) for w, y in reversed(widths)]
-
-
-# Fixed artwork, back to front within each part. Each shape is one path: (shape, stroke, width, fill).
-def rail():
-    shapes = [(box(6, RAIL, 474, RAIL + 18), MID, 0.8, BODY), (box(6, RAIL + 3, 474, RAIL + 3.4), DIM, 0.4, "none")]
-    for x in (30, 450):
-        shapes.append(([(x - 14, RAIL + 18), (x + 14, RAIL + 18), (x + 11, RAIL + 23), (x - 11, RAIL + 23)], MID, 0.8, COLLAR))
-    for i in range(43):
-        x = 30 + 10 * i
-        shapes.append((box(x - 0.25, RAIL + 3.4, x + 0.25, RAIL + (9 if i % 5 == 0 else 6.5)), MID if i % 5 == 0 else DIM, 0.4, "none"))
-    return shapes
-
-
-def rail_numbers():
-    return [(30 + 50 * i - (2.2 if i < 2 else 4.4), RAIL + 16.5, str(5 * i)) for i in range(9)]
-
-
-def rider(x, w):
-    """A carriage clamped on the rail, and its thumbscrew."""
-    return [([(x - w, RAIL + 3), (x - w, RAIL - 5), (x - w + 3, RAIL - 8), (x + w - 3, RAIL - 8), (x + w, RAIL - 5), (x + w, RAIL + 3)], LIGHT, 0.8, COLLAR),
-            (circle(2.4, 12, x, RAIL - 3), LIGHT, 0.6, "#000000")]
-
-
-def lamp():
-    """A magic lantern's lamphouse, with its chimney, door and lens."""
-    x, a = LAMP_X, AXIS
-    stand = [(7, a + 32), (7, a + 35), (3, a + 35.5), (2.2, a + 40), (4, a + 48), (2.4, a + 54), (2.4, RAIL - 12), (5, RAIL - 9.5), (8, RAIL - 8)]
-    shapes = [(profile(x, stand), LIGHT, 0.8, BODY)] + rider(x, 15)
-    # The chimney, and its cowl on two posts.
-    shapes += [([(x - 7, a - 36), (x - 6, a - 58), (x + 6, a - 58), (x + 7, a - 36)], LIGHT, 0.8, BODY)]
-    shapes += [(box(x - 6.6, a - 42 - 5 * i, x + 6.6, a - 41.6 - 5 * i), DIM, 0.4, "none") for i in range(3)]
-    shapes += [(box(x + d - 0.4, a - 62, x + d + 0.4, a - 58), LIGHT, 0.5, "none") for d in (-5, 5)]
-    shapes += [([(x - 11, a - 62), (x - 5, a - 69), (x + 5, a - 69), (x + 11, a - 62)], LIGHT, 0.8, COLLAR),
-               (circle(1.8, 10, x, a - 71), LIGHT, 0.6, "#000000")]
-    # The body: a sloped roof, the case, its door and the door's hinges and rivets.
-    shapes += [([(x - 23, a - 28), (x - 18, a - 36), (x + 18, a - 36), (x + 23, a - 28)], LIGHT, 0.8, COLLAR),
-               (rounded(x - 26, a - 28, x + 26, a + 32, 3), LIGHT, 1, BODY),
-               (rounded(x - 22, a - 24, x + 22, a + 28, 2), DIM, 0.6, "none")]
-    shapes += [(box(x - 28.5, a + y, x - 26, a + y + 8), LIGHT, 0.6, COLLAR) for y in (-18, 12)]
-    shapes += [(circle(1.1, 8, x + dx, a + dy), MID, 0.4, MID) for dx in (-18, 18) for dy in (-20, 24)]
-    # The wick's knob, low on the door's hinge side.
-    shapes += [(box(x - 33, a + 24, x - 26, a + 26), LIGHT, 0.5, COLLAR), (circle(3.4, 14, x - 34, a + 25), LIGHT, 0.7, COLLAR)]
-    # The window, and a glint on its glass.
-    shapes += [(circle(20, 40, x, a), LIGHT, 1, COLLAR), (circle(16.6, 40, x, a), MID, 0.7, "#000000")]
-    shapes += [(ribbon(arc(14.6, 200, 250, 8, x, a), 0.5), MID, 0.3, "none")]
-    # The lens's stepped barrel, and the glass bulging from it.
-    n = x + 26
-    shapes += [(box(n, a - 15, n + 4, a + 15), LIGHT, 0.8, COLLAR), (box(n + 4, a - 12, n + 14, a + 12), LIGHT, 0.8, BODY),
-               (box(n + 14, a - 13.5, n + 16, a + 13.5), LIGHT, 0.8, COLLAR),
-               ([(n + 16, a - 10)] + [(n + 16 + 3 * math.cos(math.radians(t)), a + 10 * math.sin(math.radians(t))) for t in range(-60, 61, 20)] + [(n + 16, a + 10)], MID, 0.6, "#000000")]
-    return shapes
-
-
-def card_mount():
-    """A turning ring, its degrees engraved over the top, on a turned post."""
-    x, a = CARD_X, AXIS
-    stand = [(5, a + 26), (5, a + 29), (2.2, a + 30), (2, a + 40), (3.6, a + 48), (2, a + 54), (2, RAIL - 12), (4.5, RAIL - 9.5), (7, RAIL - 8)]
-    shapes = [(profile(x, stand), LIGHT, 0.8, BODY)] + rider(x, 12)
-    shapes += [(ring(25.5, 0.5, 30, x, a), LIGHT, 0.4, "none"), (ring(22.5, 0.5, 30, x, a), DIM, 0.4, "none")]
-    for i in range(-5, 6):
-        angle = math.radians(-90 + 15 * i)
-        r0, r1 = 26.2, 30.5 if i % 5 == 0 else 29
-        dx, dy = math.cos(angle), math.sin(angle)
-        shapes.append((ribbon([(x + r0 * dx, a + r0 * dy), (x + r1 * dx, a + r1 * dy)], 0.5), MID, 0.3, "none"))
-    return shapes
-
-
-def card_screw():
-    return [(circle(1.8, 10, CARD_X, AXIS), LIGHT, 0.6, "#000000")]
-
-
-def prism_stand():
-    """The prism's table on its stem, and the graduated arc it rocks under."""
-    x, y = PRISM_X, PRISM_Y
-    shapes = [(box(x - 0.3, y - 52, x + 0.3, y + 36), DIM, 0.3, "none"),
-              (ribbon(arc(52, -125, -55, 14, x, y), 0.5), MID, 0.3, "none")]
-    for i in range(-3, 4):
-        angle = math.radians(-90 + 10 * i)
-        r1 = 57 if i == 0 else 55
-        dx, dy = math.cos(angle), math.sin(angle)
-        shapes.append((ribbon([(x + 52.4 * dx, y + 52.4 * dy), (x + r1 * dx, y + r1 * dy)], 0.5), MID, 0.3, "none"))
-    shapes += [(box(x - 1.3, y + 40, x + 1.3, RAIL - 9), LIGHT, 0.7, BODY),
-               ([(x - 4, RAIL - 10), (x + 4, RAIL - 10), (x + 9, RAIL - 8), (x - 9, RAIL - 8)], LIGHT, 0.7, BODY)]
-    shapes += rider(x, 17)
-    for i in range(5):
-        shapes.append((box(x + 8, BOB_LOW - BOB_TRAVEL * i / 4 - 0.25, x + (12 if i % 2 == 0 else 10.5), BOB_LOW - BOB_TRAVEL * i / 4 + 0.25), MID, 0.3, "none"))
-    shapes += [(box(x - d - 1.3, y + 40, x - d + 1.3, y + 44), LIGHT, 0.6, COLLAR) for d in (-25, 25)]
-    shapes += [(box(x - 8, y + 40, x + 8, y + 42.5), LIGHT, 0.7, COLLAR),
-               (rounded(x - 34, y + 36, x + 34, y + 40, 1.5, 2), LIGHT, 0.9, COLLAR)]
-    return shapes
-
-
-def prism_pivot():
-    return [(circle(2.2, 12, PRISM_X, PRISM_Y), LIGHT, 0.7, "#000000")]
-
-
-# Movable parts, each one outline about its node's origin.
-def screen_parts():
-    """The ground-glass screen, three-quarters on, seen from the viewing side."""
-    h, w, down = SCREEN_H, SCREEN_W, RAIL - PRISM_Y
-    c = w / 2 - 1
-    return {"frame": ([(0, -h), (w, -h + 8), (w, h - 8), (0, h)], BRIGHT, 1, "none"),
-            "glass": ([(3.5, -h + 5), (w - 2.5, -h + 10.5), (w - 2.5, h - 10.5), (3.5, h - 5)], MID, 0.7, "none"),
-            "slab": ([(-3, -h + 1.2), (0, -h), (0, h), (-3, h - 1.2)], LIGHT, 0.8, "none"),
-            "post": (box(c - 1.2, h - 3.6, c + 1.2, down - 8), LIGHT, 0.7, "none"),
-            "rider": ([(-1, down + 3), (-1, down - 5), (2, down - 8), (w - 2, down - 8), (w - 1, down - 5), (w - 1, down + 3), (c + 2, down + 3), (c, down + 6), (c - 2, down + 3)], LIGHT, 0.8, COLLAR),
-            "knob": (circle(2.4, 12, c, down - 3), LIGHT, 0.6, "#000000"),
-            "glint_a": (ribbon([(w - 8, -h + 14), (w - 12, -h + 28)], 0.5), DIM, 0.4, "none"),
-            "glint_b": (ribbon([(w - 5, -h + 18), (w - 8, -h + 29)], 0.5), DIM, 0.4, "none")}
-
-
-def mask():
-    """A blade closing on the screen: a thin bar across it."""
-    return [(4, 0), (25, 5.25), (25, 7.25), (4, 2)]
-
-
-def tape_line():
-    return [(5, 0), (24, 4.75), (24, 5.65), (5, 0.9)]
-
-
-def crack(k):
-    """A jagged crack across the screen; each is its own."""
-    ys = ((0, 5, -2, 6, 1, 4), (0, -4, 3, -2, 5, 2), (0, 4, 7, 1, 5, 8), (0, -3, 2, -5, 0, 3), (0, 6, 2, 7, 3, 7))[k]
-    return ribbon([(5 + 3.8 * i, 4 * i / 4.6 + y) for i, y in enumerate(ys)], 0.7)
-
-
-def dash():
-    return box(-1.8, -0.7, 1.8, 0.7)
-
-
-def card():
-    """A glass plate on a pivot: it turns in the ring."""
-    return rounded(-2.5, -21, 2.5, 21, 1, 2)
-
-
-def beam():
-    """One edge of the beam from inside the lens to the prism's face."""
-    return box(LAMP_X + 36, -0.35, PRISM_X - 20, 0.35)
-
-
-def inner(r):
-    return triangle(r)
-
-
-def prism_side():
-    """The prism's far side, going back from its front face."""
-    a, b = triangle(PRISM_R)[0], triangle(PRISM_R)[1]
-    return [a, (a[0] + 6, a[1] - 4), (b[0] + 6, b[1] - 4), b]
-
-
-def prism_glint():
-    """A glint inside the glass, along the near face."""
-    a, c = triangle(PRISM_R)[0], triangle(PRISM_R)[2]
-    at = lambda t: (a[0] + (c[0] - a[0]) * t + 4.3, a[1] + (c[1] - a[1]) * t + 2.5)
-    return ribbon([at(0.3), at(0.72)], 0.5)
-
-
-def shutter():
-    """A vane by the prism's far face, that swings across the light."""
-    return rounded(-1.5, -20, 1.5, 20, 0.7, 2)
-
-
-def stop():
-    """A stop sliding on the arc, its point towards the scale."""
-    return [(-2.6, -4), (2.6, -4), (0, 3)]
-
-
-def bob():
-    """The metronome's sliding weight on the stem."""
-    return [(-5, -5), (5, -5), (7, 5), (-7, 5)]
-
-
-def glyphs():
-    """What burns in the lamp, each piece one outline about the window's centre, or a flame's base."""
-    r = [(4.6 * math.sin(t * math.pi) ** 0.8, -18 * t) for t in (0, 0.2, 0.4, 0.6, 0.8, 1)]
-    flame = r + [(-x, y) for x, y in reversed(r[1:-1])]
-    filament = ribbon([(-8, 10), (-8, 1)] + [(-8 + 16 * i / 8, 3 if i % 2 else -3) for i in range(1, 8)] + [(8, 1), (8, 10)], 0.9)
-    return {"warm": [flame, box(-2.5, 3, 2.5, 6)],
-            "drive": [filament],
-            "fuzz": [box(-1.5, -14, 1.5, -5), box(-1.5, 5, 1.5, 14), ribbon([(0, -5), (2.5, -2.5), (-2.5, 0), (2.5, 2.5), (0, 5)], 0.8)],
-            "howl": [ribbon([(-5, 11), (-5, -7)], 0.9), ribbon([(5, 11), (5, -7)], 0.9), ribbon(arc(5, 200, 340, 8, 0, -8), 0.8),
-                     ribbon(arc(8.5, 205, 335, 8, 0, -8), 0.8), [(0, 8), (2.4, 4), (0, -3), (-2.4, 4)]],
-            "swell": [circle(11, 24), circle(5, 16)]}
-
-
-def straight():
-    """A single beam on to the screen, with no diffusion."""
-    return box(0, -0.35, 240, 0.35)
-
-
-def halo():
-    """A ring of light on the screen, seen three-quarters on: taller than it's wide."""
-    return [(9 * math.cos(2 * math.pi * i / 40), 34 * math.sin(2 * math.pi * i / 40)) for i in range(40)]
-
-
-def mote():
-    return circle(1.7, 10)
-
-
-def rays_placeholder():
-    teeth = []
-    for k in range(TEETH):
-        y = -10 + k * 4
-        teeth.append([(-50 + i * 25, y) for i in range(TOOTH)])
-    points = []
-    for t in teeth:
-        points += t + [(x, y + 0.25) for x, y in reversed(t)]
-    points += [(-51.5, 11.5 - i * 5.5) for i in range(4)]
-    return points
-
-
 def check(shape):
-    """The device's rules for an outline: at most 64 points, neighbours at least 1/8 px apart, a closing edge of at least 1/4 px."""
+    """The device's rules for an outline: at most 64 points, neighbours at least 1/8 px
+    apart, a closing edge of at least 1/4 px, no turn straight back, and within the
+    reach of a node's path from its origin."""
     assert 3 <= len(shape) <= 64, len(shape)
     for i, a in enumerate(shape):
         b = shape[(i + 1) % len(shape)]
+        c = shape[(i + 2) % len(shape)]
         assert abs(a[0] - b[0]) + abs(a[1] - b[1]) >= (0.25 if i == len(shape) - 1 else 0.125), (a, b)
+        ax, ay, bx, by = b[0] - a[0], b[1] - a[1], c[0] - b[0], c[1] - b[1]
+        assert math.atan2(abs(ax * by - ay * bx), -(ax * bx + ay * by)) > math.radians(2.5), (a, b, c)
     return outline(shape)
 
 
-def header_block():
-    """The SDK's two-page header: a cover, the stepped bar's eight steps and its sixteen text slots."""
-    lines = ["<!-- SDK two-page header: keep this block before machine artwork below y=38. -->",
+# ---------------------------------------------------------------- fixed artwork, in design units
+def rail():
+    return [(-30, RAIL_TOP), (510, RAIL_TOP), (510, RAIL_BOTTOM), (-30, RAIL_BOTTOM)]
+
+
+def lantern():
+    """A magic lantern from the side: cowl, chimney, a sloped roof, the lamphouse,
+    the stepped lens barrel and one turned leg on a foot, in one silhouette."""
+    x, a = LAMP_X, AXIS
+    top = a - 26
+    return [(x - 28, a + 26), (x - 28, top + 4), (x - 24, top), (x - 16, top - 8), (x - 8, top - 8), (x - 8, top - 30), (x - 13, top - 30),
+            (x - 13, top - 35), (x - 9, top - 39), (x + 9, top - 39), (x + 13, top - 35), (x + 13, top - 30), (x + 8, top - 30), (x + 8, top - 8),
+            (x + 16, top - 8), (x + 24, top), (x + 28, top + 4), (x + 28, a - 14), (x + 38, a - 14), (x + 38, a - 10), (x + 48, a - 10),
+            (x + 48, a + 10), (x + 38, a + 10), (x + 38, a + 14), (x + 28, a + 14), (x + 28, a + 26), (x + 6, a + 26),
+            (x + 6, RAIL_TOP - 8), (x + 18, RAIL_TOP - 8), (x + 18, RAIL_TOP), (x - 18, RAIL_TOP), (x - 18, RAIL_TOP - 8), (x - 6, RAIL_TOP - 8),
+            (x - 6, a + 26)]
+
+
+def plate_post():
+    x = PLATE_X
+    return [(x - 2.5, AXIS + 3), (x + 2.5, AXIS + 3), (x + 2.5, RAIL_TOP - 8), (x + 12, RAIL_TOP - 8), (x + 12, RAIL_TOP),
+            (x - 12, RAIL_TOP), (x - 12, RAIL_TOP - 8), (x - 2.5, RAIL_TOP - 8)]
+
+
+def prism_stand():
+    """The prism's post and foot, and the cradle bar its knife edges and stops stand on."""
+    x = PRISM_X
+    post = [(x - 2.8, CRADLE), (x + 2.8, CRADLE), (x + 2.8, RAIL_TOP - 8), (x + 16, RAIL_TOP - 8), (x + 16, RAIL_TOP),
+            (x - 16, RAIL_TOP), (x - 16, RAIL_TOP - 8), (x - 2.8, RAIL_TOP - 8)]
+    bar = [(x - 42, CRADLE - 4), (x + 42, CRADLE - 4), (x + 42, CRADLE), (x - 42, CRADLE)]
+    return post, bar
+
+
+# ---------------------------------------------------------------- moving parts, each about its node's origin, design units
+def flame(kind):
+    """What burns in the lantern, its base at the origin: the node scales it with Amount."""
+    if kind == "warm":      # an oil lamp's teardrop
+        r = [(7.5 * math.sin(t * math.pi) ** 0.7 * (1 - 0.25 * t), -26 * t) for t in [i / 10 for i in range(11)]]
+        return r + [(-x, y) for x, y in reversed(r[1:-1])]
+    if kind == "drive":     # a burner's three tongues, harder and taller
+        return [(-9, 0), (-9, -9), (-6.5, -21), (-3.6, -12), (0, -30), (3.6, -12), (6.5, -21), (9, -9), (9, 0)]
+    if kind == "fuzz":      # a flame gone to grit: stepped
+        return [(-8, 0), (-8, -6), (-10.5, -6), (-10.5, -12), (-6, -12), (-6, -18), (-8.5, -18), (-8.5, -23), (-3, -23), (-3, -29),
+                (1.5, -29), (1.5, -24), (4.5, -24), (4.5, -18), (8.5, -18), (8.5, -12), (10.5, -12), (10.5, -6), (8, -6), (8, 0)]
+    if kind == "howl":      # a singing flame: one tall, thin tongue
+        r = [(4.6 * math.sin(t * math.pi) ** 0.5 * (1 - 0.6 * t), -34 * t) for t in [i / 12 for i in range(13)]]
+        return r + [(-x, y) for x, y in reversed(r[1:-1])]
+    # swell: two flames, the left first and taller
+    w, h = (5, 22) if kind == "swell_a" else (4, 13)
+    r = [(w * math.sin(t * math.pi) ** 0.7, -h * t) for t in [i / 8 for i in range(9)]]
+    return r + [(-x, y) for x, y in reversed(r[1:-1])]
+
+
+FLAME_DX = {"swell_a": -6.5, "swell_b": 6.5}
+FLAME_Y = AXIS + 17         # the flames' base, low in the lamphouse
+
+
+def plate():
+    return rounded(-5, -24, 5, 24, 1, 2)
+
+
+TWIN_RISE = 10              # the twins stand higher, on taller knife edges, so the beam crosses them lower down
+
+
+def knife(rise=0):
+    """The knife edge a prism rocks on, its point at the origin."""
+    return [(0, 0), (5, CRADLE - 4 - PIVOT_Y + rise), (-5, CRADLE - 4 - PIVOT_Y + rise)]
+
+
+def stop():
+    """A stop screw through the cradle bar, its head's top at the origin: it screws down as Movement opens the throw."""
+    return [(-4.5, 0), (4.5, 0), (4.5, 4), (1.8, 4), (1.8, 22), (-1.8, 22), (-1.8, 4), (-4.5, 4)]
+
+
+STOP_DX = SIDE / 2 - 3
+
+
+def prism_points(shape="eq"):
+    """About the prism's centroid, design units: equilateral, or pitch's right-angled
+    wedge, the light leaving by its upright face."""
+    h = HEIGHT
+    if shape == "eq":
+        return [(-SIDE / 2, h / 3), (0, -2 * h / 3), (SIDE / 2, h / 3)]
+    return [(-SIDE / 2, h / 3), (SIDE / 2, -2 * h / 3), (SIDE / 2, h / 3)]
+
+
+def slats():
+    """Trem's shutter: the prism cut into three slats across, with black between."""
+    h = HEIGHT
+    top, bottom = -2 * h / 3, h / 3
+    cuts = [top, top + h * 0.40, top + h * 0.45, top + h * 0.70, top + h * 0.75, bottom]
+    half = lambda y: (y - top) / h * SIDE / 2
+    out = []
+    for k in range(3):
+        y0, y1 = cuts[2 * k], cuts[2 * k + 1]
+        if k == 0:
+            out.append([(0, y0), (half(y1), y1), (-half(y1), y1)])
+        else:
+            out.append([(-half(y0), y0), (half(y0), y0), (half(y1), y1), (-half(y1), y1)])
+    return out
+
+
+def hole():
+    """Swirl's nest: a triangle cut through the glass, turning against it; the node scales it with Amount."""
+    return [(12 * math.cos(math.radians(90 + 120 * i)), 12 * math.sin(math.radians(90 + 120 * i))) for i in range(3)]
+
+
+def rod():
+    return [(-2, ROD / 2 + 1), (-2, -ROD / 2), (2, -ROD / 2), (2, ROD / 2 + 1)]
+
+
+def weight():
+    return [(-9, 6), (-6, -6), (6, -6), (9, 6)]
+
+
+def blade(effect, piece=None):
+    """A sheet of light from the prism to the screen: a wedge from its apex at local
+    x = -64 to its end at 64 (the node scales it to length and turns it); back's runs
+    the other way, wide at the prism and narrowing to the screen; slice's is in pieces."""
+    t = math.tan(math.radians(BLADE_W[effect] / 2))
+    if effect == "back":
+        return [(64, 0.3), (-64, 128 * t), (-64, -128 * t), (64, -0.3)]
+    if effect == "tape":
+        # Its edges stepped, as tape's hiss roughens it.
+        n = 8
+        top = [(-64 + 128 * i / n, -128 * i / n * t - (0.9 if i % 2 else 0)) for i in range(1, n + 1)]
+        return [(-64, 0)] + top + [(x, -y) for x, y in reversed(top)]
+    if effect == "slice":
+        u0, u1 = SLICES[piece]
+        x0, x1 = -64 + 128 * u0, -64 + 128 * u1
+        if u0 == 0:
+            return [(x0, 0), (x1, -(x1 + 64) * t), (x1, (x1 + 64) * t)]
+        return [(x0, -(x0 + 64) * t), (x1, -(x1 + 64) * t), (x1, (x1 + 64) * t), (x0, (x0 + 64) * t)]
+    return [(-64, 0), (64, -128 * t), (64, 128 * t)]
+
+
+def screen_band(k):
+    """One of the screen's bands, about the middle of its face's near edge: the screen
+    stands three-quarters on, so its far edge is shorter."""
+    def at(v, far):
+        return (SCREEN_W if far else 0, (-SCREEN_H + SCREEN_SLANT * far) + 2 * (SCREEN_H - SCREEN_SLANT * far) * v)
+    v0, v1 = k / BANDS, min(1.0, (k + 1) / BANDS + 0.004)  # each overlaps the next a little, so no seam shows
+    dy = band_dy(k)
+    return [(x, y - dy) for x, y in (at(v0, 0), at(v0, 1), at(v1, 1), at(v1, 0))]
+
+
+def band_dy(k):
+    """A band's origin below the face's middle: its own middle, on the near edge."""
+    return -SCREEN_H + 2 * SCREEN_H * (k + 0.5) / BANDS
+
+
+POST_DY = 35                # the screen post's origin, below the face's
+
+
+def screen_post():
+    """The screen's post and foot, from the face's lower edge to the rail, about a point POST_DY below the face's."""
+    w, y0, y1 = SCREEN_W, SCREEN_H - 4 - POST_DY, RAIL_TOP - AXIS - POST_DY
+    return [(w / 2 - 2, y0), (w / 2 + 2, y0 - 0.5), (w / 2 + 2, y1 - 8), (w / 2 + 13, y1 - 8), (w / 2 + 13, y1), (w / 2 - 13, y1),
+            (w / 2 - 13, y1 - 8), (w / 2 - 2, y1 - 8)]
+
+
+def crack(k):
+    """Worn's crack across the face: a jagged black line, each its own."""
+    ys = ((0, 4, -1, 5, 1), (0, -3, 3, -2, 2), (0, 3, 6, 1, 5), (0, -4, 1, -3, 1))[k]
+    return ribbon([((SCREEN_W - 3) * i / 4, y * 0.8 + i * 1.2) for i, y in enumerate(ys)], 2.2)  # from its left end, 1.5 in from the face's edge
+
+
+def block():
+    """Radio's static: a small square block."""
+    return [(-1.6, -1.6), (1.6, -1.6), (1.6, 1.6), (-1.6, 1.6)]
+
+
+# Radio's blocks: stepped down the face, two a row, each row offset from the last (design units, from the face's top-left).
+BLOCK_AT = [(4.5 + (2.5 if r % 2 else 0) + 6 * c, 11 + 17.5 * r + (3 if c else 0)) for r in range(6) for c in range(2)]
+
+
+def beam_placeholder():
+    pts = [(-60 + 120 * i / 31, -0.2) for i in range(32)]
+    return pts + [(x, 0.2) for x, _ in reversed(pts)]
+
+
+def bar():
+    """The beam from the lens on into the prism, a thin bar about its middle; the node scales it to length."""
+    return [(-64, -0.7), (64, -0.7), (64, 0.7), (-64, 0.7)]
+
+
+def header_block(index):
+    lines = ["  <!-- SDK two-page header: keep this block before machine artwork below y=38. -->",
              '  <path d="M0,0 L480,0 L480,38 L0,38 Z" fill="#000000"/>']
     steps = ("#000000", "#323232", "#4B4B4B", "#646464", "#7D7D7D", "#969696", "#AFAFAF", "#CDCDCD")
-    first = NODES.index("bar_0")
     for i, step in enumerate(steps):
-        lines.append(f'  <path id="{ID}_node_{first + i}" transform="matrix(1 0 0 1 {60 * i} 0)" '
+        lines.append(f'  <path id="{ID}_node_{index[f"header_{i}"]}" transform="matrix(1 0 0 1 {60 * i} 0)" '
                      f'd="M0,0 L60,0 L60,20 L0,20 Z" fill="{step}" stroke="{step}" stroke-width="0.5"/>')
     rows = (("#CBCBCB", "#000000", 10, 10, 5), ("#CBCBCB", "#000000", 20, 17.4, 65),
             ("#5A5A5A", "#5A5A5A", 10, 33, 5), ("#707070", "#707070", 13, 33, 65))
@@ -350,97 +353,122 @@ def header_block():
 
 
 def fragment():
-    at = lambda x, y: f'transform="matrix(1 0 0 1 {num(x)} {num(y)})"'
-    lines = [f'<g id="{ID}_panel">'] + header_block()
     index = {name: i for i, name in enumerate(NODES)}
+    at = lambda x, y: f'transform="matrix(1 0 0 1 {num(x)} {num(y)})"'
+    lines = [f'<g id="{ID}_panel">'] + header_block(index)
 
-    def static(shapes):
-        for shape, stroke, w, fill in shapes:
-            lines.append(f'  <path d="{check(shape)}" fill="{fill}" stroke="{stroke}" stroke-width="{w}"/>')
+    def static(shape, fill):
+        lines.append(f'  <path d="{check([S(x, y) for x, y in shape])}" fill="{fill}" stroke="{fill}" stroke-width="0.4"/>')
 
-    def node(name, shape, stroke, w=1, fill="none"):
-        lines.append(f'  <path id="{ID}_node_{index[name]}" d="{check(shape)}" {at(640, 320)} fill="{fill}" stroke="{stroke}" stroke-width="{w}"/>')
+    def node(name, shape, fill, stroke=None, width=0.4, k=K):
+        shape = scaled(shape, k)
+        assert all(abs(v) <= 64 for p in shape for v in p), name
+        lines.append(f'  <path id="{ID}_node_{index[name]}" d="{check(shape)}" {at(640, 320)} fill="{fill}" stroke="{stroke or fill}" stroke-width="{width}"/>')
 
-    static(rail())
-    for x, y, t in rail_numbers():
-        lines.append(f'  <text {at(x, y)} fill="#6e6e6e" {FONT} font-size="8px">{t}</text>')
-    # The beam goes under the lamp's barrel, then through the ring.
-    node("beam_top", beam(), LIGHT)
-    node("beam_bottom", beam(), LIGHT)
-    static(lamp())
-    for g, pieces in glyphs().items():
-        for i, shape in enumerate(pieces):
-            node(f"glyph_{g}_{i}", shape, BRIGHT)
-    static(card_mount())
-    node("card", card(), BRIGHT)
-    static(card_screw())
-    static(prism_stand())
-    # The light, then the screen that stops it.
-    for name in NODES[:4]:
-        lines.append(f'  <path id="{ID}_node_{index[name]}" d="{check(rays_placeholder())}" {at(300, PRISM_Y)} fill="none" stroke="{BRIGHT}" stroke-width="0.35"/>')
-    node("straight", straight(), MID)
-    for k in range(3):
-        node(f"halo_{k}", halo(), DIM)
-    for part, (shape, stroke, w, fill) in screen_parts().items():
-        node(f"screen_{part}", shape, stroke, w, fill)
-    node("mask_a", mask(), LIGHT)
-    node("mask_b", mask(), LIGHT)
-    for k in range(6):
-        node(f"line_{k}", tape_line(), LIGHT)
-    for k in range(5):
-        node(f"crack_{k}", crack(k), LIGHT)
-    for k in range(12):
-        node(f"static_{k}", dash(), LIGHT, 0.6, LIGHT)
-    # The glass, in front of the stem behind it.
-    node("prism_side", prism_side(), MID, 0.7)
-    node("prism", inner(PRISM_R), BRIGHT, 1.2)
-    node("prism_glint", prism_glint(), LIGHT, 0.4)
-    node("ghost", inner(PRISM_R), MID)
-    for k, r in enumerate((PRISM_R - 9, PRISM_R - 17, PRISM_R - 25)):
-        node(f"inner_{k}", inner(r), MID)
-    static(prism_pivot())
-    node("shutter", shutter(), BRIGHT)
-    node("stop_a", stop(), LIGHT, 0.6, LIGHT)
-    node("stop_b", stop(), LIGHT, 0.6, LIGHT)
-    node("bob", bob(), BRIGHT, 1, "#000000")
-    for k in range(8):
-        node(f"mote_{k}", mote(), MID)
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS}" {FONT} font-size="8" fill="{DIM}" {at(640, 320)}>L</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 1}" {FONT} font-size="8" fill="{DIM}" {at(640, 320)}>R</text>')
+    # Back to front: the rail, then the light that runs behind the parts it meets.
+    static(rail(), RAIL)
+    lines.append(f'  <path id="{ID}_node_{index["beam"]}" d="{check(beam_placeholder())}" {at(640, 320)} fill="none" stroke="{LIGHT}" stroke-width="0.55"/>')
+    for e in EFFECTS:
+        if e == "slice":
+            for i in range(blade_nodes(e)):
+                node(f"blade_{e}_{i}", blade(e, i % len(SLICES)), DIFFUSE, k=1)
+        else:
+            for i in range(blade_nodes(e)):
+                node(f"blade_{e}_{i}", blade(e), DIFFUSE, k=1)
+    node("bar", bar(), LIGHT, width=0.3, k=1)
+    static(lantern(), CHARACTER)
+    for f in FLAMES:
+        node(f"flame_{f}", flame(f), LIGHT)
+    static(plate_post(), CHARACTER)
+    node("plate", plate(), CHARACTER)
+    post, cradle = prism_stand()
+    static(post, MOVEMENT)
+    static(cradle, MOVEMENT)
+    node("knife", knife(), MOVEMENT)
+    node("knife_a", knife(TWIN_RISE), MOVEMENT)
+    node("knife_b", knife(TWIN_RISE), MOVEMENT)
+    node("stop_a", stop(), MOVEMENT)
+    node("stop_b", stop(), MOVEMENT)
+    node("rod", rod(), MOVEMENT)
+    node("weight", weight(), MOVEMENT)
+    node("prism", prism_points(), MOVEMENT)
+    node("twin", prism_points(), MOVEMENT)
+    node("wedge", prism_points("wedge"), MOVEMENT)
+    node("hollow", prism_points(), "none", MOVEMENT, 1.6)
+    for k, s in enumerate(slats()):
+        node(f"slat_{k}", s, MOVEMENT)
+    node("hole", hole(), BLACK)
+    node("screen_post", screen_post(), TEXTURE)
+    for k in range(BANDS):
+        node(f"band_{k}", screen_band(k), TEXTURE)
+    for k in range(CRACKS):
+        node(f"crack_{k}", crack(k), BLACK)
+    for k in range(BLOCKS):
+        node(f"block_{k}", block(), BLACK)
     for i, (fill, stroke, width) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>')
     lines.append("</g>")
     return "\n".join(lines) + "\n"
 
 
+def q(v):
+    return int(round(v * 1024))
+
+
 def header():
-    q = lambda v: int(round(v * 1024))
     index = {name: i for i, name in enumerate(NODES)}
     row = lambda values: ", ".join(str(v) for v in values)
-    plain = [f"kNode{''.join(w.title() for w in n.split('_'))} = {i}" for i, n in enumerate(NODES)
-             if not n.startswith(("line_", "crack_", "static_", "inner_", "halo_", "mote_", "bar_", "glyph_", "screen_"))]
-    firsts = ", ".join(str(index[f"glyph_{g}_0"]) for g in GLYPHS) + f", {index['straight']}"
+    sx = lambda x: S(x, 0)[0]
+    sy = lambda y: S(0, y)[1]
+    # The prism's far face where the beam leaves it, at the axis's height: across from the pivot, unturned.
+    exit_eq = (SIDE / 2 - (PIVOT_Y - AXIS) / math.tan(math.radians(60))) * K
+    exit_wedge = SIDE / 2 * K
     lfo = [round(0.08 * (12 / 0.08) ** (i / 32) * 1024) for i in range(33)]
     twin = [round(9 * (120 / 9) ** (i / 32) * 1024) for i in range(33)]
     slice_ms = [round(18 * (1300 / 18) ** (i / 32)) for i in range(33)]
+    atan = [round(math.degrees(math.atan(i / 32)) * 10) for i in range(33)]
+    landing = []
+    for e in EFFECTS:
+        hs = LANDING[e] + [(0, 0)] * (3 - len(LANDING[e]))
+        landing.append("{" + ", ".join(f"{{{q(a * K)}, {q(b * K)}}}" for a, b in hs) + "}")
+    plain = [f"kNode{''.join(w.title() for w in n.split('_'))} = {i}" for i, n in enumerate(NODES)
+             if not n.startswith(("blade_", "flame_", "band_", "crack_", "block_", "header_", "slat_"))]
+    flames = ", ".join(str(index[f"flame_{f}"]) for f in FLAMES)
+    blocks = ", ".join(f"{{{q(x * K)}, {q(y * K)}}}" for x, y in BLOCK_AT)
     return f"""// Generated by tools/make_panel.py: where display.cpp places the artwork's
-// nodes, in pixels unless named Q10.
+// nodes. Lengths are Q10 screen pixels unless named otherwise.
 #pragma once
 #include <opxy/types.hpp>
 
 namespace chroma {{ namespace panel {{
-const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};
+const opxy::u32 kNodes = {len(NODES)}, kTexts = {HEADER_TEXTS}, kPalette = {len(PALETTE)};
 enum Node {{ {", ".join(plain)} }};
-const opxy::u32 kNodeLines = {index["line_0"]}, kNodeCracks = {index["crack_0"]}, kNodeStatics = {index["static_0"]}, kNodeInners = {index["inner_0"]}, kNodeHalos = {index["halo_0"]}, kNodeMotes = {index["mote_0"]}, kNodeBars = {index["bar_0"]};
-const opxy::u32 kNodeScreen = {index["screen_frame"]}, kScreenParts = {len(SCREEN_PARTS)};
-// Where each of the lamp's five glyphs starts, and where the last one ends.
-const opxy::u32 kGlyphFirst[6] = {{{firsts}}};
-enum Text {{ kTextLeft = {HEADER_TEXTS}, kTextRight = {HEADER_TEXTS + 1} }};
-// Palette: each a stroke's grey and its width, which a node's scale multiplies.
-enum Shade {{ kPrismOn = 0, kPrismOff = 1, kRayNear = 2, kRayFar = 3, kBeamOn = 4, kBeamOff = 5, kMoteBright = 6, kMoteSoft = 7 }};
-const opxy::i32 kAxis = {AXIS}, kRail = {RAIL}, kLampX = {LAMP_X}, kCardX = {CARD_X}, kPrismX = {PRISM_X}, kPrismY = {PRISM_Y}, kPrismR = {PRISM_R};
-const opxy::i32 kScreenNear = {SCREEN_NEAR}, kScreenFar = {SCREEN_FAR}, kScreenH = {SCREEN_H}, kBobLow = {BOB_LOW}, kBobTravel = {BOB_TRAVEL};
-const opxy::u32 kTeeth = {TEETH}, kTooth = {TOOTH};
+const opxy::u32 kNodeHeader = {index["header_0"]}, kNodeBands = {index["band_0"]}, kNodeCracks = {index["crack_0"]}, kNodeBlocks = {index["block_0"]}, kNodeSlats = {index["slat_0"]};
+const opxy::u32 kBands = {BANDS}, kCracks = {CRACKS}, kBlocks = {BLOCKS};\nconst opxy::i32 kBandDy[{BANDS}] = {{{row([q(band_dy(k) * K) for k in range(BANDS)])}}};
+// Each flame's node: warm, drive, fuzz, howl, then swell's two, left and right of the middle.
+const opxy::u32 kNodeFlames[6] = {{{flames}}};
+const opxy::i32 kFlameDx[2] = {{{q(FLAME_DX["swell_a"] * K)}, {q(FLAME_DX["swell_b"] * K)}}};
+// Each diffusion's first blade, its blades a side, its pieces a blade, their angular width (tenths of a degree),
+// and where each lands on the screen at Amount 0 and 100, from the fan's middle.
+const opxy::u32 kNodeBlades[5] = {{{", ".join(str(index[f"blade_{e}_0"]) for e in EFFECTS)}}};
+const opxy::u32 kBladeCount[5] = {{{", ".join(str(BLADE_COUNT[e]) for e in EFFECTS)}}};
+const opxy::u32 kBladePieces[5] = {{{", ".join(str(len(SLICES) if e == "slice" else 1) for e in EFFECTS)}}};
+const opxy::i32 kBladeWidth[5] = {{{", ".join(str(round(BLADE_W[e] * 10)) for e in EFFECTS)}}};
+const opxy::i32 kLanding[5][3][2] = {{{", ".join(landing)}}};
+// Palette entries.
+enum Shade {{ kBeamOn = 0, kBeamOff = 1, kShadeFirst = {SHADE_FIRST}, kBarOn = {BAR_ON}, kBarOff = {BAR_OFF} }};
+const opxy::u32 kShades = {len(SHADES)};
+// The bench, in Q10 screen pixels.
+const opxy::i32 kAxis = {q(sy(AXIS))}, kLensX = {q(sx(LENS_X))}, kLampX = {q(sx(LAMP_X))}, kFlameY = {q(sy(FLAME_Y))}, kPlateX = {q(sx(PLATE_X))};
+const opxy::i32 kPrismX = {q(sx(PRISM_X))}, kPivotY = {q(sy(PIVOT_Y))}, kSide = {q(SIDE * K)}, kHeight = {q(HEIGHT * K)};
+const opxy::i32 kExitEq = {q(exit_eq)}, kExitWedge = {q(exit_wedge)}, kRod = {q(ROD * K)}, kStopDx = {q(STOP_DX * K)}, kTwinScale = {round(TWIN * 1024)}, kTwinRise = {q(TWIN_RISE * K)}, kTiltTurn = {TILT * 10}, kCrackDx = {q(1.5 * K)};
+const opxy::i32 kScreenNear = {q(sx(SCREEN_NEAR))}, kScreenFar = {q(sx(SCREEN_FAR))}, kScreenW = {q(SCREEN_W * K)}, kScreenH = {q(SCREEN_H * K)}, kScreenSlant = {q(SCREEN_SLANT * K)}, kPostDy = {q(POST_DY * K)};
+const opxy::i32 kCradleTop = {q(sy(CRADLE - 4))}, kHeaderBottom = {q(38)}, kRailTop = {q(sy(RAIL_TOP))};
+const opxy::i32 kThrow = {THROW * 10};  // tenths of a degree\nconst opxy::i32 kLandingMax = {q(LANDING_MAX * K)}, kWeightFast = {q(10 * K)}, kWeightSpan = {q(18 * K)};
+// Radio's blocks, from the face's top-left.
+const opxy::i32 kBlockAt[{len(BLOCK_AT)}][2] = {{{blocks}}};
+// atan(i / 32) in tenths of a degree, for i = 0..32.
+const opxy::i32 kAtan[33] = {{{row(atan)}}};
 // The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.
 const opxy::i32 kRateHz[33] = {{{row(lfo)}}};
 const opxy::i32 kTwinMs[33] = {{{row(twin)}}};
@@ -450,6 +478,7 @@ const opxy::i32 kSliceMs[33] = {{{row(slice_ms)}}};
 
 
 if __name__ == "__main__":
-    (ROOT / "panel.svg.fragment").write_text(fragment())
+    text = fragment()
+    (ROOT / "panel.svg.fragment").write_text(text)
     (ROOT / "panel.h").write_text(header())
-    print(f"wrote panel.svg.fragment and panel.h: {len(NODES)} nodes, {len(TEXTS)} texts, {len(PALETTE)} palette")
+    print(f"wrote panel.svg.fragment ({len(text.encode())} bytes) and panel.h: {len(NODES)} nodes, {HEADER_TEXTS} texts, {len(PALETTE)} palette")

@@ -247,11 +247,11 @@
     "display": {
       "stateBytes": 68,
       "stateAlignment": 4,
-      "paths": 4,
+      "paths": 1,
       "points": 64,
-      "nodes": 84,
-      "texts": 18,
-      "palette": 8
+      "nodes": 81,
+      "texts": 16,
+      "palette": 10
     }
   }
 }

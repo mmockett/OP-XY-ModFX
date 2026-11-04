@@ -93,6 +93,26 @@ Later, each group of rays' feet was lined up one above the other, so no outline 
 turn straight back on itself. With back, whose rays spread furthest along the face,
 that shows as short upright steps inside the prism.
 
+## The bench redrawn: solid silhouettes
+
+The bench was then redrawn to the rules the later screens settled on, keeping what each
+control moves. Before and after:
+
+| Then | Now |
+| --- | --- |
+| Fine outlines on dark bodies, engraved rail, ring and arc | Flat solid parts in the header's value greys: lantern dark, prism mid, light light, screen white |
+| 24 hairline rays a side, dust motes, rings on the screen | Two to six solid blades of light a side, each effect its own: a broad sheet (cloud), dying repeats (dusk), rough-edged (tape), stepped pieces (slice), converging (back) |
+| A plate in a graduated ring | A plate on its post, turning |
+| A prism on a table under a graduated arc, its weight on a stem below | A prism on a knife edge with a metronome's rod and weight above it, rocking between two stop screws |
+| Ghost prism, inner triangles, a vane | Twins on their own knife edges, a nest cut through the glass, a louvred shutter, a right-angled wedge for pitch, an empty outline for off |
+| Blades, lines, cracks and dots drawn over the screen | The screen in bands that shade from either end, wander (cass), crack (worn) or break into blocks (radio) |
+| L and R on the screen | None: upper light is left, lower right |
+
+The beam is the one line left: it leaves the lens, runs behind the plate and the glass,
+and ends behind the screen, so it always meets each part exactly. The light runs behind
+the prism and the screen the same way. `tests/screen.cpp` holds every frame to that, and
+to no part crossing another.
+
 ![The bench as built, from the real display code](../screens.png)
 
 Every control at 0, 50 and 100 is in [controls-1x.png](controls-1x.png), and every

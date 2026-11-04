@@ -79,17 +79,18 @@ Correlation is measured on a mono phrase, whose own is 1.00: lower is wider.
 
 ## The screen
 
-A Victorian optical bench from the side, left to right as the sound goes, on a rail
-engraved in centimetres. A magic lantern's flame burns as Character's effect does,
-and Tilt turns a glass plate in a graduated ring before it. The prism rocks between
-the stops on its arc, at the rate the sliding weight on its stem shows, and doubles,
-nests or shutters as Movement's effect does. Its light leaves from the prism's far
-face and follows it, fanning out with Diffuse in that effect's own pattern, with
-dust adrift in it: upper rays left, lower right. Time slides the ground-glass screen
-along the rail, and Texture marks it.
+A Victorian optical bench from the side, left to right as the sound goes, each part a
+solid silhouette in its encoder's grey, from the dark lantern to the white screen. The
+magic lantern's flame burns as Character's effect does and grows with its Amount, and
+Tilt turns the glass plate in front of the lens. The prism rocks on its knife edge like
+a metronome, between the stops Movement's Amount screws down, at the rate the weight on
+its rod shows; it doubles, nests, shutters or leans as Movement's effect does. Its light
+fans out from the far face in Diffuse's own pattern and opens with Amount: upper light
+left, lower right. Time slides the screen along the rail, and Texture's blades, tape,
+cracks or static mark it. One beam runs from the lens through everything to the screen.
 
-[docs/visual-directions.md](docs/visual-directions.md) records the three directions
-drawn and why this one was chosen.
+[docs/visual-directions.md](docs/visual-directions.md) records the directions drawn and
+why this one was chosen.
 
 ## CPU and memory
 

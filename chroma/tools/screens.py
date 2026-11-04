@@ -11,7 +11,8 @@ if not _font or not pathlib.Path(_font).is_file():
     sys.exit("set XY_FONT to the path of UniversNextPro-Light.ttf (the OP-XY's screen font)")
 FACE = f'<style>@font-face{{font-family:"UniversNextPro-Light";src:url("{pathlib.Path(_font).resolve().as_uri()}")}}</style>'
 Q = 1024
-PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
+PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*fill="([^"]+)" stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
+PATHS = int(re.search(r'Frame<(\d+)', (ROOT / 'display.h').read_text()).group(1))  # its reshaping paths, nodes 0..PATHS-1
 
 
 def apply(frame):
@@ -24,14 +25,18 @@ def apply(frame):
         x, y, scale, c, s, shade, paint = frame['nodes'][i]
         matrix = f'matrix({scale * c / Q / Q:.4f} {scale * s / Q / Q:.4f} {-scale * s / Q / Q:.4f} {scale * c / Q / Q:.4f} {x / Q:.3f} {y / Q:.3f})'
         tag = re.sub(r'transform="[^"]*"', f'transform="{matrix}"', tag) if 'transform=' in tag else tag.replace('<path ', f'<path transform="{matrix}" ')
-        if i < 4:
+        if i < PATHS:
             pts = frame['paths'][i]
             d = 'M' + ' L'.join(f'{a / Q:.3f},{b / Q:.3f}' for a, b in pts) + ' Z'
             tag = re.sub(r' d="[^"]*"', f' d="{d}"', tag)
         if paint:
-            # As on the device, the palette lends its stroke's width too.
-            tag = re.sub(r'stroke="[^"]*"', f'stroke="{PALETTE[shade][0]}"', tag, count=1)
-            tag = re.sub(r'stroke-width="[^"]*"', f'stroke-width="{PALETTE[shade][1]}"', tag)
+            # As on the device, the palette lends its stroke's width too, and fill-and-stroke its fill,
+            # though only to a node whose artwork has one.
+            fill, stroke, width = PALETTE[shade]
+            tag = re.sub(r'stroke="[^"]*"', f'stroke="{stroke}"', tag, count=1)
+            tag = re.sub(r'stroke-width="[^"]*"', f'stroke-width="{width}"', tag)
+            if paint == 2 and 'fill="none"' not in tag:
+                tag = re.sub(r'fill="[^"]*"', f'fill="{fill}"', tag, count=1)
         return tag
 
     art = re.sub(r'<path id="chroma_node_(\d+)"[^>]*/>', node, art)
