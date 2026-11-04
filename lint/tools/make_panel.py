@@ -19,8 +19,8 @@ the one line.
 - echo: a Binson-style drum on its spindle, the record head where the cable
   comes in and the playback head round the rim by the time, the repeats riding
   after it like further heads; past Madness the drum buckles.
-- spring: a reverb tank, its two transducers and two springs drawn turn by
-  turn, bowing as the tank is driven, wound tighter as the tone brightens.
+- spring: a reverb tank's spring strung between its two transducers on the
+  cable, shaking wider as it is driven, wound tighter as the tone brightens.
 - tape 2: a smaller head on its plate in the corner, pressing into the cable on
   its way down to the jack out with its level.
 
@@ -43,20 +43,20 @@ sys.path.insert(0, str(HERE))
 from kit import Panel  # noqa: E402
 
 ROOT = HERE.parent
-p = Panel(paths=3)
+p = Panel(paths=4)
 
 # The encoders' greys, as the header's value cells step dark to white, and the one inner tone.
 G = ["#323232", "#646464", "#969696", "#CDCDCD"]
 INNER = "#000000"
-WIRE = "#F2F2F2"          # the patch cable, and the springs' turns
+WIRE = "#F2F2F2"          # the patch cable and the spring
 WALL = "#262626"          # the tray's walls
 LINT = "#7D7D7D"          # lint on dust's head plate
 TAPE2 = "#575757"         # tape 2's head: dust's kind, a step lighter so it reads in its corner
 RIBBON, STROKE = 0.4, 1.0  # a cable: a ribbon this wide, stroked this heavy (about 1.4 px)
 
 # The tray and the cable, in screen pixels.
-Y = 122                    # the cable's height
-NORTH, SOUTH = 52, 208     # the hop's run along the back wall, the loop's along the front
+Y = 116                    # the cable's height
+NORTH, SOUTH = 52, 211     # the hop's run along the back wall, the loop's along the front
 CX = [60 + 120 * i for i in range(4)]   # the modules' centres, under the header's columns
 HALF, EAST = 60, 46        # a module's cable starts at its column's left edge and ends 46 right of its centre
 OUT_X = 468                # the cable's run down to the jack in the front wall
@@ -65,29 +65,27 @@ WALL_W, WALL_R, JACK, JACK_OUT = 3, 6, 5, 4   # the walls' width, their outer co
 HOP_IN, BEND = 7, 6        # how far into a module the hop rises, the cables' bend radius
 
 # Dust: the head on its plate, its crown's top the origin; the guides on the far side of the tape.
-CROWN_R, FACE_W, HEAD_D, PLATE_W, PLATE_D = 34, 26, 21, 37, 33
-HEAD_REST, HEAD_LIFT = 2.5, 18
-NOTCH_W, NOTCH_D = 2.4, 4
-SCREW_X, SCREW_Y, SCREW_R = 31.5, 27, 1.9
-GUIDE_X, GUIDE_R, SPINDLE_R = 39, 7, 2.2
-LINT_AT = [(-22, 39), (22, 39), (0, 40.5)]   # lint's places along the plate's back, about the crown's top
+CROWN_R, FACE_W, HEAD_D, PLATE_W, PLATE_D = 44, 34, 27, 46, 42
+HEAD_REST, HEAD_LIFT = 2.5, 20
+NOTCH_W, NOTCH_D = 2.6, 4.5
+SCREW_X, SCREW_Y, SCREW_R = 40, 35, 2.3
+GUIDE_X, GUIDE_R, SPINDLE_R = 45, 8.5, 2.8
+LINT_AT = [(-15, 48), (15, 48), (0, 50)]   # lint's places along the plate's back, about the crown's top
 # Phase: the cell on the cable; the lamp below it, its glass's centre.
-CELL_R = 15
-GLASS_R, GLASS_Y, NECK_W, NECK_Y = 17, 43.5, 7.5, 62
+CELL_R = 19
+GLASS_R, GLASS_Y, NECK_W, NECK_Y = 21, 49.5, 9.5, 73
 # Echo: the drum, its heads outside the rim, the cable round them.
-DRUM_R, HUB_R, AXLE_R = 26, 7, 3
-HEAD_IN, HEAD_LEN, HEAD_W = 1.5, 12, 6.5
-CABLE_R = DRUM_R + 18
-PLAY_FROM, PLAY_SPAN = 2160, 1440            # the playback head: tenths of a degree (the record head is at 1800), across time
+DRUM_R, HUB_R, AXLE_R = 28, 8, 3.5
+HEAD_IN, HEAD_LEN, HEAD_W = 1.5, 13, 7
+CABLE_R = DRUM_R + 20
+PLAY_FROM, PLAY_SPAN = 2160, 1160            # the playback head: tenths of a degree (the record head is at 1800), across time
 REPEATS, REPEAT_STEP, REPEAT_LAST = 5, 300, 5000
-RISER_X = -33              # the loop's cable leaves the record head here
+RISER_X = -36              # the loop's cable leaves the record head here
 # Spring: the tank's rails and transducers, and the springs' turns between.
-TANK_X, RAIL_Y, RAIL_H = 42, 27.5, 2.5
-TRANS_IN, TRANS_OUT, TRANS_H = 29, 40, 25.5
-SPRING_Y, TURN_RX, TURN_RY, TURNS, TURN_END = 9, 2.4, 5.6, 6, 23
-BOW = 9
+TRANS_IN, TRANS_OUT, TRANS_H = 32, 42, 31   # the transducers' inner and outer faces, their half-height
+COIL_X = TRANS_IN                           # where the spring meets each transducer
 # Tape 2: a smaller head of dust's kind, facing the cable's run down to the jack.
-T2_SCALE, T2_Y, T2_REST, T2_LIFT, T2_BACK = 0.7, 182, 2.5, 8, 3.5
+T2_SCALE, T2_Y, T2_REST, T2_LIFT, T2_BACK = 0.5, 186, 2.5, 8, 0.5
 CORNER = 3
 
 
@@ -102,12 +100,6 @@ def rounded(x0, y0, x1, y1, r=CORNER, steps=3):
 
 def disc(r, n=40, cx=0, cy=0):
     return [(cx + r * math.cos(2 * math.pi * k / n), cy + r * math.sin(2 * math.pi * k / n)) for k in range(n)]
-
-
-def ellipse(rx, ry, tilt=0.0, n=24):
-    c, s = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
-    return [(rx * math.cos(a) * c - ry * math.sin(a) * s, rx * math.cos(a) * s + ry * math.sin(a) * c)
-            for a in (2 * math.pi * k / n for k in range(n))]
 
 
 def tufted(r, seed, lobes=7, depth=0.22, n=44):
@@ -183,7 +175,7 @@ def bent(points, r=BEND, steps=4):
     return keep
 
 
-SHAPES = {}   # every fixed node's outline, for the tests: solid parts (and the springs' turns), runs of cable
+SHAPES = {}   # every fixed node's outline, for the tests: solid parts and runs of cable
 
 
 def solid(name, points, fill, at=(640, 320)):
@@ -194,11 +186,6 @@ def solid(name, points, fill, at=(640, 320)):
 def wire(name, line, at=(640, 320)):
     SHAPES[name] = ("cable", line)
     return p.node(name, cable(line), at, WIRE, STROKE)
-
-
-def turn(name, points, at=(640, 320)):
-    SHAPES[name] = ("solid", points)   # a closed turn of spring: kept clear like a part
-    return p.node(name, points, at, WIRE, 1.0)
 
 
 # ---- the tray's walls: one piece from the jack in, round the back, to the jack out; one along the front ----
@@ -218,6 +205,7 @@ flat = lambda a, b: cable([(a + (b - a) * k / 31, 0) for k in range(32)])
 p.mutable(0, "tape", flat(-HALF, EAST), (640, 320), WIRE, STROKE)          # over dust's head
 p.mutable(1, "echo_out", flat(-HALF, EAST), (640, 320), WIRE, STROKE)      # round the drum from the playback head
 p.mutable(2, "tape2_out", flat(-30, 30), (640, 320), WIRE, STROKE)         # down past tape 2's head to the jack out
+p.mutable(3, "coil", flat(-COIL_X, COIL_X), (640, 320), WIRE, STROKE)      # the spring
 
 # ---- dust ----
 solid("dust_head", head(), G[0])
@@ -226,14 +214,15 @@ for i, sx in enumerate((-1, 1)):
 for i, sx in enumerate((-1, 1)):
     solid(f"guide_{i}", disc(GUIDE_R, 32, sx * GUIDE_X, 0), G[0])
     solid(f"spindle_{i}", disc(SPINDLE_R, 14, sx * GUIDE_X, 0), INNER)
-LINT_R = [(2.6, 3.5, 4.4), (2.6, 3.5, 4.4), (2.8, 4.0, 5.2)]
+LINT_R = [(2.9, 3.8, 4.6), (2.9, 3.8, 4.6), (3.2, 4.3, 5.4)]
 for place in range(3):
     for v in range(3):
         solid(f"lint_{place}_{v}", tufted(LINT_R[place][v], seed=11 * place + v), LINT)
 
 # ---- phase ----
 # The lamp's screw cap with its contact below, as one stepped outline.
-solid("lamp_cap", [(-8.5, 63.5), (8.5, 63.5), (8.5, 68.5), (7, 70), (3.8, 70), (3.8, 72), (2.2, 73.5), (-2.2, 73.5), (-3.8, 72), (-3.8, 70), (-7, 70), (-8.5, 68.5)], G[1])
+CAP = [(-8.5, 0), (8.5, 0), (8.5, 5), (7, 6.5), (3.8, 6.5), (3.8, 8.5), (2.2, 10), (-2.2, 10), (-3.8, 8.5), (-3.8, 6.5), (-7, 6.5), (-8.5, 5)]
+solid("lamp_cap", [(x * 1.25, NECK_Y + 1.5 + y * 1.2) for x, y in CAP], G[1])
 
 
 def bulb():
@@ -259,9 +248,9 @@ for v, (thick, spread) in enumerate(((2.2, 30), (3.6, 36), (5.2, 42))):
     solid(f"glow_{v}", outer + inner[1:-1], G[1])
 solid("cell", disc(CELL_R, 44), G[1])
 # The cell's face: its zigzag track, three runs joined by round turns.
-zig = [(-10.5, 0.5), (-7, -5), (-3.5, 5), (0, -5), (3.5, 5), (7, -5), (10.5, 0.5)]
-track = bent(zig, r=1.6, steps=3)
-solid("track", strip(track, 2.0), INNER)
+zig = [(-13.5, 0.7), (-9, -6.4), (-4.5, 6.4), (0, -6.4), (4.5, 6.4), (9, -6.4), (13.5, 0.7)]
+track = bent(zig, r=2, steps=3)
+solid("track", strip(track, 2.5), INNER)
 wire("phase_in", [(-HALF, 0), (-CELL_R, 0)])
 wire("phase_out", [(CELL_R, 0), (EAST, 0)])
 
@@ -292,16 +281,10 @@ for k in range(REPEATS):
     solid(f"repeat_{k}", head_block(REPEAT_SCALE[k]), REPEAT_GREYS[k])
 wire("echo_in", [(-HALF, 0), (-(DRUM_R + HEAD_IN + HEAD_LEN), 0)])
 
-# ---- spring ----
-for i, sy in enumerate((-1, 1)):
-    y_a, y_b = sorted((sy * RAIL_Y, sy * (RAIL_Y + RAIL_H)))
-    solid(f"rail_{i}", rounded(-TANK_X, y_a, TANK_X, y_b, 1.4, 2), G[3])
+# ---- spring: the tank's two transducers, the spring strung between them on the cable ----
 for i, sx in enumerate((-1, 1)):
     xa, xb = sorted((sx * TRANS_IN, sx * TRANS_OUT))
     solid(f"trans_{i}", rounded(xa, -TRANS_H, xb, TRANS_H), G[3])
-for s in range(2):
-    for k in range(TURNS):
-        turn(f"turn_{s}_{k}", ellipse(TURN_RX, TURN_RY, tilt=25))
 wire("spring_in", [(-HALF, 0), (-TRANS_OUT, 0)])
 wire("spring_out", [(TRANS_OUT, 0), (EAST, 0)])
 
@@ -329,13 +312,15 @@ T2_LOOP_X = OUT_X - 0.7 - T2_REST - T2_BACK - T2_DEPTH            # where the lo
 T2_FACE_Y = T2_Y + PLATE_W * T2_SCALE                            # the plate's side, facing the front wall
 lanes = {}
 for e in range(4):
-    ex, ey = CX[e] + RISER_X, Y + HEAD_W
+    # the record head's underside where the riser meets it: its housing narrows from the rim
+    along = -RISER_X - (DRUM_R + HEAD_IN)
+    ex, ey = CX[e] + RISER_X, Y + HEAD_W - (HEAD_W - HEAD_W * 0.78) * along / (HEAD_LEN - 2.2)
     for t in range(4):
         if t == e:
             continue
         cx = CX[t]
         lanes[(e, t, "phase")] = wire(f"lane_{e}_{t}_phase", bent([(ex, ey), (ex, SOUTH), (cx - 30, SOUTH), (cx - 30, Y), (cx - CELL_R, Y)]))
-        lanes[(e, t, "spring")] = wire(f"lane_{e}_{t}_spring", bent([(ex, ey), (ex, SOUTH), (cx - 32, SOUTH), (cx - 32, Y + RAIL_Y + RAIL_H)]))
+        lanes[(e, t, "spring")] = wire(f"lane_{e}_{t}_spring", bent([(ex, ey), (ex, SOUTH), (cx - (TRANS_IN + TRANS_OUT) / 2, SOUTH), (cx - (TRANS_IN + TRANS_OUT) / 2, Y + TRANS_H)]))
     lanes[(e, 4, "tape")] = wire(f"lane_{e}_tape", bent([(ex, ey), (ex, SOUTH), (T2_LOOP_X, SOUTH), (T2_LOOP_X, T2_FACE_Y)], r=3))
 
 # ---- palette: the lamp's glass and light, its own grey to white ----
@@ -358,19 +343,18 @@ p.const("// module's cable ends, and the run down to the jack out.")
 p.const(f"const opxy::i32 kY = {Y}, kNorth = {NORTH}, kSouth = {SOUTH}, kHalf = {HALF}, kEast = {EAST}, kOutX = {OUT_X};")
 p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
 p.const("// Dust's head, Q10: its crown's radius, its rest below the cable and its lift; the guides in pixels; lint's places.")
-p.const(f"const opxy::i32 kCrownR = {q(CROWN_R)}, kHeadRest = {q(HEAD_REST)}, kHeadLift = {q(HEAD_LIFT)}, kGuideX = {GUIDE_X}, kGuideR = {GUIDE_R};")
+p.const(f"const opxy::i32 kCrownR = {q(CROWN_R)}, kHeadRest = {q(HEAD_REST)}, kHeadLift = {q(HEAD_LIFT)}, kGuideX = {GUIDE_X}, kGuideR = {q(GUIDE_R)};  // kGuideR Q10")
 p.const("const opxy::i32 kLintAt[3][2] = {" + ", ".join(f"{{{q(x)}, {q(y)}}}" for x, y in LINT_AT) + "};  // Q10")
 p.const(f"const opxy::i32 kGlassY = {q(GLASS_Y)}, kGlows = {len(GLOWS)};  // kGlassY Q10")
 p.const("// The echo's drum; its heads' foot and tip from the centre (Q10); the playback cable's run; the playback head's travel, tenths of a degree.")
 p.const(f"const opxy::i32 kDrumR = {DRUM_R}, kHeadFoot = {q(DRUM_R + HEAD_IN)}, kHeadTip = {q(DRUM_R + HEAD_IN + HEAD_LEN)}, kCableR = {CABLE_R};")
 p.const(f"const opxy::i32 kPlayFrom = {PLAY_FROM}, kPlaySpan = {PLAY_SPAN}, kRepeats = {REPEATS}, kRepeatStep = {REPEAT_STEP}, kRepeatLast = {REPEAT_LAST};")
-p.const("// The springs: their height either side of the cable, their turns' reach from the centre (Q10), how far they bow (Q10).")
-p.const(f"const opxy::i32 kSpringY = {SPRING_Y}, kTurns = {TURNS}, kTurnEnd = {q(TURN_END)}, kBow = {q(BOW)};")
+p.const(f"const opxy::i32 kCoilX = {COIL_X};   // where the spring meets each transducer")
 p.const("// Tape 2, Q10 but its height: its crown's rest left of the run down, its lift, how far it draws back for the loop, its crown's radius.")
 p.const(f"const opxy::i32 kT2Y = {T2_Y}, kT2Rest = {q(0.7 + T2_REST)}, kT2Lift = {q(T2_LIFT)}, kT2Back = {q(T2_BACK)}, kT2CrownR = {q(CROWN_R * T2_SCALE)};")
 p.const("// The loop's cable from the echo at position e to position t (4: tape 2), by what is patched: phase, spring, tape; -1 for none.")
 p.const("const opxy::i32 kLane[4][5][3] = {" + ", ".join(lane_table) + "};")
-p.const(f"const opxy::u32 kNodeLint = {idx['lint_0_0']}, kNodeGlows = {idx['glow_0']}, kNodeRepeats = {idx['repeat_0']}, kNodeTurns = {idx['turn_0_0']}, "
+p.const(f"const opxy::u32 kNodeLint = {idx['lint_0_0']}, kNodeGlows = {idx['glow_0']}, kNodeRepeats = {idx['repeat_0']}, "
         f"kNodeLinks = {idx['link_0']}, kNodeHops = {idx['hop_0']}, kNodeLanes = {idx['lane_0_1_phase']}, kNodeLaneEnd = {idx['lane_3_tape'] + 1};")
 counts = p.write(ROOT)
 

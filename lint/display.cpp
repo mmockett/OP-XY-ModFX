@@ -11,7 +11,7 @@ namespace lint {
 // gathers on its plate; the lamp below the photocell lights with phase and
 // pulses with its LFO; the playback head rides round the echo's drum with time,
 // the repeats after it, more with feedback, and Madness buckles the drum; the
-// tank's springs bow apart as it is driven and gain turns as the tone brightens.
+// spring shakes wider as the tank is driven and winds tighter as the tone brightens.
 // Tape 2's head presses into the cable on its way to the jack with its level.
 // A section patched into the echo's loop leaves the cable, which hops over it
 // along the back wall, for a cable along the front wall from the echo's record
@@ -41,7 +41,7 @@ const u32 kPhaseNodes[] = {kNodeLampCap, kNodeGlass, kNodeFilament, kNodeGlows +
                            kNodePhaseIn, kNodePhaseOut};
 const u32 kEchoNodes[] = {kNodeDrum, kNodeDrumMad, kNodeHub, kNodeAxle, kNodeRecHead, kNodePlayHead, kNodeRepeats + 0, kNodeRepeats + 1,
                           kNodeRepeats + 2, kNodeRepeats + 3, kNodeRepeats + 4, kNodeEchoIn, kNodeEchoOut};
-const u32 kSpringNodes[] = {kNodeRail0, kNodeRail1, kNodeTrans0, kNodeTrans1, kNodeSpringIn, kNodeSpringOut};
+const u32 kSpringNodes[] = {kNodeTrans0, kNodeTrans1, kNodeSpringIn, kNodeSpringOut, kNodeCoil};
 
 i32 px(i32 pixels) { return pixels * unit; }
 // A Q15 control's share of a span, in the span's units.
@@ -363,7 +363,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         place(frame, kNodeDustHead, cx[kD], crown, unit, 0, keep);
         place(frame, kNodeScrew0, cx[kD], crown, unit, 0, keep);
         place(frame, kNodeScrew1, cx[kD], crown, unit, 0, keep);
-        const i32 guide = px(kGuideR) + unit * 7 / 10;   // the guides' centres, off the tape's middle
+        const i32 guide = kGuideR + unit * 7 / 10;   // the guides' centres, off the tape's middle
         const u32 guides[4] = {kNodeGuide0, kNodeSpindle0, kNodeGuide1, kNodeSpindle1};
         for (u32 n : guides) place(frame, n, cx[kD], y - guide, unit, 0, keep);
         for (u32 at = 0; at < 3; ++at) {
@@ -487,15 +487,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
     }
 
-    // Spring: the tank's rails and transducers; its two springs drawn turn by
-    // turn, bowing apart as the tank is driven (with LFO 2 on its input when it
-    // wobbles the tank), more turns the brighter the tone.
+    // Spring: strung between the transducers, shaking wider with the drive (and
+    // with LFO 2 on the tank's input when it wobbles the tank), wound tighter as
+    // the tone brightens.
     if (away[kS]) {
         hide_all(frame, kSpringNodes, sizeof kSpringNodes / sizeof kSpringNodes[0]);
-        for (u32 n = 0; n < 2 * kTurns; ++n) hide(frame, kNodeTurns + n);
     } else {
-        const u32 tank[4] = {kNodeRail0, kNodeRail1, kNodeTrans0, kNodeTrans1};
-        for (u32 n : tank) place(frame, n, cx[kS], y, unit, 0, keep);
+        place(frame, kNodeTrans0, cx[kS], y, unit, 0, keep);
+        place(frame, kNodeTrans1, cx[kS], y, unit, 0, keep);
         const u32 ends[2] = {kNodeSpringIn, kNodeSpringOut};
         for (u32 n : ends) {
             if (patched == kS) hide(frame, n);
@@ -503,18 +502,22 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         }
         const i32 drive = loop == kLoopSpring && v[kSpringAmount] < 328 ? 16384 : v[kSpringAmount];
         const i32 tremolo = wobble == kWobbleSpring ? 6554 + share(26213, (lfo2 + 32767) >> 1) : 32767;
-        const i32 bow = share(share(kBow, 4915 + share(27852, drive)), tremolo) & ~127;   // in eighths of a pixel
-        const i32 count = 4 * 1024 + share((kTurns - 4) * 1024, v[kTone]);   // Q10 turns, 4..6
-        const i32 step = 2 * kTurnEnd * 1024 / (count - 1024);   // Q10 px between turns
-        for (i32 s = 0; s < 2; ++s)
-            for (i32 k = 0; k < kTurns; ++k) {
-                const u32 n = kNodeTurns + static_cast<u32>(s * kTurns + k);
-                const i32 x = -kTurnEnd + step * k;
-                if (x > kTurnEnd + 64) { hide(frame, n); continue; }
-                const i32 along = clamp((x + kTurnEnd) * 512 / kTurnEnd, 0, 1024);   // Q10 along the spring
-                const i32 lift = bow * sine(along * 1800 >> 10) >> 10;
-                place(frame, n, cx[kS] + x, y + (s ? px(kSpringY) + lift : -px(kSpringY) - lift), unit, 0, keep);
+        const i32 amplitude = share(px(2) + share(px(17), drive), tremolo);
+        const i32 cycles = 4 * unit + share(5 * unit, v[kTone]);   // Q10 turns across the tank, 4..9
+        place(frame, kNodeCoil, cx[kS], y, unit, 0, keep);
+        const u32 key = 1 + (static_cast<u32>(amplitude >> 6) | static_cast<u32>(cycles >> 5) << 12);
+        if (frame.paths[kNodeCoil].key != key) {
+            frame.paths[kNodeCoil].key = key;
+            Point c[32];
+            for (i32 k = 0; k < 32; ++k) {
+                const i32 x = -px(kCoilX) + px(2 * kCoilX) * k / 31;
+                // the spring's ends held still on the transducers, easing out over three turns of the wire
+                const i32 ends_ = clamp(k * 4, 0, 10) * clamp((31 - k) * 4, 0, 10);   // 0..100
+                const i32 swing = (amplitude >> 4) * sine(cycles / 8 * k * 3600 / 31 / 128) >> 6;   // Q10
+                c[k] = Point{x, swing * ends_ / 100};
             }
+            ribbon(frame.paths[kNodeCoil], c);
+        }
     }
 
     // The links between modules, the hop over a section patched into the loop,
@@ -547,17 +550,19 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         place(frame, n, crown, px(kT2Y), unit, 0, keep);
         turn(frame, n, rotation(900));
     }
-    place(frame, kNodeTape2Out, px(kOutX), px(kT2Y), unit, 0, keep);
+    // (its node sits 10 px above the head, so the run from the cable stays within 64 px of it)
+    const i32 lift = px(10);
+    place(frame, kNodeTape2Out, px(kOutX), px(kT2Y) - lift, unit, 0, keep);
     const u32 key = 1 + static_cast<u32>((crown - px(kOutX) + px(32)) >> 6);
     if (frame.paths[kNodeTape2Out].key != key) {
         frame.paths[kNodeTape2Out].key = key;
         // Along the run (down) and across it (west, toward the head), then turned onto the screen.
         Line line = {};
-        line.add(px(kCX[3] + kEast - kOutX), y - px(kT2Y));
-        line.add(-unit, y - px(kT2Y) + unit);
+        line.add(px(kCX[3] + kEast - kOutX), y - px(kT2Y) + lift);
+        line.add(-unit, y - px(kT2Y) + unit + lift);
         Line run = {};
         wrap(run, y - px(kT2Y) + px(3), px(220 - kT2Y), -px(16), px(16), px(kOutX) - crown + kT2CrownR, kT2CrownR + unit * 7 / 10);
-        for (u32 k = 0; k < run.count; ++k) line.add(-run.at[k].y, run.at[k].x);
+        for (u32 k = 0; k < run.count; ++k) line.add(-run.at[k].y, run.at[k].x + lift);
         line.smooth();
         Point c[32];
         resample(line, c);

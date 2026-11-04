@@ -75,16 +75,16 @@ milliseconds (then seconds from 0.1 s) and tone from -100 to 100.
   sends the playback head round the rim, its cable following; the repeats ride
   after it like further heads, up to four with feedback; past 85 Madness buckles
   the drum and it turns.
-- **spring:** a reverb tank, its two transducers and two springs drawn turn by
-  turn, bowing apart as it's driven, more turns as the tone brightens.
+- **spring:** a reverb tank's spring strung between its two transducers on the
+  cable, shaking wider as it's driven and wound tighter as the tone brightens.
 - **tape 2:** a smaller head in the corner, pressing into the cable on its way
   down to the jack with its level.
 
 A section patched into the echo's loop leaves the cable, which hops over it
 along the back wall, and a cable along the front wall joins it to the echo's
 record head; tape 2 draws back from the cable and takes the loop's instead.
-LFO 2 shows on what it wobbles: the playback head sways, the springs swell and
-fall, or the lamp pulses faster. When the order changes, the modules move to
+LFO 2 shows on what it wobbles: the playback head sways, the spring swells and
+falls, or the lamp pulses faster. When the order changes, the modules move to
 their new places one a frame.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots

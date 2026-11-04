@@ -3,26 +3,25 @@
 #include <opxy/types.hpp>
 
 namespace lint { namespace panel {
-const opxy::u32 kNodes = 105, kTexts = 16, kPalette = 8, kNodeBars = 97;
-enum Node { kNodeTape = 0, kNodeEchoOut = 1, kNodeTape2Out = 2, kNodeDustHead = 3, kNodeScrew0 = 4, kNodeScrew1 = 5, kNodeGuide0 = 6, kNodeSpindle0 = 7, kNodeGuide1 = 8, kNodeSpindle1 = 9, kNodeLint00 = 10, kNodeLint01 = 11, kNodeLint02 = 12, kNodeLint10 = 13, kNodeLint11 = 14, kNodeLint12 = 15, kNodeLint20 = 16, kNodeLint21 = 17, kNodeLint22 = 18, kNodeLampCap = 19, kNodeGlass = 20, kNodeFilament = 21, kNodeGlow0 = 22, kNodeGlow1 = 23, kNodeGlow2 = 24, kNodeCell = 25, kNodeTrack = 26, kNodePhaseIn = 27, kNodePhaseOut = 28, kNodeDrum = 29, kNodeDrumMad = 30, kNodeHub = 31, kNodeAxle = 32, kNodeRecHead = 33, kNodePlayHead = 34, kNodeRepeat0 = 35, kNodeRepeat1 = 36, kNodeRepeat2 = 37, kNodeRepeat3 = 38, kNodeRepeat4 = 39, kNodeEchoIn = 40, kNodeRail0 = 41, kNodeRail1 = 42, kNodeTrans0 = 43, kNodeTrans1 = 44, kNodeTurn00 = 45, kNodeTurn01 = 46, kNodeTurn02 = 47, kNodeTurn03 = 48, kNodeTurn04 = 49, kNodeTurn05 = 50, kNodeTurn10 = 51, kNodeTurn11 = 52, kNodeTurn12 = 53, kNodeTurn13 = 54, kNodeTurn14 = 55, kNodeTurn15 = 56, kNodeSpringIn = 57, kNodeSpringOut = 58, kNodeTape2Head = 59, kNodeT2Screw0 = 60, kNodeT2Screw1 = 61, kNodeLink0 = 62, kNodeLink1 = 63, kNodeLink2 = 64, kNodeHop0 = 65, kNodeHop1 = 66, kNodeHop2 = 67, kNodeHop3 = 68, kNodeLane01Phase = 69, kNodeLane01Spring = 70, kNodeLane02Phase = 71, kNodeLane02Spring = 72, kNodeLane03Phase = 73, kNodeLane03Spring = 74, kNodeLane0Tape = 75, kNodeLane10Phase = 76, kNodeLane10Spring = 77, kNodeLane12Phase = 78, kNodeLane12Spring = 79, kNodeLane13Phase = 80, kNodeLane13Spring = 81, kNodeLane1Tape = 82, kNodeLane20Phase = 83, kNodeLane20Spring = 84, kNodeLane21Phase = 85, kNodeLane21Spring = 86, kNodeLane23Phase = 87, kNodeLane23Spring = 88, kNodeLane2Tape = 89, kNodeLane30Phase = 90, kNodeLane30Spring = 91, kNodeLane31Phase = 92, kNodeLane31Spring = 93, kNodeLane32Phase = 94, kNodeLane32Spring = 95, kNodeLane3Tape = 96 };
+const opxy::u32 kNodes = 92, kTexts = 16, kPalette = 8, kNodeBars = 84;
+enum Node { kNodeTape = 0, kNodeEchoOut = 1, kNodeTape2Out = 2, kNodeCoil = 3, kNodeDustHead = 4, kNodeScrew0 = 5, kNodeScrew1 = 6, kNodeGuide0 = 7, kNodeSpindle0 = 8, kNodeGuide1 = 9, kNodeSpindle1 = 10, kNodeLint00 = 11, kNodeLint01 = 12, kNodeLint02 = 13, kNodeLint10 = 14, kNodeLint11 = 15, kNodeLint12 = 16, kNodeLint20 = 17, kNodeLint21 = 18, kNodeLint22 = 19, kNodeLampCap = 20, kNodeGlass = 21, kNodeFilament = 22, kNodeGlow0 = 23, kNodeGlow1 = 24, kNodeGlow2 = 25, kNodeCell = 26, kNodeTrack = 27, kNodePhaseIn = 28, kNodePhaseOut = 29, kNodeDrum = 30, kNodeDrumMad = 31, kNodeHub = 32, kNodeAxle = 33, kNodeRecHead = 34, kNodePlayHead = 35, kNodeRepeat0 = 36, kNodeRepeat1 = 37, kNodeRepeat2 = 38, kNodeRepeat3 = 39, kNodeRepeat4 = 40, kNodeEchoIn = 41, kNodeTrans0 = 42, kNodeTrans1 = 43, kNodeSpringIn = 44, kNodeSpringOut = 45, kNodeTape2Head = 46, kNodeT2Screw0 = 47, kNodeT2Screw1 = 48, kNodeLink0 = 49, kNodeLink1 = 50, kNodeLink2 = 51, kNodeHop0 = 52, kNodeHop1 = 53, kNodeHop2 = 54, kNodeHop3 = 55, kNodeLane01Phase = 56, kNodeLane01Spring = 57, kNodeLane02Phase = 58, kNodeLane02Spring = 59, kNodeLane03Phase = 60, kNodeLane03Spring = 61, kNodeLane0Tape = 62, kNodeLane10Phase = 63, kNodeLane10Spring = 64, kNodeLane12Phase = 65, kNodeLane12Spring = 66, kNodeLane13Phase = 67, kNodeLane13Spring = 68, kNodeLane1Tape = 69, kNodeLane20Phase = 70, kNodeLane20Spring = 71, kNodeLane21Phase = 72, kNodeLane21Spring = 73, kNodeLane23Phase = 74, kNodeLane23Spring = 75, kNodeLane2Tape = 76, kNodeLane30Phase = 77, kNodeLane30Spring = 78, kNodeLane31Phase = 79, kNodeLane31Spring = 80, kNodeLane32Phase = 81, kNodeLane32Spring = 82, kNodeLane3Tape = 83 };
 enum Text { kTextNone = 16 };
 enum Shade { kShadeGlow0 = 0, kShadeGlow1 = 1, kShadeGlow2 = 2, kShadeGlow3 = 3, kShadeGlow4 = 4, kShadeGlow5 = 5, kShadeGlow6 = 6, kShadeGlow7 = 7 };
 // The tray, in pixels: the cable's height, the hop's and loop's runs, the modules' centres, where each
 // module's cable ends, and the run down to the jack out.
-const opxy::i32 kY = 122, kNorth = 52, kSouth = 208, kHalf = 60, kEast = 46, kOutX = 468;
+const opxy::i32 kY = 116, kNorth = 52, kSouth = 211, kHalf = 60, kEast = 46, kOutX = 468;
 const opxy::i32 kCX[4] = {60, 180, 300, 420};
 // Dust's head, Q10: its crown's radius, its rest below the cable and its lift; the guides in pixels; lint's places.
-const opxy::i32 kCrownR = 34816, kHeadRest = 2560, kHeadLift = 18432, kGuideX = 39, kGuideR = 7;
-const opxy::i32 kLintAt[3][2] = {{-22528, 39936}, {22528, 39936}, {0, 41472}};  // Q10
-const opxy::i32 kGlassY = 44544, kGlows = 8;  // kGlassY Q10
+const opxy::i32 kCrownR = 45056, kHeadRest = 2560, kHeadLift = 20480, kGuideX = 45, kGuideR = 8704;  // kGuideR Q10
+const opxy::i32 kLintAt[3][2] = {{-15360, 49152}, {15360, 49152}, {0, 51200}};  // Q10
+const opxy::i32 kGlassY = 50688, kGlows = 8;  // kGlassY Q10
 // The echo's drum; its heads' foot and tip from the centre (Q10); the playback cable's run; the playback head's travel, tenths of a degree.
-const opxy::i32 kDrumR = 26, kHeadFoot = 28160, kHeadTip = 40448, kCableR = 44;
-const opxy::i32 kPlayFrom = 2160, kPlaySpan = 1440, kRepeats = 5, kRepeatStep = 300, kRepeatLast = 5000;
-// The springs: their height either side of the cable, their turns' reach from the centre (Q10), how far they bow (Q10).
-const opxy::i32 kSpringY = 9, kTurns = 6, kTurnEnd = 23552, kBow = 9216;
+const opxy::i32 kDrumR = 28, kHeadFoot = 30208, kHeadTip = 43520, kCableR = 48;
+const opxy::i32 kPlayFrom = 2160, kPlaySpan = 1160, kRepeats = 5, kRepeatStep = 300, kRepeatLast = 5000;
+const opxy::i32 kCoilX = 32;   // where the spring meets each transducer
 // Tape 2, Q10 but its height: its crown's rest left of the run down, its lift, how far it draws back for the loop, its crown's radius.
-const opxy::i32 kT2Y = 182, kT2Rest = 3277, kT2Lift = 8192, kT2Back = 3584, kT2CrownR = 24371;
+const opxy::i32 kT2Y = 186, kT2Rest = 3277, kT2Lift = 8192, kT2Back = 512, kT2CrownR = 22528;
 // The loop's cable from the echo at position e to position t (4: tape 2), by what is patched: phase, spring, tape; -1 for none.
-const opxy::i32 kLane[4][5][3] = {{{-1, -1, -1}, {69, 70, -1}, {71, 72, -1}, {73, 74, -1}, {-1, -1, 75}}, {{76, 77, -1}, {-1, -1, -1}, {78, 79, -1}, {80, 81, -1}, {-1, -1, 82}}, {{83, 84, -1}, {85, 86, -1}, {-1, -1, -1}, {87, 88, -1}, {-1, -1, 89}}, {{90, 91, -1}, {92, 93, -1}, {94, 95, -1}, {-1, -1, -1}, {-1, -1, 96}}};
-const opxy::u32 kNodeLint = 10, kNodeGlows = 22, kNodeRepeats = 35, kNodeTurns = 45, kNodeLinks = 62, kNodeHops = 65, kNodeLanes = 69, kNodeLaneEnd = 97;
+const opxy::i32 kLane[4][5][3] = {{{-1, -1, -1}, {56, 57, -1}, {58, 59, -1}, {60, 61, -1}, {-1, -1, 62}}, {{63, 64, -1}, {-1, -1, -1}, {65, 66, -1}, {67, 68, -1}, {-1, -1, 69}}, {{70, 71, -1}, {72, 73, -1}, {-1, -1, -1}, {74, 75, -1}, {-1, -1, 76}}, {{77, 78, -1}, {79, 80, -1}, {81, 82, -1}, {-1, -1, -1}, {-1, -1, 83}}};
+const opxy::u32 kNodeLint = 11, kNodeGlows = 23, kNodeRepeats = 36, kNodeLinks = 49, kNodeHops = 52, kNodeLanes = 56, kNodeLaneEnd = 84;
 }}
