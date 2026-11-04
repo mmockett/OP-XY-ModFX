@@ -7,8 +7,10 @@ module, in its encoder's tone: dark grey, mid grey, light grey and white, as the
 OP-XY's own knobs run left to right. Each facet is a rim, one smooth outline the
 display reshapes, that shows what its module does to the sound and the qualities
 the modules before it hand on; a faint ring outside it is its blur or its echo.
-Tilt leans Character's rim, and Diffuse's echoes open inside its own. Between the facets the sound passes as two bars, left above and right
-below, as far apart as the sound is wide so far.
+One line carries the sound through them: it enters at the left edge, runs from
+each rim to the next and leaves at the right edge, and it is part of the rims'
+own outlines, so it always meets them. Inside each rim is one small mechanism
+that behaves as its module does to the sound.
 
 Every shape is one path with one closed outline of at most 64 points, as the
 device's SVG loader takes them, and check() holds it to that."""
@@ -19,15 +21,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ID = "chroma"
 FONT = 'font-family="UniversNextPro-Light"'
 
-# The encoders' tones, lifted so the darkest still reads on black; guides stay quiet.
+# The encoders' tones, lifted so the darkest still reads on black.
 TONES = ["#7a7a7a", "#a4a4a4", "#cccccc", "#f4f4f4"]
-GUIDE = "#3a3a3a"
-MAIN, SECOND, FINE = 1.2, 0.8, 0.5
 
-Y = 130                       # the facets' centre line
+# Line weights, by role: the rims and the mechanisms' lines share one weight, so
+# the facets read as one family; a rim thins or thickens only when the sound does.
+LINE, THIN, THICK, LIT = 2.0, 1.2, 2.8, 2.4
+HALF = LINE / 2               # a mechanism's line, drawn as a filled ribbon this far each side
+
+Y = 130                       # the facets' centre line, and the sound's
 XS = [60, 180, 300, 420]      # under each header column
-R = 40                        # a facet's radius
-ARC_R = [10, 15, 20, 25, 30]  # Diffuse's arcs, before Time scales them
 EFFECTS = ["cloud", "dusk", "tape", "slice", "back"]
 
 
@@ -36,31 +39,40 @@ def grey(hexs, f):
     return f"#{g:02x}{g:02x}{g:02x}"
 
 
-# Diffuse's echoes, stepping darker as they fade.
-ECHOES = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
 # Each facet's rim: one smooth closed outline of 64 points that the display reshapes,
-# in the knob's own tone. The palette makes it thin, thick or dim, or lights it while
-# Shift is held; it lends its width too. The halo rings are faint, two steps apart.
-RIM_R = 38
-RIM_WIDTH = 2.1
-HALO_R = 44
+# with the line to the next rim drawn out of it. It is always painted from the palette:
+# as drawn, thin, thick, lit while Shift is held, or (Texture's) dim. The halo rings
+# are faint, two steps apart.
+RIM_R = 46
+HALO_R = 50
 HALOS = [grey(t, 0.42) for t in TONES]
 HALOS_FAR = [grey(t, 0.26) for t in TONES]
-PALETTE = ([("#000000", TONES[i], 1.1) for i in range(4)] + [("#000000", TONES[i], 2.4) for i in range(4)] +
-           [("#000000", grey(TONES[i], 0.5), 1.4) for i in range(4)] + [("#000000", "#ffffff", 2.2) for i in range(4)])
+PALETTE = ([("#000000", TONES[i], LINE) for i in range(4)] + [("#000000", TONES[i], THIN) for i in range(4)] +
+           [("#000000", TONES[i], THICK) for i in range(4)] + [("#000000", "#ffffff", LIT)] +
+           [("#000000", grey(TONES[3], 0.5), 1.4)] +
+           # A metronome's weight, and the glint it gives at the end of each swing.
+           [(TONES[1], TONES[1], 0.3), ("#ffffff", "#ffffff", 0.3)])
+assert len(PALETTE) == 16
 RIMS = [f"rim_{k}" for k in range(4)]
-# Inside each rim, one small mechanism that behaves as its module does to the sound:
-# Character a string plucked between two posts, its swing caught by two stops; Movement
-# two metronome pendulums, L and R, their weights set to the rate; Diffuse a drop in a
-# room between two walls, its ripples spreading; Texture an aperture of two blades the
-# sound passes between, low to high from left to right.
-LINKS = 12   # a pose of the string; it's drawn at both ends of its swing
+
+# Character: a string between two posts, drawn at both ends of its swing.
+LINKS = 14
+SPAN = 32                     # the string's half length; posts just beyond
+STOP = 14                     # the stops' distance from the string at rest
+# Movement: two metronome pendulums on one plinth.
+PIVOT_X, PIVOT_Y, ROD = 18, 27, 46
+# Diffuse: a drop, its ripples and the room's two walls, all scaled together by Time.
+DROP_X = -26
+ARC_R = [7, 11.5, 16, 20.5, 25]   # the ripples' radii before Time scales them
+ROOM = 16                     # the walls' distance from the drop, before Time scales it
+WALL_X, WALL = -9, 17         # the walls' centre, from the facet's, and half length
+# Texture: two blades the sound passes between.
+BLADE, BLADE_Y = 24, 17
+
 OBJECTS = ([f"link_{i}" for i in range(2 * LINKS)] + ["post_left", "post_right", "stop_top", "stop_bottom"] +
            ["rod_left", "rod_right", "bob_left", "bob_right", "base"] + ["wall_top", "wall_bottom", "drop"] +
            ["blade_top", "blade_bottom", "path"])
-NODES = (RIMS + ["in"] +
-         [f"{s}_{k}" for k in range(1, 4) for s in ("left", "right")] +
-         [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + OBJECTS +
+NODES = (RIMS + [f"arc_{e}_{k}" for e in EFFECTS for k in range(5)] + OBJECTS +
          [f"halo_{k}_{j}" for k in range(4) for j in range(2)] +
          [f"bar_{i}" for i in range(8)])
 TEXTS = [f"header_{i}" for i in range(16)]
@@ -75,49 +87,69 @@ def outline(points):
     return "M" + " L".join(f"{num(x)},{num(y)}" for x, y in points) + " Z"
 
 
-def ribbon(line, half=0.2):
-    """A polyline as a thin closed outline, its edges `half` px either side."""
-    left, right = [], []
-    for i, p in enumerate(line):
-        a, b = line[max(i - 1, 0)], line[min(i + 1, len(line) - 1)]
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = math.hypot(dx, dy)
-        nx, ny = -dy / length, dx / length
-        left.append((p[0] + nx * half, p[1] + ny * half))
-        right.append((p[0] - nx * half, p[1] - ny * half))
-    return left + right[::-1]
-
-
 def circle(r, n=64):
     return [(r * math.cos(2 * math.pi * k / n), r * math.sin(2 * math.pi * k / n)) for k in range(n)]
 
 
-def arc(r, a0, a1, n=14):
-    return ribbon([(r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)])
+def tapered(line, widest, ends=0.45):
+    """A polyline as a filled ribbon `widest` across in the middle, tapering to
+    `ends` at both ends, so a ripple thins toward its edges."""
+    n = len(line)
+    left, right = [], []
+    for i, p in enumerate(line):
+        a, b = line[max(i - 1, 0)], line[min(i + 1, n - 1)]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dy)
+        nx, ny = -dy / length, dx / length
+        t = i / (n - 1)
+        w = ends + (widest / 2 - ends) * math.sin(math.pi * t) ** 0.6
+        left.append((p[0] + nx * w, p[1] + ny * w))
+        right.append((p[0] - nx * w, p[1] - ny * w))
+    return left + right[::-1]
 
 
-def crescent(r, a0, a1, thick=3.2, n=12):
-    """A filled crescent: the outer arc out, the inner back, its ends drawn in."""
-    outer = [(r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)]
-    ri = r - thick
-    inner = [(ri * math.cos(math.radians(a0 + 4 + (a1 - a0 - 8) * j / (n - 1))), ri * math.sin(math.radians(a0 + 4 + (a1 - a0 - 8) * j / (n - 1)))) for j in range(n)]
-    return outer + inner[::-1]
+def ripple(r, a0, a1, walls, n=15):
+    """A ripple's centre line, radius r round the drop, from angle a0 to a1 (degrees,
+    up negative). Where it reaches a wall it reflects: a short tail runs back off it,
+    mirrored in the wall, as a wave's front does."""
+    pts = [(r * math.cos(math.radians(a0 + (a1 - a0) * j / (n - 1))), r * math.sin(math.radians(a0 + (a1 - a0) * j / (n - 1)))) for j in range(n)]
+    tail = 5.0 / r            # about 5 px of arc
+    if walls and a0 < 0 and r * math.sin(math.radians(-a0)) >= ROOM - 0.01:   # meets the upper wall
+        back = [(r * math.cos(math.radians(a0) - tail * k / 3), -2 * ROOM - r * math.sin(math.radians(a0) - tail * k / 3)) for k in (3, 2, 1)]
+        pts = back + pts
+    if walls and a1 > 0 and r * math.sin(math.radians(a1)) >= ROOM - 0.01:    # meets the lower wall
+        back = [(r * math.cos(math.radians(a1) + tail * k / 3), 2 * ROOM - r * math.sin(math.radians(a1) + tail * k / 3)) for k in (1, 2, 3)]
+        pts = pts + back
+    return pts
+
+
+def reach(r):
+    """The angle (degrees) at which a ripple of radius r meets the walls, or its
+    own span if it is too small to."""
+    return math.degrees(math.asin(ROOM / r)) if r > ROOM else 72
 
 
 def arcs(effect):
-    """Diffuse's five echoes for an effect, filled crescents centred at the facet's left."""
+    """Diffuse's five ripples for an effect, round the drop, each stopping on the walls."""
     out = []
     for k, r in enumerate(ARC_R):
-        if effect == "dusk":     # each echo on the other side
-            a0, a1 = (-62, -8) if k % 2 == 0 else (8, 62)
-        elif effect == "tape":   # whole, a little uneven
-            a0, a1 = -55 + 6 * (k % 2), 55 - 6 * (k % 2)
-        elif effect == "slice":  # pieces, panned
-            a0 = [-62, 12, -40, 30, -20][k]
-            a1 = a0 + 26
-        else:                    # cloud, back: whole
-            a0, a1 = -60, 60
-        out.append(crescent(r + 1.6, a0, a1))
+        top = reach(r)
+        if effect == "dusk":       # each echo crosses to the other side and back off its wall
+            a0, a1 = (-top, 6) if k % 2 == 0 else (-6, top)
+            walls = True
+        elif effect == "slice":    # each echo a cut piece of the room's width, panned, its ends square
+            lim = top - 3
+            a0 = -lim + 2 * lim * [0.0, 0.42, 0.12, 0.36, 0.22][k]
+            a1 = a0 + 2 * lim * 0.62
+            walls = False
+        elif effect == "tape":     # whole, a little uneven
+            a0, a1 = -top + (4 if k % 2 else 0), top - (0 if k % 2 else 4)
+            walls = False
+        else:                      # cloud, back: whole
+            a0, a1 = -top, top
+            walls = True
+        widest = 2.6 if r > 9 else 2.2
+        out.append(tapered(ripple(r, a0, a1, walls), widest))
     return out
 
 
@@ -137,11 +169,18 @@ def upright(half_length, half_width):
     return [(y, x) for x, y in capsule(half_length, half_width)][::-1]
 
 
+def weight():
+    """A metronome's sliding weight: a small block, wider at the foot, its corners eased."""
+    w0, w1, h = 5.6, 4.2, 3.6
+    return [(-w1 + 0.6, -h), (w1 - 0.6, -h), (w1, -h + 0.6), (w0, h - 0.6), (w0 - 0.6, h), (-w0 + 0.6, h), (-w0, h - 0.6), (-w1, -h + 0.6)]
+
+
 def check(points, name):
     assert len(points) <= 64, f"{name}: {len(points)} points"
     for i, a in enumerate(points):
         b = points[(i + 1) % len(points)]
         assert abs(a[0] - b[0]) + abs(a[1] - b[1]) >= 0.25, f"{name}: points {i} too close"
+        assert all(abs(c) < 64 for c in a), f"{name}: point {i} beyond 64 px"
 
 
 def main():
@@ -168,52 +207,45 @@ def main():
         paint = f'stroke="{stroke}" stroke-width="{width}"' if stroke != "none" else 'stroke="none"'
         lines.append(f'  <path id="{ID}_node_{nodes[name]}" transform="matrix(1 0 0 1 {num(x)} {num(y)})" d="{outline(points)}" fill="{fill}" {paint}/>')
 
-    # The output's two sides, named once.
-    lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y - 22})" fill="{GUIDE}" {FONT} font-size="10px">L</text>')
-    lines.append(f'  <text transform="matrix(1 0 0 1 469 {Y + 30})" fill="{GUIDE}" {FONT} font-size="10px">R</text>')
     # The halos: a faint ring, and a fainter one further out, around a blurred or doubled rim.
     for k in range(4):
         put(f"halo_{k}_0", circle(HALO_R), HALOS[k], 1.0, XS[k], Y)
         put(f"halo_{k}_1", circle(HALO_R), HALOS_FAR[k], 0.8, XS[k], Y)
-    put("in", ribbon([(0, 0), (XS[0] - R - 3, 0)], 0.6), "none", 0, 0, Y, GUIDE)
-    gap = XS[1] - XS[0] - 2 * R - 6
-    for k in range(1, 4):
-        for s in ("left", "right"):
-            put(f"{s}_{k}", [(0, -1), (gap, -1), (gap, 1), (0, 1)], "none", 0, XS[k - 1] + R + 3, Y, TONES[k - 1])
+    # Diffuse: the room's walls, the ripples between them and the drop they spread from.
+    echoes = [grey(TONES[2], f) for f in (1.0, 0.82, 0.66, 0.52, 0.4)]
     for e in EFFECTS:
         for k, a in enumerate(arcs(e)):
-            put(f"arc_{e}_{k}", a, "none", 0, XS[2] - 20, Y, ECHOES[k])
+            put(f"arc_{e}_{k}", a, "none", 0, XS[2] + DROP_X, Y, echoes[k])
+    for name, y in (("wall_top", -ROOM), ("wall_bottom", ROOM)):
+        put(name, capsule(WALL, HALF), "none", 0, XS[2] + WALL_X, Y + y, grey(TONES[2], 0.62))
+    put("drop", circle(3.2, 16), "none", 0, XS[2] + DROP_X, Y, TONES[2])
     # Character: the string's links (each a short bar the display lays along its shape), its
-    # posts, and the stops that clip its swing.
+    # posts, and the stops that catch its swing.
     for i in range(2 * LINKS):
-        put(f"link_{i}", capsule(3.6, 1.0), "none", 0, XS[0], Y, TONES[0])
-    for name, x in (("post_left", -27), ("post_right", 27)):
-        put(name, upright(5, 1.1), "none", 0, XS[0] + x, Y, grey(TONES[0], 0.8))
+        put(f"link_{i}", capsule(SPAN / LINKS + 1.2, HALF), "none", 0, XS[0], Y, TONES[0])
+    for name, x in (("post_left", -SPAN - 1), ("post_right", SPAN + 1)):
+        put(name, upright(6, 1.15), "none", 0, XS[0] + x, Y, grey(TONES[0], 0.85))
     for name in ("stop_top", "stop_bottom"):
-        put(name, capsule(7, 1.1), "none", 0, XS[0], Y, grey(TONES[0], 0.7))
-    # Movement: two pendulums from a base, rods pivoting at their foot, a weight on each.
-    for name, x in (("rod_left", -9), ("rod_right", 9)):
-        put(name, [(px_, py_ - 17) for px_, py_ in upright(17, 1.0)], "none", 0, XS[1] + x, Y + 24, TONES[1])
-    for name, x in (("bob_left", -9), ("bob_right", 9)):
-        put(name, circle(3.8, 16), "none", 0, XS[1] + x, Y, TONES[1])
-    put("base", capsule(17, 1.2), "none", 0, XS[1], Y + 25, grey(TONES[1], 0.6))
-    # Diffuse: the room's walls, further apart with Time, and the drop its ripples spread from.
-    for name, y in (("wall_top", -20), ("wall_bottom", 20)):
-        put(name, capsule(17, 1.0), "none", 0, XS[2] + 2, Y + y, grey(TONES[2], 0.65))
-    put("drop", circle(2.8, 16), "none", 0, XS[2] - 20, Y, TONES[2])
+        put(name, capsule(8, 1.15), "none", 0, XS[0], Y, grey(TONES[0], 0.7))
+    # Movement: two pendulums on a plinth, rods pivoting at their foot, a sliding weight on each.
+    put("base", capsule(PIVOT_X + 3, 1.3), "none", 0, XS[1], Y + PIVOT_Y + 2.3, grey(TONES[1], 0.6))
+    for name, x in (("rod_left", -PIVOT_X), ("rod_right", PIVOT_X)):
+        put(name, [(px_, py_ - ROD / 2) for px_, py_ in upright(ROD / 2, HALF)], "none", 0, XS[1] + x, Y + PIVOT_Y, TONES[1])
+    for name, x in (("bob_left", -PIVOT_X), ("bob_right", PIVOT_X)):
+        put(name, weight(), "none", 0, XS[1] + x, Y, TONES[1])
     # Texture: the sound's path through it, quiet, and the two blades it passes between.
-    put("path", capsule(26, 0.8), "none", 0, XS[3], Y, grey(TONES[3], 0.3))
-    for name, y in (("blade_top", -14), ("blade_bottom", 14)):
-        put(name, capsule(19, 1.7), "none", 0, XS[3], Y + y, TONES[3])
+    put("path", capsule(28, 0.6), "none", 0, XS[3], Y, grey(TONES[3], 0.3))
+    for name, y in (("blade_top", -BLADE_Y), ("blade_bottom", BLADE_Y)):
+        put(name, capsule(BLADE, 1.6), "none", 0, XS[3], Y + y, TONES[3])
 
     # The rims: the reshaping outlines, placeholders the display replaces every frame. Always hollow.
     for k in range(4):
-        put(f"rim_{k}", circle(RIM_R), TONES[k], RIM_WIDTH, XS[k], Y)
+        put(f"rim_{k}", circle(RIM_R), TONES[k], LINE, XS[k], Y)
     for i, (fill, stroke, width) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>')
     lines.append("</g>")
     art = "\n".join(lines) + "\n"
-    assert len(art.encode()) <= 65536
+    assert len(art.encode()) <= 65536, len(art.encode())
     (ROOT / "panel.svg.fragment").write_text(art)
 
     keep = ("const opxy::i32 kRateHz", "const opxy::i32 kTwinMs", "const opxy::i32 kSliceMs")
@@ -225,17 +257,26 @@ def main():
          "namespace chroma { namespace panel {",
          f"const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PALETTE)};",
          f"enum Node {{ kNodeRims = 0, "
-         f"kNodeIn = {nodes['in']}, kNodeLines = {nodes['left_1']}, kNodeArcs = {nodes['arc_cloud_0']}, kNodeLinks = {nodes['link_0']}, kNodePosts = {nodes['post_left']}, kNodeStops = {nodes['stop_top']}, "
+         f"kNodeArcs = {nodes['arc_cloud_0']}, kNodeLinks = {nodes['link_0']}, kNodePosts = {nodes['post_left']}, kNodeStops = {nodes['stop_top']}, "
          f"kNodeRods = {nodes['rod_left']}, kNodeBobs = {nodes['bob_left']}, kNodeBase = {nodes['base']}, kNodeWalls = {nodes['wall_top']}, kNodeDrop = {nodes['drop']}, "
          f"kNodeBlades = {nodes['blade_top']}, kNodePath = {nodes['path']}, "
          f"kNodeHalos = {nodes['halo_0_0']}, kNodeBars = {nodes['bar_0']} }};",
-         "// Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.",
-         "enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };",
+         "// Palette: a rim as drawn, thin or thick in its knob's tone, a facet each; lit while Shift",
+         "// is held; Texture's dimmed; a metronome's weight, and its glint.",
+         "enum Shade { kRimNormal = 0, kRimThin = 4, kRimThick = 8, kRimLit = 12, kRimDim = 13, kWeight = 14, kGlint = 15 };",
          f"const opxy::i32 kRimR = {RIM_R}, kHaloR = {HALO_R};",
          f"const opxy::u32 kLinks = {LINKS};",
-         f"const opxy::i32 kY = {Y}, kR = {R}, kGap = {gap};",
+         f"const opxy::i32 kY = {Y}, kSpan = {SPAN}, kStop = {STOP};",
+         f"const opxy::i32 kPivotX = {PIVOT_X}, kPivotY = {PIVOT_Y};",
+         f"const opxy::i32 kBladeY = {BLADE_Y}, kRoom = {ROOM};",
          f"const opxy::i32 kX[4] = {{{', '.join(str(x) for x in XS)}}};",
-         f"const opxy::i32 kArcX = {XS[2] - 20};",
+         f"const opxy::i32 kArcX = {XS[2] + DROP_X}, kWallX = {XS[2] + WALL_X};",
+         "// How far each part reaches from its node's origin, Q10 px, round ends included: the screen",
+         "// test keeps every one inside its rim.",
+         f"const opxy::i32 kReachLink = {round((SPAN / LINKS + 1.2 + HALF) * 1024)}, kReachPost = {round((6 + 1.15) * 1024)}, kReachStop = {round((8 + 1.15) * 1024)};",
+         f"const opxy::i32 kReachRod = {round((ROD + HALF) * 1024)}, kReachBase = {round((PIVOT_X + 3 + 1.3) * 1024)}, kWeightX = {round(5.6 * 1024)}, kWeightY = {round(3.6 * 1024)};",
+         f"const opxy::i32 kReachWall = {round((WALL + HALF) * 1024)}, kReachRipple = {round((ARC_R[-1] + 1.3) * 1024)};",
+         f"const opxy::i32 kReachBlade = {round((BLADE + 1.6) * 1024)}, kReachPath = {round(28.6 * 1024)};",
          "// The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.",
          *curves, "}}", ""]
     (ROOT / "panel.h").write_text("\n".join(h))

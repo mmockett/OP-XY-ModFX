@@ -4,15 +4,24 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 91, kTexts = 16, kPalette = 16;
-enum Node { kNodeRims = 0, kNodeIn = 4, kNodeLines = 5, kNodeArcs = 11, kNodeLinks = 36, kNodePosts = 60, kNodeStops = 62, kNodeRods = 64, kNodeBobs = 66, kNodeBase = 68, kNodeWalls = 69, kNodeDrop = 71, kNodeBlades = 72, kNodePath = 74, kNodeHalos = 75, kNodeBars = 83 };
-// Palette: a rim thin, thick or dim in its knob's tone, or lit while Shift is held, a facet each.
-enum Shade { kRimThin = 0, kRimThick = 4, kRimDim = 8, kRimLit = 12 };
-const opxy::i32 kRimR = 38, kHaloR = 44;
-const opxy::u32 kLinks = 12;
-const opxy::i32 kY = 130, kR = 40, kGap = 34;
+const opxy::u32 kNodes = 88, kTexts = 16, kPalette = 16;
+enum Node { kNodeRims = 0, kNodeArcs = 4, kNodeLinks = 29, kNodePosts = 57, kNodeStops = 59, kNodeRods = 61, kNodeBobs = 63, kNodeBase = 65, kNodeWalls = 66, kNodeDrop = 68, kNodeBlades = 69, kNodePath = 71, kNodeHalos = 72, kNodeBars = 80 };
+// Palette: a rim as drawn, thin or thick in its knob's tone, a facet each; lit while Shift
+// is held; Texture's dimmed; a metronome's weight, and its glint.
+enum Shade { kRimNormal = 0, kRimThin = 4, kRimThick = 8, kRimLit = 12, kRimDim = 13, kWeight = 14, kGlint = 15 };
+const opxy::i32 kRimR = 46, kHaloR = 50;
+const opxy::u32 kLinks = 14;
+const opxy::i32 kY = 130, kSpan = 32, kStop = 14;
+const opxy::i32 kPivotX = 18, kPivotY = 27;
+const opxy::i32 kBladeY = 17, kRoom = 16;
 const opxy::i32 kX[4] = {60, 180, 300, 420};
-const opxy::i32 kArcX = 280;
+const opxy::i32 kArcX = 274, kWallX = 291;
+// How far each part reaches from its node's origin, Q10 px, round ends included: the screen
+// test keeps every one inside its rim.
+const opxy::i32 kReachLink = 4593, kReachPost = 7322, kReachStop = 9370;
+const opxy::i32 kReachRod = 48128, kReachBase = 22835, kWeightX = 5734, kWeightY = 3686;
+const opxy::i32 kReachWall = 18432, kReachRipple = 26931;
+const opxy::i32 kReachBlade = 26214, kReachPath = 29286;
 // The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.
 const opxy::i32 kRateHz[33] = {82, 96, 112, 131, 153, 179, 210, 245, 287, 335, 392, 459, 536, 627, 734, 858, 1003, 1173, 1372, 1605, 1877, 2195, 2567, 3002, 3511, 4106, 4802, 5617, 6569, 7682, 8984, 10507, 12288};
 const opxy::i32 kTwinMs[33] = {9216, 9993, 10836, 11749, 12740, 13814, 14979, 16241, 17611, 19096, 20706, 22451, 24344, 26397, 28622, 31035, 33652, 36489, 39566, 42902, 46519, 50441, 54694, 59305, 64305, 69727, 75606, 81980, 88892, 96387, 104514, 113325, 122880};

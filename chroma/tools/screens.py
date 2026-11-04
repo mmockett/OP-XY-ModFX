@@ -11,7 +11,7 @@ if not _font or not pathlib.Path(_font).is_file():
     sys.exit("set XY_FONT to the path of UniversNextPro-Light.ttf (the OP-XY's screen font)")
 FACE = f'<style>@font-face{{font-family:"UniversNextPro-Light";src:url("{pathlib.Path(_font).resolve().as_uri()}")}}</style>'
 Q = 1024
-PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
+PALETTE = re.findall(r'id="chroma_palette_\d+"[^>]*fill="([^"]+)" stroke="([^"]+)" stroke-width="([^"]+)"', (ROOT / 'panel.svg.fragment').read_text())
 
 
 def apply(frame):
@@ -30,8 +30,15 @@ def apply(frame):
             tag = re.sub(r' d="[^"]*"', f' d="{d}"', tag)
         if paint:
             # As on the device, the palette lends its stroke's width too.
-            tag = re.sub(r'stroke="[^"]*"', f'stroke="{PALETTE[shade][0]}"', tag, count=1)
-            tag = re.sub(r'stroke-width="[^"]*"', f'stroke-width="{PALETTE[shade][1]}"', tag)
+            fill, stroke, width = PALETTE[shade]
+            if 'stroke-width=' in tag:
+                tag = re.sub(r'stroke="[^"]*"', f'stroke="{stroke}"', tag, count=1)
+                tag = re.sub(r'stroke-width="[^"]*"', f'stroke-width="{width}"', tag)
+            else:
+                tag = re.sub(r'stroke="[^"]*"', f'stroke="{stroke}" stroke-width="{width}"', tag, count=1)
+            # Fill and stroke paint fills only what the artwork authored with a fill.
+            if paint == 2 and 'fill="none"' not in tag:
+                tag = re.sub(r'fill="[^"]*"', f'fill="{fill}"', tag, count=1)
         return tag
 
     art = re.sub(r'<path id="chroma_node_(\d+)"[^>]*/>', node, art)
