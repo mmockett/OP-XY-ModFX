@@ -14,14 +14,14 @@ against itself: a ring when a section does nothing to it.
 - echo rings it with ripples, spaced by time, as many as the feedback holds;
 - spring winds it into a spiral, more turns as it's driven, leaning with tone.
 
-Inside each scope, on a disc in its encoder's dark step, a material of grains
-flows through the sections in the chosen order, and each scope shows it as its
-section leaves it, so the last in the order holds the whole chain: dust crushes
-the grain into bright blocks, heavier on top once lopsided; phase cuts two gaps
-through it where the lamp holds its notches; echo makes the rows below the
-first hollow copies of it, each shifted by time; spring pushes the rows apart
-and makes the grain finer and brighter, or coarser and darker, with tone;
-tape 2 bands the rows of the last scope.
+Each scope sits on a disc in its encoder's dark step, inside a rim of 24 arcs
+the display moves, turns and scales. The rim carries the chain: each scope's
+rim starts as the one before it in the chosen order left it and takes its own
+section's change, so the last holds the whole chain. Dust squares it (its top
+pressed flatter once lopsided); phase cuts two notches into it where the lamp
+holds them; echo doubles it, with copies stepping out behind its own scope;
+spring ripples it, tone tilting the ripple; tape 2 wears the last rim thin,
+with dropouts.
 
 Under each scope its place in the order; a bar joins neighbours the order
 runs straight through, and the echo's loop reaches the section patched into it.
@@ -47,22 +47,25 @@ def ring(r, n=64):
 
 p.static_text(3, CY - 6, 8, LABEL, "in")
 p.static_text(464, CY - 6, 8, LABEL, "out")
-# Each scope's face: a static disc in its encoder's dark step, a lighter ring.
+# Each scope's face: a static disc in its encoder's dark step. Its rim is
+# drawn by the display: 24 arcs it moves, turns and scales, so the rim's shape
+# carries what the chain has done so far.
 DISC = ["#141414", "#1a1a1a", "#212121", "#282828"]
-RIM = ["#3c3c3c", "#474747", "#525252", "#5e5e5e"]
+R0, SEGS = 43, 24
 for k, cx in enumerate(CX):
-    p.static(circle(43, 64, cx, CY), RIM[k], 1.2, fill=DISC[k])
-# The material inside each scope: 5 x 5 grains (the corners unused), filled
-# squares the display moves, scales and recolours.
-PITCH = 11
-for s_ in range(4):
-    for k in range(25):
-        c, r = k % 5, k // 5
-        p.node(f"grain_{s_}_{k}", [(-4, -4), (4, -4), (4, 4), (-4, 4)], (CX[s_] + (c - 2) * PITCH, CY + (r - 2) * PITCH), "#6e6e6e", 0.5, fill="#6e6e6e")
-# Phase's gaps through the material: bars in the disc's own colour.
+    p.static(circle(R0 - 6, 64, cx, CY), DISC[k], 0.5, fill=DISC[k])   # inside the rim, so a rim pulled in still frames it
+# The echo's copies of the rim: plain rings behind, offset by time.
 for s_ in range(4):
     for k in range(2):
-        p.node(f"gap_{s_}_{k}", [(-30, -4), (30, -4), (30, 4), (-30, 4)], (640, 320), "#686868", 0.7, fill=DISC[s_])
+        p.node(f"copy_{s_}_{k}", circle(R0, 48), (640, 320), "#4a4a4a", 1.0)
+# The rims: an arc of the circle about its own middle, 9 degrees each side,
+# so neighbours overlap a little and read as one line.
+half = math.radians(9)
+arc = [(round(R0 * math.cos(-half + 2 * half * j / 4) - R0, 2), round(R0 * math.sin(-half + 2 * half * j / 4), 2)) for j in range(5)]
+seg_pts = normal_ribbon(arc, 0.35)
+for s_ in range(4):
+    for k in range(SEGS):
+        p.node(f"rim_{s_}_{k}", seg_pts, (640, 320), "#8c8c8c", 1.4)
 p.mutable(0, "dust", ring(R), (CX[0], CY), T1, 1.6)
 p.mutable(1, "phase", ring(R), (CX[1], CY), T2, 1.6)
 spiral = [(R * (1 - 0.5 * j / 31) * math.cos(j / 31 * 3), R * (1 - 0.5 * j / 31) * math.sin(j / 31 * 3)) for j in range(32)]
@@ -196,11 +199,13 @@ p.shade("t3mid", T3, 1.25)
 p.shade("t3thin", T3, 0.95)
 p.shade("lit3", T3, 1.2)
 p.shade("lit2", T2, 0.6)
-# The material's four greys, and the echo's hollow copies.
-for i, g in enumerate(("#4e4e4e", "#767676", "#a4a4a4", "#d8d8d8")):
-    p.shade(f"g{i}", g, 0.5)
-p.shade("copy0", "#a4a4a4", 1.0, fill="#101010")
-p.shade("copy1", "#606060", 1.0, fill="#101010")
+# The rims: whole, worn thin; the echo's copies, fading, and heavy past Madness.
+p.shade("rim", "#9a9a9a", 1.4)
+p.shade("rim_worn", "#7a7a7a", 0.6)
+p.shade("copy0", "#6a6a6a", 1.1)
+p.shade("copy1", "#474747", 0.9)
+p.shade("copy_mad", "#9a9a9a", 1.8)
+p.shade("rim_echoed", "#b4b4b4", 2.3)   # a rim the echo has passed through: doubled
 p.const(f"const opxy::i32 kCY = {CY}, kR = {R};")
 p.const("const opxy::i32 kCX[4] = {" + ", ".join(map(str, CX)) + "};")
 idx = {n[0]: 4 + k for k, n in enumerate(p.nodes)}
@@ -218,9 +223,18 @@ for i in range(17):
     g = 0.001 + 3.2 * i / 16
     tab.append("{" + ", ".join(str(round(1024 * math.tanh(g * k / 32) / math.tanh(g))) for k in range(33)) + "}")
 p.const("const opxy::i32 kSoft[17][33] = {" + ", ".join(tab) + "};")
-rnd = random.Random(11)
-jit = [[(rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1)) for _ in range(25)] for _ in range(4)]
-p.const("// Each grain's own offset (x, y) and level, -1024..1024: fixed, so the material changes only when a control does.")
-p.const("const opxy::i32 kJitter[4][25][3] = {" + ", ".join("{" + ", ".join("{" + ", ".join(str(round(v * 1024)) for v in g) + "}" for g in st) + "}" for st in jit) + "};")
-p.const(f"const opxy::i32 kPitch = {PITCH};")
+import random
+rnd = random.Random(5)
+order = list(range(SEGS))
+rnd.shuffle(order)
+wear = [0] * SEGS
+for rank, k in enumerate(order):
+    wear[k] = round(32767 * (rank + 0.5) / SEGS)
+p.const(f"const opxy::i32 kR0 = {R0}, kSegs = {SEGS};")
+p.const("// Each arc's place in tape 2's wear: an arc drops out once the level passes it (Q15).")
+p.const("const opxy::i32 kWear[24] = {" + ", ".join(map(str, wear)) + "};")
+p.const("// A squircle's radius at each arc, over a circle's, Q10: the rim squaring as dust crushes it.")
+sq = lambda a: 0.93 / (abs(math.cos(a)) ** 5 + abs(math.sin(a)) ** 5) ** 0.2
+p.const("const opxy::i32 kSquared[24] = {" + ", ".join(str(round(1024 * sq(math.radians(15 * k)))) for k in range(SEGS)) + "};")
+
 print(p.write(ROOT))

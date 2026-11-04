@@ -4,17 +4,14 @@
 namespace lint {
 // Matches resources.display in definition.json: paths, points, nodes, texts,
 // palette. tools/make_panel.py names every node (panel.h).
-using Frame = opxy::draw::Frame<4, 64, 155, 20, 16>;
-// The material inside the scopes, passed along the order (display.cpp).
-struct Material {
-    opxy::i32 size, jitter, level, spread;   // Q10 px, Q10 px, Q10 grey steps (0..3), Q10 steps
-    opxy::i32 lop;                           // Q15: top rows heavier
-    opxy::i32 ripple;                        // Q10 px: alternate rows pushed apart by the spring
-    opxy::i32 notch, notch_y;                // Q15 depth of phase's gaps; Q10 px from the top (live)
-    opxy::i32 copies, gap, copy_h[5];        // echo: rows that copy the top row, each shifted `gap`
-    opxy::i32 copy_jit;                      // Q10 px: the copies shimmer
-    opxy::i32 copy_holes;                    // the lamp in the echo's loop cuts its copies
-    opxy::i32 band;                          // Q15: tape 2's banding
+using Frame = opxy::draw::Frame<4, 64, 151, 20, 15>;
+// Each scope's rim as its section leaves it, passed along the order (display.cpp).
+struct Rim {
+    opxy::i32 rad[24];        // each arc's radius, Q10 px
+    opxy::i32 notch;          // Q15 depth of phase's notches in it; 0 none
+    opxy::i32 ring;           // Q10 px: the spring's ripple, to ring with as it arrives
+    opxy::i32 worn;           // Q15: tape 2's wear
+    opxy::i32 copies, gap, copy_h[3], mad;   // the echo's copies of it
 };
 // The controls as the screen shows them, the LFOs and the two-page header
 // (view.hpp); extra[] holds the first frame's flag and the motion's steps.
@@ -23,8 +20,10 @@ struct DisplayState {
     opxy::i32 extra[8];
     // What each scope shows, and when it arrived there (Q10 s on `clock`):
     // a change passes along the order a stage at a time.
-    Material shown[4];
+    Rim shown[4];
     opxy::i32 since[4];
     opxy::i32 clock;
+    // Where each rim's notches sit (an arc), stepping after the lamp; whose turn it is.
+    opxy::i32 notch_at[4], notch_turn;
 };
 }

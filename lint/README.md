@@ -58,7 +58,7 @@ setting was measured.
 ![Lint's screen in its six presets](screens.png)
 
 Under the two pages, four scopes, one under each encoder, each on a disc in
-that encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
+that encoder's dark step, its trace in that encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
 encoders and the header's bar run. Each scope traces one cycle of the sound
 against itself, so a section that does nothing leaves a plain ring.
 
@@ -72,21 +72,20 @@ against itself, so a section that does nothing leaves a plain ring.
 - **spring:** the ring winds into a spiral, more turns the harder the tank is
   driven, leaning with tone.
 
-Inside the scopes, a grain passes through the sections in the chosen order,
-and each scope shows it as its section leaves it: the last in the order holds
-the whole chain, so the order changes what it looks like. Dust crushes it into
-bright blocks, heavier on top once lopsided, and snaps any echoes before it to
-the grid. Phase cuts two gaps through it where the lamp holds its notches.
-Echo turns the rows below the first into hollow copies of it, each shifted
-further by time, as many as the feedback holds, outgrowing it past Madness.
-Spring pushes the rows apart and makes the grain finer and brighter, or
-coarser and darker, with tone. Tape 2 bands the rows of the last scope.
+Each scope's rim carries the chain. It starts as the rim before it in the
+chosen order left it and takes its own section's change, so the last rim holds
+the whole chain and the order changes what it looks like. Dust squares the rim,
+its top pressed flatter once the diodes lopside. Phase cuts two notches into
+it where the lamp holds them. Echo doubles it, its copies stepping out behind
+its own scope at the echo's time, crowding past Madness. Spring ripples it, tone
+tilting the ripple toward the top (treble) or the bottom (bass). Tape 2 wears
+the last rim thin, with arcs dropping out. A section in the echo's loop works
+on the echo's rim.
 
-A change travels: turn a control and the material passes along the order a
-scope at a time, each taking it a moment after the one before. As it arrives,
-dust's grain judders, harder the more it drives; the echo's copies step out
-one at a time at the echo's time; the spring's rows ring, longer the harder it
-is driven; tape 2's banding wavers. The lamp drifts the gaps at its rate and in
+A change travels: turn a control and it passes along the order a rim at a
+time. As it arrives, dust's rim judders, harder the more it drives; the echo's
+copies step out; the spring's rim rings, longer the harder it is driven; tape
+2's rim wavers. The lamp walks the notches round the rims at its rate and in
 its shape, and LFO 2 moves what it wobbles. Otherwise the screen is still.
 
 Under each scope is its place in the order; a bar joins neighbours the order
