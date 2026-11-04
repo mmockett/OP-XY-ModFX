@@ -58,35 +58,34 @@ setting was measured.
 ![Lint's screen in its six presets](screens.png)
 
 Under the two pages, four scopes, one under each encoder, each on a disc in
-that encoder's dark step, its trace in that encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
-encoders and the header's bar run. Each scope traces one cycle of the sound
-against itself, so a section that does nothing leaves a plain ring.
+that encoder's dark step. Each scope's rim is one continuous outline in that
+encoder's grey (dark grey, mid grey, light grey and white, as the OP-XY's
+encoders and the header's bar run), and it is the readout: its own section's
+shape, distorted further by what the sections before it in the order pass on.
 
-- **dust:** the ring squares as the diodes clip, its top flatter than its
-  bottom once they lopside. Tape 2's corners close in on it with its level.
-- **phase:** the ring leans into an ellipse that breathes as the lamp sweeps
-  the all-passes. LFO 1's mark orbits it, its trail wider the faster the rate,
-  with its shape beside it.
-- **echo:** ripples spread round the ring, spaced by time, as many as the
-  feedback holds; past Madness they run out past the scope.
-- **spring:** the ring winds into a spiral, more turns the harder the tank is
-  driven, leaning with tone.
+- **dust:** the rim squares as the diodes clip, its top flatter once they
+  lopside. Tape 2's corners close in on it with its level.
+- **phase:** the rim leans into an oval as the lamp sweeps the all-passes, and
+  two smooth notches ride along its top where the lamp holds them. LFO 1's mark
+  orbits it, its trail wider the faster the rate, with its shape beside it.
+- **echo:** ripples spread inside the rim, spaced by time, as many as the
+  feedback holds, and copies of the rim step out behind it at the echo's time;
+  past Madness they crowd and thicken.
+- **spring:** the rim ripples, deeper the harder the tank is driven, tone tilting
+  the ripple; a spiral inside grows with the drive and turns with tone.
 
-Each scope's rim carries the chain. It starts as the rim before it in the
-chosen order left it and takes its own section's change, so the last rim holds
-the whole chain and the order changes what it looks like. Dust squares the rim,
-its top pressed flatter once the diodes lopside. Phase cuts two notches into
-it where the lamp holds them. Echo doubles it, its copies stepping out behind
-its own scope at the echo's time, crowding past Madness. Spring ripples it, tone
-tilting the ripple toward the top (treble) or the bottom (bass). Tape 2 wears
-the last rim thin, with arcs dropping out. A section in the echo's loop works
-on the echo's rim.
+What passes along the order is the quality of each section, never its shape:
+after dust, a rim is finely wavy with a soft halo; after phase, a dent rides it
+with the lamp; after echo, a faint second ring doubles it; after spring, it
+shimmers with a fine ripple and rings briefly as changes arrive. Tape 2, after
+the chain, makes the last rim unsteady, thinner and dimmer, and LFO 2 wavers
+the rim it wobbles and makes the rims after it unsteady. A section in the echo's
+loop puts its quality into the echo's rim. So the order changes the picture:
+dust before echo roughens the echo's rim; echo before dust doubles dust's square.
 
 A change travels: turn a control and it passes along the order a rim at a
-time. As it arrives, dust's rim judders, harder the more it drives; the echo's
-copies step out; the spring's rim rings, longer the harder it is driven; tape
-2's rim wavers. The lamp walks the notches round the rims at its rate and in
-its shape, and LFO 2 moves what it wobbles. Otherwise the screen is still.
+time. As it arrives, dust's rim judders, the echo's copies step out and the
+spring's rim rings, with the rim after it. Otherwise only the LFOs move it.
 
 Under each scope is its place in the order; a bar joins neighbours the order
 runs straight through. A section patched into the echo's loop loses its place,
