@@ -157,6 +157,13 @@ heard it do so yet.
 
 ## Status: experimental
 
+Lint and Chroma are live in the [open-xy.com](https://open-xy.com) builder
+([Lint](https://open-xy.com/#preview/machines/lint),
+[Chroma](https://open-xy.com/#preview/machines/chroma)), which installs the
+version the Open-XY catalog pins: Lint `v1.8.0` and Chroma `v1.7.0`, older
+than this repository's latest tag, `v1.9.0`. Omnifilter is a draft in the
+catalog, at `v1.9.0`, and not yet in the builder; build it from source.
+
 Each machine builds against the SDK's `staging` branch: Omnifilter needs
 machines on aux tracks (SDK 1.9), Lint and Chroma effect pages, shift rows and
 effect screens (SDK 1.7).
@@ -173,16 +180,16 @@ python open-xy/sdk.py test --machine OP-XY-ModFX/lint
 python open-xy/sdk.py build --machine OP-XY-ModFX/lint --machine <a synth> --stock-os <stock-1.2.1>/os.ldr --out <builds>/lint-001
 ```
 
-For Chroma, pass `OP-XY-ModFX/chroma` instead. For Omnifilter, clone `sdk/aux-modules`
-and pass `OP-XY-ModFX/omnifilter`.
+For Chroma, pass `OP-XY-ModFX/chroma` instead, and for Omnifilter
+`OP-XY-ModFX/omnifilter`.
 A firmware needs at least one synth. It runs on an OP-XY with **OS 1.2.1**; installing
 it is described in the SDK's
 [building firmware](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
 guide.
 
-Each release's CPU cost, measured on an OP-XY with `sdk.py profile benchmark`
-over three runs, is recorded with its entry in the
-[Open-XY catalog](https://github.com/etcetc000/open-xy/blob/staging/catalog/machines.json).
+Each release's CPU cost, measured on an OP-XY with `sdk.py profile benchmark`,
+is recorded with its entry in the
+[Open-XY catalog](https://github.com/etcetc000/open-xy/blob/main/catalog/machines.json).
 
 ## Licence
 

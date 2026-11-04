@@ -5,7 +5,8 @@ Chroma Console: four modules in a row, 22 effects between them, each module runn
 one of its own or none. Most voices reach a send in the centre, so each module that
 can parts left and right, and a mono source leaves wide.
 
-**Status: experimental.** Played on an OP-XY.
+**Status: experimental.** Played on an OP-XY, and live in the
+[open-xy.com builder](https://open-xy.com/#preview/machines/chroma) at `v1.7.0`.
 It's built from the pedal's manual, as no pedal has been measured, so it follows
 what the manual describes and not the pedal's own sound.
 
@@ -92,7 +93,7 @@ drawn and why this one was chosen.
 
 ## CPU and memory
 
-Measured on an OP-XY at v1.7.0 with `sdk.py profile benchmark`, over three runs, with
+Measured on an OP-XY at v1.7.0 with `sdk.py profile benchmark`, in one run, with
 graphics excluded: 7.312% of the block budget on the default warm, vibe, cloud and
 tilt, and 10.91% on howl, swirl, cloud and cass with every control at full. That
 heaviest setting is enough that a busy project may drop audio, though no one has
