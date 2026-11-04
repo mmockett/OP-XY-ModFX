@@ -197,26 +197,30 @@ bool bench_ok(const opxy::draw::Input& input) {
     for (int i = 1; i < 3; ++i) leftmost = first[i].x < leftmost ? first[i].x : leftmost;
     if (left < kLensX / Q + 1.5 || right > leftmost - 1.5) return fail("the plate against the lens or the prism");
     // The flames burn inside the lamphouse: below its roof (howl's thin tongue may rise into the roof), within its sides.
-    static const double kTall[6] = {26, 30, 29, 34, 22, 13}, kWide[6] = {7.5, 9, 10.5, 4.6, 5, 4};
     for (unsigned k = 0; k < 6; ++k) {
         const unsigned node = kNodeFlames[k];
         if (hidden(node)) continue;
-        const double s = frame.nodes[node].scale / Q * 1.1;
+        if (std::memcmp(&frame.nodes[node], &frame.nodes[node + 1], sizeof(frame.nodes[node]))) return fail("a flame's core apart from it");
+        const double s = frame.nodes[node].scale / Q;
         const double x = frame.nodes[node].x / Q, y = frame.nodes[node].y / Q;
         const double roof = kAxis / Q - (k == 3 ? 33 : 25) * 1.1;
-        if (y - kTall[k] * s < roof) return fail("a flame through the lamphouse's roof");
-        if (x - kWide[k] * s < kLampX / Q - 26 * 1.1 || x + kWide[k] * s > kLampX / Q + 26 * 1.1) return fail("a flame through the lamphouse's side");
+        if (y - kFlameTop[k] / Q * s < roof) return fail("a flame through the lamphouse's roof");
+        if (x - kFlameHalf[k] / Q * s < kLampX / Q - 26 * 1.1 || x + kFlameHalf[k] / Q * s > kLampX / Q + 26 * 1.1) return fail("a flame through the lamphouse's side");
     }
-    // Texture's marks stay on the face.
-    for (unsigned k = 0; k < kCracks; ++k) {
-        if (hidden(kNodeCracks + k)) continue;
-        const V a = land(kNodeCracks + k, 0, 0), c = land(kNodeCracks + k, kScreenW / Q - 3.3, 6);
-        if (!inside(screen, 4, a, 0.5) || !inside(screen, 4, c, 0.5)) return fail("a crack off the face");
+    // Texture's marks stay on the face: each crack and its branch, each wrinkle, each dot of noise.
+    for (unsigned k = 0; k < 2 * kCracks + kWrinkles; ++k) {
+        const unsigned node = k < kWrinkles ? kNodeWrinkles + k : kNodeCracks + k - kWrinkles;
+        if (hidden(node)) continue;
+        const double reach = k < kWrinkles ? 2.8 : 6;
+        const V corners[4] = {land(node, 0, -reach), land(node, 17.6, -reach), land(node, 17.6, reach), land(node, 0, reach)};
+        for (int i = 0; i < 4; ++i)
+            if (!inside(screen, 4, corners[i], 0.2)) return fail(k < kWrinkles ? "a wrinkle off the face" : "a crack off the face");
     }
-    for (unsigned k = 0; k < kBlocks; ++k) {
-        if (hidden(kNodeBlocks + k)) continue;
-        const V a = land(kNodeBlocks + k, -1.8, -1.8), c = land(kNodeBlocks + k, 1.8, 1.8);
-        if (!inside(screen, 4, a, 1) || !inside(screen, 4, c, 1)) return fail("a block off the face");
+    for (unsigned k = 0; k < kDots; ++k) {
+        if (hidden(kNodeDots + k)) continue;
+        const double h = kDotHalf / Q;
+        const V a = land(kNodeDots + k, -h, -h), c = land(kNodeDots + k, h, h);
+        if (!inside(screen, 4, a, 0.4) || !inside(screen, 4, c, 0.4)) return fail("a dot of noise off the face");
     }
     return true;
 }
@@ -342,6 +346,23 @@ int main() {
             if (n > turn_peak) turn_peak = n;
         }
     }
+    // Sliding the screen with every dot of radio's noise on it: everything on the screen moves with it.
+    unsigned slide_peak = 0;
+    {
+        int values[8] = {38, 45, 64, 127, 64, 38, 0, 0};
+        const unsigned choices[4] = {0, 0, 0, 6};
+        opxy::draw::Input input = input_for(values, choices, 0);
+        chroma::display_reset(state);
+        for (int k = 0; k < 60; ++k) chroma::display(state, input, frame);
+        for (int k = 0; k < 90; ++k) {
+            values[6] = k < 30 ? k * 127 / 29 : 127;
+            input = input_for(values, choices, 0);
+            std::memcpy(&last, &frame, sizeof(frame));
+            chroma::display(state, input, frame);
+            const unsigned n = changed();
+            if (n > slide_peak) slide_peak = n;
+        }
+    }
     // At rest: nothing rocks, wanders or wows, so nothing changes.
     unsigned rest = 0;
     {
@@ -356,8 +377,8 @@ int main() {
             rest += changed();
         }
     }
-    std::printf("%u frames checked; churn at the heaviest: mean %.1f (choices %u %u %u %u), peak %u nodes a frame; turning a control: peak %u; at rest: %u\n",
-                checked, most_mean, worst[0], worst[1], worst[2], worst[3], most_peak, turn_peak, rest);
+    std::printf("%u frames checked; churn at the heaviest: mean %.1f (choices %u %u %u %u), peak %u nodes a frame; turning a control: peak %u; sliding the screen under radio 100: peak %u; at rest: %u\n",
+                checked, most_mean, worst[0], worst[1], worst[2], worst[3], most_peak, turn_peak, slide_peak, rest);
     if (most_mean > 15 || most_peak > 25 || turn_peak > 30 || rest) {
         std::puts("FAIL too many nodes change a frame");
         ok = false;

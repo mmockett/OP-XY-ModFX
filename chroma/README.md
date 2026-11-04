@@ -86,8 +86,10 @@ Tilt turns the glass plate in front of the lens. The prism rocks on its knife ed
 a metronome, between the stops Movement's Amount screws down, at the rate the weight on
 its rod shows; it doubles, nests, shutters or leans as Movement's effect does. Its light
 fans out from the far face in Diffuse's own pattern and opens with Amount: upper light
-left, lower right. Time slides the screen along the rail, and Texture's blades, tape,
-cracks or static mark it. One beam runs from the lens through everything to the screen.
+left, lower right, and the screen is lit where it lands. Time slides the screen along
+the rail, and Texture shades it from either end, wrinkles it, cracks it, or fills it with
+fine noise drawn the way the stock Simple screen draws its own. One beam runs from the lens
+through everything to the screen.
 
 [docs/visual-directions.md](docs/visual-directions.md) records the directions drawn and
 why this one was chosen.

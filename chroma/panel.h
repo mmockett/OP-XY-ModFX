@@ -4,13 +4,17 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 81, kTexts = 16, kPalette = 10;
-enum Node { kNodeBeam = 0, kNodeBar = 25, kNodePlate = 32, kNodeKnife = 33, kNodeKnifeA = 34, kNodeKnifeB = 35, kNodeStopA = 36, kNodeStopB = 37, kNodeRod = 38, kNodeWeight = 39, kNodePrism = 40, kNodeTwin = 41, kNodeWedge = 42, kNodeHollow = 43, kNodeHole = 47, kNodeScreenPost = 48 };
-const opxy::u32 kNodeHeader = 73, kNodeBands = 49, kNodeCracks = 57, kNodeBlocks = 61, kNodeSlats = 44;
-const opxy::u32 kBands = 8, kCracks = 4, kBlocks = 12;
+const opxy::u32 kNodes = 122, kTexts = 16, kPalette = 11;
+enum Node { kNodeBeam = 0, kNodeBar = 25, kNodePlate = 38, kNodeKnife = 39, kNodeKnifeA = 40, kNodeKnifeB = 41, kNodeStopA = 42, kNodeStopB = 43, kNodeRod = 44, kNodeWeight = 45, kNodePrism = 46, kNodeTwin = 47, kNodeWedge = 48, kNodeHollow = 49, kNodeHole = 53, kNodeScreenPost = 54 };
+const opxy::u32 kNodeHeader = 114, kNodeBands = 55, kNodeCracks = 66, kNodeWrinkles = 63, kNodeDots = 74, kNodeSlats = 50;
+const opxy::u32 kBands = 8, kCracks = 4, kWrinkles = 3, kDots = 40;
+// A crack's node, then its branch's; a noise dot's half side.
+const opxy::i32 kDotHalf = 811;
 const opxy::i32 kBandDy[8] = {-59136, -42240, -25344, -8448, 8448, 25344, 42240, 59136};
 // Each flame's node: warm, drive, fuzz, howl, then swell's two, left and right of the middle.
-const opxy::u32 kNodeFlames[6] = {26, 27, 28, 29, 30, 31};
+const opxy::u32 kNodeFlames[6] = {26, 28, 30, 32, 34, 36};
+// How high and how far either side each flame reaches from its base, at scale 1.
+const opxy::i32 kFlameTop[6] = {33792, 37171, 34918, 41677, 27034, 16896}, kFlameHalf[6] = {8941, 11333, 12390, 5362, 7153, 4470};
 const opxy::i32 kFlameDx[2] = {-7322, 7322};
 // Each diffusion's first blade, its blades a side, its pieces a blade, their angular width (tenths of a degree),
 // and where each lands on the screen at Amount 0 and 100, from the fan's middle.
@@ -20,18 +24,16 @@ const opxy::u32 kBladePieces[5] = {1, 1, 1, 2, 1};
 const opxy::i32 kBladeWidth[5] = {80, 26, 36, 36, 26};
 const opxy::i32 kLanding[5][3][2] = {{{23654, 47309}, {0, 0}, {0, 0}}, {{11264, 16896}, {24781, 37171}, {39424, 56320}}, {{15770, 24781}, {36045, 54067}, {0, 0}}, {{15770, 24781}, {36045, 54067}, {0, 0}}, {{15770, 24781}, {36045, 54067}, {0, 0}}};
 // Palette entries.
-enum Shade { kBeamOn = 0, kBeamOff = 1, kShadeFirst = 2, kBarOn = 8, kBarOff = 9 };
+enum Shade { kBeamOn = 0, kBeamOff = 1, kShadeFirst = 2, kBarOn = 8, kBarOff = 9, kScreenLit = 10 };
 const opxy::u32 kShades = 6;
 // The bench, in Q10 screen pixels.
-const opxy::i32 kAxis = 126362, kLensX = 94822, kLampX = 40755, kFlameY = 145510, kPlateX = 115098;
+const opxy::i32 kAxis = 126362, kLensX = 97075, kLampX = 46387, kFlameY = 145510, kPlateX = 119603;
 const opxy::i32 kPrismX = 198451, kPivotY = 157901, kSide = 81101, kHeight = 70235;
 const opxy::i32 kExitEq = 22341, kExitWedge = 40550, kRod = 38298, kStopDx = 37171, kTwinScale = 614, kTwinRise = 11264, kTiltTurn = 280, kCrackDx = 1690;
 const opxy::i32 kScreenNear = 333619, kScreenFar = 453018, kScreenW = 20275, kScreenH = 67584, kScreenSlant = 6758, kPostDy = 39424;
 const opxy::i32 kCradleTop = 175923, kHeaderBottom = 38912, kRailTop = 205210;
 const opxy::i32 kThrow = 150;  // tenths of a degree
-const opxy::i32 kLandingMax = 61952, kWeightFast = 11264, kWeightSpan = 20275;
-// Radio's blocks, from the face's top-left.
-const opxy::i32 kBlockAt[12][2] = {{5069, 12390}, {11827, 15770}, {7885, 32102}, {14643, 35482}, {5069, 51814}, {11827, 55194}, {7885, 71526}, {14643, 74906}, {5069, 91238}, {11827, 94618}, {7885, 110950}, {14643, 114330}};
+const opxy::i32 kLandingMax = 61952, kWeightFast = 11264, kWeightSpan = 20275, kExitX = 220792;
 // atan(i / 32) in tenths of a degree, for i = 0..32.
 const opxy::i32 kAtan[33] = {0, 18, 36, 54, 71, 89, 106, 123, 140, 157, 174, 190, 206, 221, 236, 251, 266, 280, 294, 307, 320, 333, 345, 357, 369, 380, 391, 402, 412, 422, 432, 441, 450};
 // The rate across its control, Q10 Hz: 0.08..12, as the effect's; twin's delay, Q10 ms: 9..120; a slice's length, ms: 18..1300.

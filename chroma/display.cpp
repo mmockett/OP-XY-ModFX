@@ -144,7 +144,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         const u32 elapsed = static_cast<u32>(clamp(input.elapsed, 0, 102));
         if (movement == kVibe || movement == kSwirl || movement == kTrem) state.swing += static_cast<u32>(hz) * elapsed << 12;
         if (v[kDrift] > 328) state.wander += elapsed << 20;
-        if (diffusion == kTape || texture == kCass) state.wow += elapsed * 3u << 20;
+        if (diffusion == kTape) state.wow += elapsed * 3u << 20;
     }
     state.ready = 1;
 
@@ -209,15 +209,18 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     page_header(state.header, input, frame, titles, values, kNodeHeader);
 
     // --- Character: what burns in the lantern, larger with Amount, and the plate Tilt turns. ---
-    const i32 flame_scale = 614 + share(666, v[kCharacterAmount]);  // 0.6..1.25
+    const i32 flame_scale = 768 + share(512, v[kCharacterAmount]);  // 0.75..1.25
     for (u32 k = 0; k < 6; ++k) {
         const u32 kind = k < 4 ? k : kSwell;
         if (kind != character) {
             hide(frame, kNodeFlames[k]);
+            hide(frame, kNodeFlames[k] + 1);
             continue;
         }
         const i32 dx = k < 4 ? 0 : kFlameDx[k - 4];
+        // The flame, and its core over the wick, scaled together from the base.
         place(frame, kNodeFlames[k], kLampX + dx, kFlameY, flame_scale, 0, keep);
+        place(frame, kNodeFlames[k] + 1, kLampX + dx, kFlameY, flame_scale, 0, keep);
     }
     place_turned(frame, kNodePlate, Spot{kPlateX, kAxis}, unit, snap(share(2 * kTiltTurn, v[kTilt] - 16384), 5));
 
@@ -244,8 +247,9 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 twin_late = kTwinScale * (888 + share(240, ma)) >> 10;  // 0.52..0.66 of the prism
     const i32 gap = px(4) + share(px(16), v[kRate]);
     const i32 span = (kSide * kTwinScale >> 10) + gap + (kSide * twin_late >> 10);
-    const Spot twin_a = {kPrismX - span / 2 + (kSide * kTwinScale >> 11), kPivotY - kTwinRise};
-    const Spot twin_b = {kPrismX + span / 2 - (kSide * twin_late >> 11), kPivotY - kTwinRise};
+    // The pair centred a little right of the prism's place, clear of the plate.
+    const Spot twin_a = {kPrismX + px(3) - span / 2 + (kSide * kTwinScale >> 11), kPivotY - kTwinRise};
+    const Spot twin_b = {kPrismX + px(3) + span / 2 - (kSide * twin_late >> 11), kPivotY - kTwinRise};
     // Where the beam leaves the glass, and the fan's middle line: the light follows the prism half as far as it turns.
     Spot exit;
     i32 follow = 0, bar_end;
@@ -326,28 +330,74 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         top = bottom = share(10486, ta);
     }
     const i32 cass = texture == kCass ? ta : 0;
+    // Where the light lands the screen is lit: as far out as the fan's outer edge reaches at rest,
+    // so it follows Diffuse and Time but not the rocking.
+    i32 lit_reach = 0;
+    if (diffusion != kDiffusionOff) {
+        const u32 n = kBladeCount[diffusion];
+        const i32 run = screen_x + kScreenW / 2 - kExitX;
+        const i32 outer = kLanding[diffusion][n - 1][0] + share(kLanding[diffusion][n - 1][1] - kLanding[diffusion][n - 1][0], v[kDiffusionAmount]);
+        const i32 half = (run >> 5) * (sine(kBladeWidth[diffusion] / 2) * 1024 / sine(kBladeWidth[diffusion] / 2 + 900)) >> 5;
+        lit_reach = diffusion == kDusk ? outer + half - px(8) : outer + half;
+        if (lit_reach > kLandingMax) lit_reach = kLandingMax;
+    }
     for (u32 k = 0; k < kBands; ++k) {
         // How much of this band a blade covers, Q10, then a shade from white to dark.
         const i32 from_top = clamp(top * static_cast<i32>(kBands) / 32 - static_cast<i32>(k) * 1024, 0, 1024);
         const i32 from_bottom = clamp(bottom * static_cast<i32>(kBands) / 32 - static_cast<i32>(kBands - 1 - k) * 1024, 0, 1024);
         const i32 covered = from_top > from_bottom ? from_top : from_bottom;
-        const u32 shade = kShadeFirst + static_cast<u32>((covered * static_cast<i32>(kShades - 1) + 512) >> 10);
-        // Cass: the bands wander against each other, as tape does across a head, a whole pixel at a time.
-        const i32 dx = cass ? snap(share(share(px(3), cass), wave(state.wow + static_cast<u32>(k) * 0x2a000000u)), unit) : 0;
-        place(frame, kNodeBands + k, screen_x + dx, kAxis + kBandDy[k], unit, shade, fill_and_stroke);
+        const i32 from_middle = kBandDy[k] < 0 ? -kBandDy[k] : kBandDy[k];
+        const u32 shade = covered == 0 && from_middle < lit_reach ? kScreenLit : kShadeFirst + static_cast<u32>((covered * static_cast<i32>(kShades - 1) + 512) >> 10);
+        place(frame, kNodeBands + k, screen_x, kAxis + kBandDy[k], unit, shade, fill_and_stroke);
     }
-    // Worn: cracks across the face, the newest growing from its left as Amount rises.
+    // Cass: wrinkles across the tape-worn face, one by one as Amount rises, each drawn out from the left.
+    for (u32 k = 0; k < kWrinkles; ++k) {
+        const i32 grown = clamp(cass * static_cast<i32>(kWrinkles) / 32 - static_cast<i32>(k) * 1024, 0, 1024);
+        if (grown > 0) place(frame, kNodeWrinkles + k, screen_x + kCrackDx, kAxis - kScreenH / 2 + kScreenH * static_cast<i32>(k) / 2, 410 + (grown * 614 >> 10), 0, keep);
+        else hide(frame, kNodeWrinkles + k);
+    }
+    // Worn: cracks across the face, each with its branch, the newest growing from its left as Amount rises.
     for (u32 k = 0; k < kCracks; ++k) {
         const i32 grown = texture == kWorn ? clamp(ta * static_cast<i32>(kCracks) / 32 - static_cast<i32>(k) * 1024, 0, 1024) : 0;
-        if (grown > 0) place(frame, kNodeCracks + k, screen_x + kCrackDx, kAxis - kScreenH + kScreenH * (2 * static_cast<i32>(k) + 1) / 4 - px(3), 307 + (grown * 717 >> 10), 0, keep);
-        else hide(frame, kNodeCracks + k);
+        const u32 node = kNodeCracks + 2 * k;
+        if (grown > 0) {
+            const i32 y = kAxis - kScreenH + kScreenH * (2 * static_cast<i32>(k) + 1) / 4 - px(2);
+            place(frame, node, screen_x + kCrackDx, y, 307 + (grown * 717 >> 10), 0, keep);
+            place(frame, node + 1, screen_x + kCrackDx, y, 307 + (grown * 717 >> 10), 0, keep);
+        } else {
+            hide(frame, node);
+            hide(frame, node + 1);
+        }
     }
-    // Radio: static, a block at a time, stepping down the face.
-    const i32 blocks = texture == kRadio ? (ta * static_cast<i32>(kBlocks) + 16384) >> 15 : 0;
-    for (u32 k = 0; k < kBlocks; ++k) {
-        if (static_cast<i32>(k) < blocks)
-            place(frame, kNodeBlocks + k, screen_x + kBlockAt[k][0], kAxis - kScreenH + kBlockAt[k][1] + kScreenSlant * kBlockAt[k][0] / kScreenW, unit, 0, keep);
-        else hide(frame, kNodeBlocks + k);
+    // Noise, as the stock Simple screen draws it: fine dots at random places, each kept only when two
+    // random draws together pass a threshold that rises with the noise, so the field thickens faster
+    // than the control. Radio's static is the most, cass's hiss and worn's grit less, and Drift adds to each.
+    // The places are fixed until Drift's wander moves them: then now and then a dot is drawn anew,
+    // so the field is still at rest and never redrawn all at once.
+    i32 noise = 0;
+    if (texture == kRadio) noise = ta;
+    else if (texture == kCass) noise = share(14000, ta);
+    else if (texture == kWorn) noise = share(9000, ta);
+    if (noise) noise += share(9000, v[kDrift]);  // Drift roughens what's already noisy
+    const i32 threshold = noise > 0 ? 330 + share(925, clamp(noise, 0, 32767)) : 0;  // 0, or 330..1255 of 2048
+    for (u32 k = 0; k < kDots; ++k) {
+        // Each dot's draw, renewed four times a turn of Drift's wander, the dots' turns staggered.
+        u32 r = ((state.wander + k * 0x09249249u) >> 30) * 2654435761u ^ (k * 40503u + 1u);
+        r = r * 1664525u + 1013904223u;
+        const i32 a = static_cast<i32>(r >> 22);
+        r = r * 1664525u + 1013904223u;
+        const i32 b = static_cast<i32>(r >> 22);
+        if (!threshold || a + b - 1024 + threshold <= 1024) {
+            hide(frame, kNodeDots + k);
+            continue;
+        }
+        r = r * 1664525u + 1013904223u;
+        const i32 across = px(1) + kDotHalf + static_cast<i32>(r >> 22) * (kScreenW - px(2) - 2 * kDotHalf) / 1024;
+        r = r * 1664525u + 1013904223u;
+        // Down the face, clear of its slanted top and bottom by a pixel and a dot.
+        const i32 inset = kScreenSlant * across / kScreenW + px(1) + kDotHalf;
+        const i32 down = static_cast<i32>(r >> 22) * (2 * kScreenH - 2 * inset) / 1024 + inset - kScreenH;
+        place(frame, kNodeDots + k, screen_x + snap(across, unit), kAxis + snap(down, unit), unit, 0, keep);
     }
 
     // --- Diffuse: the light, from the prism's far face to the screen, upper left and lower right. ---

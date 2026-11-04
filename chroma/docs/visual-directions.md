@@ -113,6 +113,22 @@ and ends behind the screen, so it always meets each part exactly. The light runs
 the prism and the screen the same way. `tests/screen.cpp` holds every frame to that, and
 to no part crossing another.
 
+A polish pass after that kept the same parts and moves and redrew the small things by hand:
+
+- Each flame is drawn through a pen's marks, a little off true, with its core low over the
+  wick in a second grey: a lamp's teardrop, a burner's three tongues, a flame torn into
+  small curling licks (fuzz), a tall quivering tongue (howl), and two flames for swell.
+- Worn's cracks run from the screen's edge, thin as they go, and branch. Cass wrinkles the
+  screen with wavering lines. Tape's light has rough edges; dusk's repeats end round, short
+  of the screen; slice's pieces have eased cut ends.
+- Noise on the screen (radio most, cass and worn less, Drift adding) is a field of fine
+  dots made the way the stock Simple screen makes its noise: each dot's place and its
+  chance from one random generator, kept only when two draws together pass a threshold that
+  rises with the amount, so the field thickens faster than the control. Stock writes single
+  pixels; Chroma uses 40 small dot nodes, still at rest and renewed a dot at a time by Drift.
+- The screen is lit where the light lands, every squared corner shares one radius, posts
+  and feet share their widths, and the lantern stands a little further in.
+
 ![The bench as built, from the real display code](../screens.png)
 
 Every control at 0, 50 and 100 is in [controls-1x.png](controls-1x.png), and every
