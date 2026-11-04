@@ -55,31 +55,32 @@ setting was measured.
 
 ## The screen
 
-![Lint's screen in six settings](screens.png)
+![Lint's screen in its six presets](screens.png)
 
-Under the two pages, a 1970s effects chassis with its lid off, seen from above:
-four screwed-in modules in the chosen order on one patch cable, each with its
-name on a riveted plaque. On the shift row, `lamp` is the phaser. The header captions rate in hertz, time in milliseconds
-(then seconds from 0.1 s) and tone from -100 to 100.
+Under the two pages, four scopes, one under each encoder and drawn in that
+encoder's grey: dark grey, mid grey, light grey and white, as the OP-XY's
+encoders and the header's bar run. Each scope traces one cycle of the sound
+against itself, so a section that does nothing leaves a plain ring.
 
-- **dust:** the tape across a tape head, its core and coil laid open, wrinkles,
-  dust gathers on it, and a mark moves along a wear gauge.
-- **phase:** in a light can, the lamp glows with depth and pulses with its LFO,
-  its rays reaching the photocell, and a mark on a rail shows rate.
-- **echo:** a drum in the Binson way: the playback head on its arm reads time
-  against a scale, repeats trail it with feedback, and Madness buckles the wire.
-- **spring:** in a reverb pan, the springs shake wider as they're driven, and
-  tone tilts them against the scales on the transducers.
+- **dust:** the ring squares as the diodes clip, its top flatter than its
+  bottom once they lopside. Tape 2's corners close in on it with its level.
+- **phase:** the ring leans into an ellipse that breathes as the lamp sweeps
+  the all-passes. LFO 1's mark orbits it, its trail wider the faster the rate,
+  with its shape beside it.
+- **echo:** ripples spread round the ring, spaced by time, as many as the
+  feedback holds; past Madness they run out past the scope.
+- **spring:** the ring winds into a spiral, more turns the harder the tank is
+  driven, leaning with tone.
 
-A section patched into the echo's loop leaves the cable, which hops over it,
-for one under the bays, plugged into a port beside each plaque, and tape 2 drops
-down to it when it's the one in the loop. Tape 2's head rises to the cable before
-OUT with its level, brightening as it drives. LFO 2's mark, in its shape, sits in
-a window at the top right of what it wobbles. Holding Shift enlarges the
-bays' letters, which the order names.
+Under each scope is its place in the order; a line joins neighbours the order
+runs straight through. A section patched into the echo's loop loses its place,
+and the loop reaches it from under the echo. LFO 2's mark, in its shape, sits
+over what it wobbles. Holding Shift lights the order's line and enlarges the
+places. On the shift row, `lamp` is the phaser. The header captions rate in
+hertz, time in milliseconds (then seconds from 0.1 s) and tone from -100 to 100.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
-0..15 and its own labels in 16..26, so it needs the 32-slot limit an SDK 1.7
+0..15 and the order's places in 16..19, so it needs the 32-slot limit an SDK 1.7
 display may declare.
 
 `tools/make_panel.py` writes the artwork and `panel.h`, `tools/make_tables.py`
