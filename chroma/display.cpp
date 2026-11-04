@@ -278,7 +278,7 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
         else hide(frame, kNodeSlats + k);
     }
     // Swirl's nest, larger as more stages join, turning twice as far against the glass.
-    if (movement == kSwirl) place_turned(frame, kNodeHole, centre, 512 + share(717, ma), -2 * angle);
+    if (movement == kSwirl) place_turned(frame, kNodeHole, centre, 461 + share(563, ma), -2 * angle);
     else hide(frame, kNodeHole);
     // The knife edges: one under the prism, or one under each twin.
     if (movement == kTwin) {
