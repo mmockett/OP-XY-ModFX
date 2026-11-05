@@ -27,7 +27,11 @@ const u32 kChoices[4] = {6, 6, 6, 8};
 const u32 kFrames[4] = {0, kMoveFrames, kDiffuseFrames, kTextureFrames};
 // Each module's line in the buffer, its index into Memory::write.
 enum { kMoveLine, kDiffuseLine, kTextureLine };
-const u32 kClearChunk = 8192;  // words a block, while an effect starts
+const u32 kClearChunk = 8192;  // a start waits a block for each 8,192 frames of its line, as when it cleared them
+const u32 kLineFrames[3] = {kMoveFrames, kDiffuseFrames, kTextureFrames};
+// Cloud's reads reach at most 5,280 steps into their lines (3300 at size 1.6),
+// so after this many steps every word they can read has been written.
+const u32 kCloudSteps = 8192;
 const u32 kFadeStep = 1u << 27;  // a module's start: eight blocks to fill its line, then eight of fade, about 12 ms each
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
@@ -93,28 +97,85 @@ i32 wave(u32 phase) {
 i32 pack(i32 l, i32 r) { return static_cast<i32>((static_cast<u32>(l) & 0xffff0000u) | (static_cast<u32>(r) >> 16)); }
 i32 high_half(i32 word) { return static_cast<i32>(static_cast<u32>(word) & 0xffff0000u); }
 i32 low_half(i32 word) { return static_cast<i32>(static_cast<u32>(word) << 16); }
-// One channel of a line, a Q8 delay back from the write position, interpolated.
-i32 tap_left(const i32* line, u32 mask, u32 write, u32 delay) {
-    const u32 back = write - (delay >> 8), part = delay & 255;
-    return (high_half(line[back & mask]) >> 8) * static_cast<i32>(256 - part) +
-           (high_half(line[(back - 1) & mask]) >> 8) * static_cast<i32>(part);
-}
-i32 tap_right(const i32* line, u32 mask, u32 write, u32 delay) {
-    const u32 back = write - (delay >> 8), part = delay & 255;
-    return (low_half(line[back & mask]) >> 8) * static_cast<i32>(256 - part) +
-           (low_half(line[(back - 1) & mask]) >> 8) * static_cast<i32>(part);
-}
 // A triangle window: 0 at phase 0, 1 at the middle, 0 again.
 i32 window(u32 phase) { return static_cast<i32>(phase < 0x80000000u ? phase : ~phase); }
 
+// How many frames back from a read nothing needs its Book: frames that recent
+// were written, and since the last fall. `count` frames have been written; `whole`
+// is how many the line holds.
+u32 clean(const Book& book, u32 count, u32 whole) {
+    if (book.falls) return count - book.at[book.falls - 1];
+    return book.written >= whole ? 0xffffffffu : count;
+}
+// The bits a frame `age` back from the newest of `count` must fall by, or 32 if
+// it was never written: what the line would hold had it been cleared at the start,
+// and lowered at each fall.
+u32 fallen(const Book& book, bool full, u32 age, u32 count) {
+    if (!full && age >= count) return 32;
+    u32 by = 0;
+    for (u32 k = 0; k < book.falls; ++k)
+        if (age >= count - book.at[k]) by += book.by[k];
+    return by;
+}
+// A line's frames. Safe reads go through its Book; the others, once no read can
+// reach a frame the Book has a say over, as they are.
+template <bool Safe> struct Reader {
+    const i32* line;
+    u32 mask;
+    const Book& book;
+    bool full;
+    i32 left(u32 p, u32 count) const {
+        const i32 h = high_half(line[p]);
+        if (!Safe) return h;
+        const u32 by = fallen(book, full, (count - 1 - p) & mask, count);
+        return by >= 32 ? 0 : high_half(h >> by);
+    }
+    i32 right(u32 p, u32 count) const {
+        const i32 h = low_half(line[p]);
+        if (!Safe) return h;
+        const u32 by = fallen(book, full, (count - 1 - p) & mask, count);
+        return by >= 32 ? 0 : high_half(h >> by);
+    }
+    // As tap_left and tap_right, with `count` frames written.
+    i32 tap_left(u32 write, u32 delay, u32 count) const {
+        const u32 back = write - (delay >> 8), part = delay & 255;
+        return (left(back & mask, count) >> 8) * static_cast<i32>(256 - part) + (left((back - 1) & mask, count) >> 8) * static_cast<i32>(part);
+    }
+    i32 tap_right(u32 write, u32 delay, u32 count) const {
+        const u32 back = write - (delay >> 8), part = delay & 255;
+        return (right(back & mask, count) >> 8) * static_cast<i32>(256 - part) + (right((back - 1) & mask, count) >> 8) * static_cast<i32>(part);
+    }
+};
+// Cloud's ring, where a word `off` steps into its line was written that many steps
+// ago, and `count` steps have run, this one included.
+template <bool Safe> struct Ring {
+    i32* ring;
+    const Book& book;
+    bool full;
+    i32 get(u32 index, u32 off, u32 count) const {
+        if (!Safe) return ring[index & 32767];
+        const u32 by = fallen(book, full, off, count);
+        return by >= 32 ? 0 : ring[index & 32767] >> by;
+    }
+};
+// The most a ramp from `from` by `step` a frame reaches over a block, and the least.
+i32 most(i32 from, i32 step) { return step > 0 ? from + step * static_cast<i32>(opxy::block_frames) : from; }
+i32 least(i32 from, i32 step) { return step > 0 ? from : from + step * static_cast<i32>(opxy::block_frames); }
+
 // A Schroeder all-pass in a ring of words, its line starting `first` on from the write point.
-i32 ring_pass(i32* ring, u32 first, u32 delay, i32 gain, i32 value) {
+template <bool Safe> i32 ring_pass(const Ring<Safe>& r, u32 first, u32 delay, i32 gain, i32 value, u32 count) {
     const u32 mask = 32767;
-    const i32 d = ring[(first + delay) & mask];
+    const i32 d = r.get(first + delay, delay, count);
     const i32 fed = add(value, mul(gain, d));
-    ring[first & mask] = fed;
+    r.ring[first & mask] = fed;
     return sub(d, mul(gain, fed));
 }
+
+// What Cloud works with for a block.
+struct Tank {
+    u32 length[12];
+    i32 decay, damp, wet_level, sway0, sway1;
+};
 
 struct Box {
     State& s;
@@ -147,6 +208,20 @@ struct Box {
         return w.at;
     }
     u32 lfo(u32 k, u32 step) { return m.lfo[k] += step; }
+
+    // Whether a block reading `taps` delays (Q8 frames) that ramp from `from` by
+    // `step` a frame must read through the line's Book: `count` frames written
+    // before its first read, and `late` if it reads each frame's taps before writing it.
+    bool careful(u32 k, const i32* from, const i32* step, u32 taps, u32 count, bool late) const {
+        i32 high = 0, low = 0x7fffffff;
+        for (u32 t = 0; t < taps; ++t) {
+            if (most(from[t], step[t]) > high) high = most(from[t], step[t]);
+            if (least(from[t], step[t]) < low) low = least(from[t], step[t]);
+        }
+        // Reading before writing, a delay under a frame reaches the oldest frame.
+        if (low < (late ? 256 : 0)) return true;
+        return (static_cast<u32>(high) >> 8) + 1 >= clean(m.book[k], count, kLineFrames[k]);
+    }
 
     // A delay's length from Time: the next note length below it at the tempo, or free.
     u32 note_delay(i32 time, u32 most) const {
@@ -355,8 +430,6 @@ struct Box {
     // Two voices a little late, each on the other's side, at different lengths,
     // their lengths drifting: an overdub, and with Drift, an unsteady one.
     void twin(i32 amount) {
-        i32* line = this->line[kMoveLine];
-        const u32 mask = kMoveFrames - 1;
         const i32 drift = control(c[kDrift]);
         const i32 base = curve(kTwinDelay, c[kRate]);
         const i32 slow0 = wander(0, 90), slow1 = wander(1, 130);
@@ -364,26 +437,30 @@ struct Box {
         const i32 target[2] = {base + (slow0 >> 22) * depth / 8, base + (base >> 2) + (base >> 4) + (slow1 >> 22) * depth / 8};
         const i32 step[2] = {(target[0] - m.ramp[1]) >> 6, (target[1] - m.ramp[2]) >> 6};
         const i32 mix = mul(amount, 1610612736);  // up to 0.75
+        if (careful(kMoveLine, m.ramp + 1, step, 2, m.write[kMoveLine] + 1, false)) twin_frames<true>(mix, step);
+        else twin_frames<false>(mix, step);
+        m.ramp[1] = target[0];
+        m.ramp[2] = target[1];
+    }
+    template <bool Safe> void twin_frames(i32 mix, const i32* step) {
+        const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
+        const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
         i32 d0 = m.ramp[1], d1 = m.ramp[2];
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(l[i], r[i]);
+            this->line[kMoveLine][w & mask] = pack(l[i], r[i]);
             d0 += step[0];
             d1 += step[1];
-            const i32 a = tap_right(line, mask, w, static_cast<u32>(d0)), b = tap_left(line, mask, w, static_cast<u32>(d1));
+            const i32 a = line.tap_right(w, static_cast<u32>(d0), w + 1), b = line.tap_left(w, static_cast<u32>(d1), w + 1);
             l[i] = add(l[i], mul(mix, a));
             r[i] = add(r[i], mul(mix, b));
         }
-        m.ramp[1] = target[0];
-        m.ramp[2] = target[1];
         m.write[kMoveLine] = w;
     }
 
     // Only the delayed voice, its delay swayed: pitch that moves. Left and right
     // sway apart from the start; Drift takes them further and off the sine.
     void vibe(i32 amount) {
-        i32* line = this->line[kMoveLine];
-        const u32 mask = kMoveFrames - 1;
         const i32 drift = control(c[kDrift]);
         const u32 step_phase = curve(kRateStep, c[kRate]);
         const u32 phase = lfo(0, step_phase);
@@ -397,17 +474,23 @@ struct Box {
         const i32 centre = 66000;  // Q8: about 5.8 ms
         const i32 target[2] = {centre + mul(s0, depth), centre + mul(s1, depth)};
         const i32 step[2] = {(target[0] - m.ramp[1]) >> 6, (target[1] - m.ramp[2]) >> 6};
+        if (careful(kMoveLine, m.ramp + 1, step, 2, m.write[kMoveLine] + 1, false)) vibe_frames<true>(step);
+        else vibe_frames<false>(step);
+        m.ramp[1] = target[0];
+        m.ramp[2] = target[1];
+    }
+    template <bool Safe> void vibe_frames(const i32* step) {
+        const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
+        const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
         i32 d0 = m.ramp[1], d1 = m.ramp[2];
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(l[i], r[i]);
+            this->line[kMoveLine][w & mask] = pack(l[i], r[i]);
             d0 += step[0];
             d1 += step[1];
-            l[i] = tap_left(line, mask, w, static_cast<u32>(d0));
-            r[i] = tap_right(line, mask, w, static_cast<u32>(d1));
+            l[i] = line.tap_left(w, static_cast<u32>(d0), w + 1);
+            r[i] = line.tap_right(w, static_cast<u32>(d1), w + 1);
         }
-        m.ramp[1] = target[0];
-        m.ramp[2] = target[1];
         m.write[kMoveLine] = w;
     }
 
@@ -489,8 +572,6 @@ struct Box {
     // fall between the left's and it runs a little sharp, so an interval opens
     // out as it's played. Drift coarsens it and unsettles it.
     void pitch(i32 amount) {
-        i32* line = this->line[kMoveLine];
-        const u32 mask = kMoveFrames - 1;
         const i32 drift = control(c[kDrift]);
         const i32 ratio = curve(kPitchRatio, c[kRate]);
         const i32 unsettled = mul(wander(0, 30), drift) >> 8;
@@ -501,16 +582,23 @@ struct Box {
         const u32 coarse = static_cast<u32>(drift) >> 28;  // 0..7 bits fewer than 16
         const u32 keep = ~((1u << (coarse + 16)) - 1);
         const i32 round = static_cast<i32>(1u << (coarse + 15));
-        const i32 mix = amount;
+        // A grain reads at most 2^19 + 2^14 (Q8) frames back, and a frame more.
+        const u32 reach = (((0xffffffffu >> 13) + 16384) >> 8) + 1;
+        if (reach >= clean(m.book[kMoveLine], m.write[kMoveLine] + 1, kMoveFrames)) pitch_frames<true>(amount, inc0, inc1, keep, round);
+        else pitch_frames<false>(amount, inc0, inc1, keep, round);
+    }
+    template <bool Safe> void pitch_frames(i32 mix, i32 inc0, i32 inc1, u32 keep, i32 round) {
+        const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
+        const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
         u32 p0 = m.pitch_phase[0], p1 = m.pitch_phase[1];
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(l[i], r[i]);
+            this->line[kMoveLine][w & mask] = pack(l[i], r[i]);
             p0 += static_cast<u32>(inc0);
             p1 += static_cast<u32>(inc1);
             const u32 a = p0, b = p0 + 0x80000000u, e = p1 + 0x40000000u, f = p1 + 0xc0000000u;
-            const i32 x = mul(tap_left(line, mask, w, (a >> 13) + 16384), window(a)) + mul(tap_left(line, mask, w, (b >> 13) + 16384), window(b));
-            const i32 y = mul(tap_right(line, mask, w, (e >> 13) + 16384), window(e)) + mul(tap_right(line, mask, w, (f >> 13) + 16384), window(f));
+            const i32 x = mul(line.tap_left(w, (a >> 13) + 16384, w + 1), window(a)) + mul(line.tap_left(w, (b >> 13) + 16384, w + 1), window(b));
+            const i32 y = mul(line.tap_right(w, (e >> 13) + 16384, w + 1), window(e)) + mul(line.tap_right(w, (f >> 13) + 16384, w + 1), window(f));
             const i32 cx = static_cast<i32>(static_cast<u32>(add(x, round)) & keep), cy = static_cast<i32>(static_cast<u32>(add(y, round)) & keep);
             l[i] = blend(l[i], cx, mix);
             r[i] = blend(r[i], cy, mix);
@@ -534,28 +622,36 @@ struct Box {
     // Dusk and tape share a chassis: two lengths, each side's repeats feeding the
     // other side, so a note walks across and spreads.
     void echo(i32 amount, u32 target_left, u32 target_right, i32 dark, i32 low_cut, i32 sway, i32 grit, i32 wow) {
-        i32* line = this->line[kDiffuseLine];
-        const u32 mask = kDiffuseFrames - 1;
         // Feedback rises to 0.8 by 85% of the control, then past 1 into the loop's limit.
         const i32 knee = 1825361100;
         const i32 fb = amount < knee ? mul(amount, 2021161080) : add(1717986918, mul(amount - knee, 1800000000) << 2);
         const i32 wet = amount < kQuarter ? amount << 1 : kHalf + mul(amount - kQuarter, 572662306);
         Gain feedback;
         feedback.set(fb >> 19);
-        Audio& a = m.audio;
         const u32 slow = lfo(1, 1800000u), quick = lfo(2, 14000000u);
         const i32 mod0 = add(mul(wave(slow), sway), mul(wave(quick), wow)), mod1 = add(mul(wave(slow + 0x60000000u), sway), mul(wave(quick + 0x2a000000u), wow));
         const i32 d0_end = static_cast<i32>(target_left) + (mod0 >> 16), d1_end = static_cast<i32>(target_right) + (mod1 >> 16);
         // The delays glide to their marks, about 90 ms, which bends the repeats as Time turns.
         const i32 end0 = m.ramp[3] + ((d0_end - m.ramp[3]) >> 6), end1 = m.ramp[4] + ((d1_end - m.ramp[4]) >> 6);
-        const i32 step0 = (end0 - m.ramp[3]) >> 6, step1 = (end1 - m.ramp[4]) >> 6;
+        const i32 step[2] = {(end0 - m.ramp[3]) >> 6, (end1 - m.ramp[4]) >> 6};
+        // It reads before it writes.
+        if (careful(kDiffuseLine, m.ramp + 3, step, 2, m.write[kDiffuseLine], true)) echo_frames<true>(wet, step, dark, low_cut, grit, feedback);
+        else echo_frames<false>(wet, step, dark, low_cut, grit, feedback);
+        m.ramp[3] = end0;
+        m.ramp[4] = end1;
+    }
+    template <bool Safe> void echo_frames(i32 wet, const i32* step, i32 dark, i32 low_cut, i32 grit, const Gain& feedback) {
+        const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
+        const u32 mask = kDiffuseFrames - 1;
+        Audio& a = m.audio;
+        const i32 step0 = step[0], step1 = step[1];
         u32 w = m.write[kDiffuseLine];
         i32 d0 = m.ramp[3], d1 = m.ramp[4];
         i32 low0 = a.echo_low[0], low1 = a.echo_low[1], high0 = a.echo_high[0], high1 = a.echo_high[1];
         for (u32 i = 0; i < kN; ++i, ++w) {
             d0 += step0;
             d1 += step1;
-            const i32 y0 = tap_left(line, mask, w, static_cast<u32>(d0)), y1 = tap_right(line, mask, w, static_cast<u32>(d1));
+            const i32 y0 = line.tap_left(w, static_cast<u32>(d0), w), y1 = line.tap_right(w, static_cast<u32>(d1), w);
             low0 = add(low0, mul(dark, sub(y0, low0)));
             low1 = add(low1, mul(dark, sub(y1, low1)));
             high0 = add(high0, mul(low_cut, sub(low0, high0)));
@@ -563,7 +659,7 @@ struct Box {
             const i32 out0 = sub(low0, high0), out1 = sub(low1, high1);
             // Each side's loop runs through the other, and through its limit.
             const i32 in0 = add(l[i], feedback.apply(out1)), in1 = add(r[i], feedback.apply(out0));
-            line[w & mask] = pack(static_cast<i32>(static_cast<u32>(limit(in0)) & static_cast<u32>(grit)), static_cast<i32>(static_cast<u32>(limit(in1)) & static_cast<u32>(grit)));
+            this->line[kDiffuseLine][w & mask] = pack(static_cast<i32>(static_cast<u32>(limit(in0)) & static_cast<u32>(grit)), static_cast<i32>(static_cast<u32>(limit(in1)) & static_cast<u32>(grit)));
             l[i] = add(l[i], mul(wet, sub(out0, l[i] >> 2)));
             r[i] = add(r[i], mul(wet, sub(out1, r[i] >> 2)));
         }
@@ -571,8 +667,6 @@ struct Box {
         a.echo_low[1] = low1;
         a.echo_high[0] = high0;
         a.echo_high[1] = high1;
-        m.ramp[3] = end0;
-        m.ramp[4] = end1;
         m.write[kDiffuseLine] = w;
     }
 
@@ -581,26 +675,43 @@ struct Box {
     // loop has a swayed all-pass, a line, a low-pass, another all-pass and another
     // line, then crosses over. Time runs it from a chamber to a cloud.
     void cloud(i32 amount) {
-        i32* ring = line[kDiffuseLine];
-        const u32 mask = 32767;
         const i32 time = control(c[kTime]), drift = control(c[kDrift]);
         // The lengths at the half rate, scaled by size; each line's place in the
         // ring is fixed at its largest size, so size only moves its read point.
         static const u32 kBase[8] = {105, 79, 281, 205, 498, 3300, 1334, 2757};
         static const u32 kOther[4] = {673, 3125, 1968, 2344};
-        static const u32 kFirst[12] = {0, 170, 300, 760, 1100, 1970, 7300, 9450, 13900, 15100, 20110, 23270};
         const i32 size_target = curve(kCloudSize, time);
         m.cloud_size += (size_target - m.cloud_size) >> 5;
-        u32 length[12];
-        for (u32 k = 0; k < 8; ++k) length[k] = (kBase[k] * static_cast<u32>(m.cloud_size)) >> 16;
-        for (u32 k = 0; k < 4; ++k) length[8 + k] = (kOther[k] * static_cast<u32>(m.cloud_size)) >> 16;
-        const i32 decay = curve(kCloudDecay, time), damp = curve(kCloudDamp, time);
-        const i32 gain_in = 751619277;  // 0.35
-        const i32 wet_level = curve(kCloudWet, time);
+        Tank t;
+        for (u32 k = 0; k < 8; ++k) t.length[k] = (kBase[k] * static_cast<u32>(m.cloud_size)) >> 16;
+        for (u32 k = 0; k < 4; ++k) t.length[8 + k] = (kOther[k] * static_cast<u32>(m.cloud_size)) >> 16;
+        t.decay = curve(kCloudDecay, time);
+        t.damp = curve(kCloudDamp, time);
+        t.wet_level = curve(kCloudWet, time);
         // Sway: a few steps' worth, more with Drift. Q8 steps.
         const u32 slow = lfo(1, 3500000u);
         const i32 sway_depth = 400 + (drift >> 18);
-        const i32 sway0 = (wave(slow) >> 16) * sway_depth >> 15, sway1 = (wave(slow + 0x50000000u) >> 16) * sway_depth >> 15;
+        t.sway0 = (wave(slow) >> 16) * sway_depth >> 15;
+        t.sway1 = (wave(slow + 0x50000000u) >> 16) * sway_depth >> 15;
+        // The farthest any read reaches into its line, in steps: the longest line,
+        // or a swayed read, at most 9000 + 8591 (Q8) past its length, and a step more.
+        u32 reach = t.length[5];
+        for (u32 k = 0; k < 12; ++k)
+            if (t.length[k] > reach) reach = t.length[k];
+        if (t.length[4] + 70 > reach) reach = t.length[4] + 70;
+        if (t.length[8] + 70 > reach) reach = t.length[8] + 70;
+        // The steps run so far, and this block's first one.
+        if (reach >= clean(m.book[kDiffuseLine], 1 - m.cloud_at, kCloudSteps)) cloud_steps<true>(amount, t);
+        else cloud_steps<false>(amount, t);
+    }
+    template <bool Safe> void cloud_steps(i32 amount, const Tank& t) {
+        const Ring<Safe> ring{line[kDiffuseLine], m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kCloudSteps};
+        i32* words = line[kDiffuseLine];
+        const u32 mask = 32767;
+        static const u32 kFirst[12] = {0, 170, 300, 760, 1100, 1970, 7300, 9450, 13900, 15100, 20110, 23270};
+        const u32* length = t.length;
+        const i32 decay = t.decay, damp = t.damp, wet_level = t.wet_level, sway0 = t.sway0, sway1 = t.sway1;
+        const i32 gain_in = 751619277;  // 0.35
         Audio& a = m.audio;
         i32 pass0 = a.cloud_pass[0], pass1 = a.cloud_pass[1];
         i32 back0 = a.cloud_back[0], back1 = a.cloud_back[1];
@@ -616,54 +727,57 @@ struct Box {
             pass1 = add(pass1, r[i] >> 1);
             if (i & 1) {
                 --at;
+                const u32 count = 0u - at;  // the steps run, this one included
                 // Input all-passes, each side's own.
                 a.cloud_in[0] = add(a.cloud_in[0], mul(damp, sub(mul(pass0, gain_in), a.cloud_in[0])));
                 a.cloud_in[1] = add(a.cloud_in[1], mul(damp, sub(mul(pass1, gain_in), a.cloud_in[1])));
                 i32 x0 = a.cloud_in[0], x1 = a.cloud_in[1];
                 pass0 = pass1 = 0;
-                x0 = ring_pass(ring, at + kFirst[0], length[0], k1, x0);
-                x0 = ring_pass(ring, at + kFirst[2], length[2], k2, x0);
-                x1 = ring_pass(ring, at + kFirst[1], length[1], k1, x1);
-                x1 = ring_pass(ring, at + kFirst[3], length[3], k2, x1);
+                x0 = ring_pass(ring, at + kFirst[0], length[0], k1, x0, count);
+                x0 = ring_pass(ring, at + kFirst[2], length[2], k2, x0, count);
+                x1 = ring_pass(ring, at + kFirst[1], length[1], k1, x1, count);
+                x1 = ring_pass(ring, at + kFirst[3], length[3], k2, x1, count);
                 // Loop one.
                 i32 v = add(x0, mul(decay, back1));
                 {
                     const u32 read = (length[4] << 8) + static_cast<u32>(sway0 + 9000);
                     const u32 whole = read >> 8, part = read & 255;
-                    const i32 d = (ring[(at + kFirst[4] + whole) & mask] >> 8) * static_cast<i32>(256 - part) +
-                                  (ring[(at + kFirst[4] + whole + 1) & mask] >> 8) * static_cast<i32>(part);
+                    const i32 d = (ring.get(at + kFirst[4] + whole, whole, count) >> 8) * static_cast<i32>(256 - part) +
+                                  (ring.get(at + kFirst[4] + whole + 1, whole + 1, count) >> 8) * static_cast<i32>(part);
                     const i32 fed = add(v, mul(k3, d));
-                    ring[(at + kFirst[4]) & mask] = fed;
+                    words[(at + kFirst[4]) & mask] = fed;
                     v = sub(d, mul(k3, fed));
                 }
-                ring[(at + kFirst[5]) & mask] = v;
-                v = ring[(at + kFirst[5] + length[5]) & mask];
+                words[(at + kFirst[5]) & mask] = v;
+                v = ring.get(at + kFirst[5] + length[5], length[5], count);
                 damp0 = add(damp0, mul(damp, sub(v, damp0)));
                 v = mul(damp0, decay);
-                v = ring_pass(ring, at + kFirst[6], length[6], k4, v);
-                ring[(at + kFirst[7]) & mask] = v;
-                back0 = ring[(at + kFirst[7] + length[7]) & mask];
+                v = ring_pass(ring, at + kFirst[6], length[6], k4, v, count);
+                words[(at + kFirst[7]) & mask] = v;
+                back0 = ring.get(at + kFirst[7] + length[7], length[7], count);
                 // Loop two.
                 v = add(x1, mul(decay, back0));
                 {
                     const u32 read = (length[8] << 8) + static_cast<u32>(sway1 + 9000);
                     const u32 whole = read >> 8, part = read & 255;
-                    const i32 d = (ring[(at + kFirst[8] + whole) & mask] >> 8) * static_cast<i32>(256 - part) +
-                                  (ring[(at + kFirst[8] + whole + 1) & mask] >> 8) * static_cast<i32>(part);
+                    const i32 d = (ring.get(at + kFirst[8] + whole, whole, count) >> 8) * static_cast<i32>(256 - part) +
+                                  (ring.get(at + kFirst[8] + whole + 1, whole + 1, count) >> 8) * static_cast<i32>(part);
                     const i32 fed = add(v, mul(k3, d));
-                    ring[(at + kFirst[8]) & mask] = fed;
+                    words[(at + kFirst[8]) & mask] = fed;
                     v = sub(d, mul(k3, fed));
                 }
-                ring[(at + kFirst[9]) & mask] = v;
-                v = ring[(at + kFirst[9] + length[9]) & mask];
+                words[(at + kFirst[9]) & mask] = v;
+                v = ring.get(at + kFirst[9] + length[9], length[9], count);
                 damp1 = add(damp1, mul(damp, sub(v, damp1)));
                 v = mul(damp1, decay);
-                v = ring_pass(ring, at + kFirst[10], length[10], k4, v);
-                ring[(at + kFirst[11]) & mask] = v;
-                back1 = ring[(at + kFirst[11] + length[11]) & mask];
+                v = ring_pass(ring, at + kFirst[10], length[10], k4, v, count);
+                words[(at + kFirst[11]) & mask] = v;
+                back1 = ring.get(at + kFirst[11] + length[11], length[11], count);
                 // Each ear hears both loops, at different lengths: left and right never agree.
-                const i32 t0 = add(ring[(at + kFirst[5] + (length[5] >> 1)) & mask], sub(ring[(at + kFirst[9] + (length[9] >> 2)) & mask], ring[(at + kFirst[11] + (length[11] >> 1)) & mask]));
-                const i32 t1 = add(ring[(at + kFirst[9] + (length[9] >> 1)) & mask], sub(ring[(at + kFirst[5] + (length[5] >> 2)) & mask], ring[(at + kFirst[7] + (length[7] >> 1)) & mask]));
+                const i32 t0 = add(ring.get(at + kFirst[5] + (length[5] >> 1), length[5] >> 1, count),
+                                   sub(ring.get(at + kFirst[9] + (length[9] >> 2), length[9] >> 2, count), ring.get(at + kFirst[11] + (length[11] >> 1), length[11] >> 1, count)));
+                const i32 t1 = add(ring.get(at + kFirst[9] + (length[9] >> 1), length[9] >> 1, count),
+                                   sub(ring.get(at + kFirst[5] + (length[5] >> 2), length[5] >> 2, count), ring.get(at + kFirst[7] + (length[7] >> 1), length[7] >> 1, count)));
                 last0 = now0;
                 last1 = now1;
                 now0 = mul(t0, wet_level);
@@ -692,8 +806,6 @@ struct Box {
     // Time bends them as they play; Drift has them run double or half speed.
     // What they play goes back on the line, so the slices fold into themselves.
     void slice(i32 amount) {
-        i32* line = this->line[kDiffuseLine];
-        const u32 mask = kDiffuseFrames - 1;
         const i32 time = control(c[kTime]), drift = control(c[kDrift]);
         const u32 frames = static_cast<u32>(curve(kSliceFrames, time));
         const u32 inc = 0xffffffffu / frames;
@@ -705,6 +817,19 @@ struct Box {
         Gain feedback;
         feedback.set(fb >> 19);
         const i32 wet = amount < kQuarter ? amount << 1 : kHalf + mul(amount - kQuarter, 572662306);
+        // The farthest a head reads this block: from where it is, or where a new
+        // slice puts it, moving at most a frame and the bend a frame; it reads before it writes.
+        i32 far = static_cast<i32>(frames * 2 + 64) << 8;
+        for (u32 h = 0; h < 2; ++h)
+            if (m.heads[h].delay > far) far = m.heads[h].delay;
+        far += static_cast<i32>(kN) * (256 + (m.bend < 0 ? -(m.bend >> 8) : m.bend >> 8));
+        if (far > static_cast<i32>((kDiffuseFrames - 4) << 8)) far = static_cast<i32>((kDiffuseFrames - 4) << 8);
+        if ((static_cast<u32>(far) >> 8) + 1 >= clean(m.book[kDiffuseLine], m.write[kDiffuseLine], kDiffuseFrames)) slice_frames<true>(wet, frames, inc, drift, feedback);
+        else slice_frames<false>(wet, frames, inc, drift, feedback);
+    }
+    template <bool Safe> void slice_frames(i32 wet, u32 frames, u32 inc, i32 drift, const Gain& feedback) {
+        const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
+        const u32 mask = kDiffuseFrames - 1;
         u32 w = m.write[kDiffuseLine];
         for (u32 i = 0; i < kN; ++i, ++w) {
             i32 out0 = 0, out1 = 0;
@@ -730,14 +855,14 @@ struct Box {
                 if (head.delay > static_cast<i32>((kDiffuseFrames - 4) << 8)) head.delay = static_cast<i32>((kDiffuseFrames - 4) << 8);
                 const u32 d = static_cast<u32>(head.delay);
                 const i32 gain = window(head.phase);
-                const i32 voice = mul(add(tap_left(line, mask, w, d) >> 1, tap_right(line, mask, w, d) >> 1), gain);
+                const i32 voice = mul(add(line.tap_left(w, d, w) >> 1, line.tap_right(w, d, w) >> 1), gain);
                 out0 = add(out0, mul(voice, head.left));
                 out1 = add(out1, mul(voice, head.right));
             }
             out0 = add(out0, out0);
             out1 = add(out1, out1);
             const i32 in0 = add(l[i], feedback.apply(out1)), in1 = add(r[i], feedback.apply(out0));
-            line[w & mask] = pack(limit(add(in0, in0)) >> 1, limit(add(in1, in1)) >> 1);
+            this->line[kDiffuseLine][w & mask] = pack(limit(add(in0, in0)) >> 1, limit(add(in1, in1)) >> 1);
             l[i] = add(l[i], mul(wet, sub(out0, l[i] >> 2)));
             r[i] = add(r[i], mul(wet, sub(out1, r[i] >> 2)));
         }
@@ -747,8 +872,6 @@ struct Box {
     // Each side played backwards through overlapping windows, right's between
     // left's. Time is its speed, half to double; a little of it goes round again.
     void back(i32 amount) {
-        i32* line = this->line[kDiffuseLine];
-        const u32 mask = kDiffuseFrames - 1;
         const i32 drift = control(c[kDrift]);
         const i32 speed = curve(kPitchRatio, c[kTime]);  // Q16: 0.5..2
         // The window fits the line at this speed, near a beat at the tempo.
@@ -758,12 +881,23 @@ struct Box {
         const u32 inc = 0xffffffffu / beat;
         const i32 sway = (wave(lfo(1, 2600000u)) >> 20) * (drift >> 24);
         const i32 run = 256 + (speed >> 8) + (sway >> 12);  // Q8: how fast the delay grows
+        // The farthest a head reads this block: from where it is, growing by run a frame.
+        i32 far = 0;
+        for (u32 h = 0; h < 4; ++h)
+            if (m.heads[h].delay > far) far = m.heads[h].delay;
+        if (run > 0) far += static_cast<i32>(kN) * run;
+        if ((static_cast<u32>(far) >> 8) + 1 >= clean(m.book[kDiffuseLine], m.write[kDiffuseLine] + 1, kDiffuseFrames)) back_frames<true>(amount, inc, run);
+        else back_frames<false>(amount, inc, run);
+    }
+    template <bool Safe> void back_frames(i32 amount, u32 inc, i32 run) {
+        const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
+        const u32 mask = kDiffuseFrames - 1;
         Gain feedback;
         feedback.set(1229);  // 0.3
         u32 w = m.write[kDiffuseLine];
         i32 last0 = m.audio.echo_out[0], last1 = m.audio.echo_out[1];
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(limit(add(l[i], feedback.apply(last1))), limit(add(r[i], feedback.apply(last0))));
+            this->line[kDiffuseLine][w & mask] = pack(limit(add(l[i], feedback.apply(last1))), limit(add(r[i], feedback.apply(last0))));
             i32 sums[2] = {0, 0};
             for (u32 h = 0; h < 4; ++h) {
                 // A head's delay runs up from nearly none across its window.
@@ -772,7 +906,7 @@ struct Box {
                 head.phase += inc;
                 head.delay = head.phase < before ? 512 : head.delay + run;
                 const u32 d = static_cast<u32>(head.delay);
-                const i32 voice = h & 1 ? tap_right(line, mask, w, d) : tap_left(line, mask, w, d);
+                const i32 voice = h & 1 ? line.tap_right(w, d, w + 1) : line.tap_left(w, d, w + 1);
                 sums[h & 1] = add(sums[h & 1], mul(voice, window(head.phase)));
             }
             last0 = add(sums[0], sums[0] >> 2);
@@ -860,32 +994,39 @@ struct Box {
     // A worn cassette: head bump, soft saturation, its top falling away, and
     // left and right wandering against each other as tape does across a head.
     void cass(i32 amount) {
-        i32* line = this->line[kTextureLine];
-        const u32 mask = kTextureFrames - 1;
         const u32 slow = lfo(3, 1400000u), quick = lfo(4, 22000000u);
         // In Q8 frames: wow to +-1.5 ms, flutter to +-0.4 ms, and left against right to +-0.7 ms.
         const i32 wow = (wave(slow) >> 16) * (amount >> 20) >> 12, flutter = (wave(quick) >> 16) * (amount >> 22) >> 12;
         const i32 skew = (wander(4, 70) >> 20) * (amount >> 24) >> 5;
         const i32 centre = 30000;  // about 2.7 ms
         const i32 target0 = centre + wow + flutter + skew, target1 = centre + wow - flutter - skew;
-        const i32 step0 = (target0 - m.ramp[8]) >> 6, step1 = (target1 - m.ramp[9]) >> 6;
+        const i32 step[2] = {(target0 - m.ramp[8]) >> 6, (target1 - m.ramp[9]) >> 6};
         Gain drive;
         drive.set(4096 + (amount >> 20));
         const i32 loss = 1900000000 - mul(amount, 1500000000);
-        const i32 bump = 30379526;  // 100 Hz
         const i32 hiss = 13 - static_cast<i32>(static_cast<u32>(amount) >> 29);
+        // Now and then, near the top of the control, the tape drops out on one side.
+        const u32 chance = amount > 1717986918 ? (static_cast<u32>(amount) - 1717986918u) >> 20 : 0;
+        if ((random() & 0xffff) < chance) m.drop[random() & 1] = 400 + (random() & 1023);
+        if (careful(kTextureLine, m.ramp + 8, step, 2, m.write[kTextureLine] + 1, false)) cass_frames<true>(step, drive, loss, hiss);
+        else cass_frames<false>(step, drive, loss, hiss);
+        m.ramp[8] = target0;
+        m.ramp[9] = target1;
+    }
+    template <bool Safe> void cass_frames(const i32* step, const Gain& drive, i32 loss, i32 hiss) {
+        const Reader<Safe> line{this->line[kTextureLine], kTextureFrames - 1, m.book[kTextureLine], m.book[kTextureLine].written >= kTextureFrames};
+        const u32 mask = kTextureFrames - 1;
+        const i32 bump = 30379526;  // 100 Hz
+        const i32 step0 = step[0], step1 = step[1];
         Audio& a = m.audio;
         u32 w = m.write[kTextureLine];
         i32 d0 = m.ramp[8], d1 = m.ramp[9];
         i32 loss0 = a.tape_loss[0], loss1 = a.tape_loss[1], bump0 = a.tape_bump[0], bump1 = a.tape_bump[1];
-        // Now and then, near the top of the control, the tape drops out on one side.
-        const u32 chance = amount > 1717986918 ? (static_cast<u32>(amount) - 1717986918u) >> 20 : 0;
-        if ((random() & 0xffff) < chance) m.drop[random() & 1] = 400 + (random() & 1023);
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(l[i], r[i]);
+            this->line[kTextureLine][w & mask] = pack(l[i], r[i]);
             d0 += step0;
             d1 += step1;
-            const i32 x = tap_left(line, mask, w, static_cast<u32>(d0)), y = tap_right(line, mask, w, static_cast<u32>(d1));
+            const i32 x = line.tap_left(w, static_cast<u32>(d0), w + 1), y = line.tap_right(w, static_cast<u32>(d1), w + 1);
             bump0 = add(bump0, mul(bump, sub(x, bump0)));
             bump1 = add(bump1, mul(bump, sub(y, bump1)));
             const i32 u = gentle(drive.apply(add(x, bump0 >> 3))), v = gentle(drive.apply(add(y, bump1 >> 3)));
@@ -907,16 +1048,12 @@ struct Box {
         a.tape_loss[1] = loss1;
         a.tape_bump[0] = bump0;
         a.tape_bump[1] = bump1;
-        m.ramp[8] = target0;
-        m.ramp[9] = target1;
         m.write[kTextureLine] = w;
     }
 
     // A motor in need of service: every so often it sags, the pitch dropping and
     // the level with it, the two sides out of step.
     void worn(i32 amount) {
-        i32* line = this->line[kTextureLine];
-        const u32 mask = kTextureFrames - 1;
         // About 0.4 to 1.1 sags a second; to about 7 ms of the delay and half the level.
         const u32 phase = lfo(3, 2500000u + (static_cast<u32>(amount) >> 10));
         const i32 flutter = (wave(lfo(4, 18000000u)) >> 16) * (amount >> 22) >> 12;
@@ -931,16 +1068,22 @@ struct Box {
             step[ch] = (delay - m.ramp[8 + ch]) >> 6;
             step[2 + ch] = (gain >> 6) - (m.ramp[6 + ch] >> 6);
         }
+        if (careful(kTextureLine, m.ramp + 8, step, 2, m.write[kTextureLine] + 1, false)) worn_frames<true>(step);
+        else worn_frames<false>(step);
+    }
+    template <bool Safe> void worn_frames(const i32* step) {
+        const Reader<Safe> line{this->line[kTextureLine], kTextureFrames - 1, m.book[kTextureLine], m.book[kTextureLine].written >= kTextureFrames};
+        const u32 mask = kTextureFrames - 1;
         u32 w = m.write[kTextureLine];
         i32 d0 = m.ramp[8], d1 = m.ramp[9], g0 = m.ramp[6], g1 = m.ramp[7];
         for (u32 i = 0; i < kN; ++i, ++w) {
-            line[w & mask] = pack(l[i], r[i]);
+            this->line[kTextureLine][w & mask] = pack(l[i], r[i]);
             d0 += step[0];
             d1 += step[1];
             g0 += step[2];
             g1 += step[3];
-            l[i] = mul(tap_left(line, mask, w, static_cast<u32>(d0)), g0);
-            r[i] = mul(tap_right(line, mask, w, static_cast<u32>(d1)), g1);
+            l[i] = mul(line.tap_left(w, static_cast<u32>(d0), w + 1), g0);
+            r[i] = mul(line.tap_right(w, static_cast<u32>(d1), w + 1), g1);
         }
         m.ramp[8] = d0;
         m.ramp[9] = d1;
@@ -1011,28 +1154,24 @@ struct Box {
         }
     }
 
-    // One module for a block: its fade in, once its memory is clear for the new
+    // One module for a block: its fade in, once it has waited for the new
     // effect, against what came in, so nothing clicks.
     void run(u32 which, u32 wanted) {
         Module& module = m.module[which];
         module.wanted = wanted;
         if (module.playing != module.wanted) {
-            // Out first: the module falls silent to dry at once, then clears its line.
+            // Out first: the module falls silent to dry at once, then waits.
             module.playing = module.wanted;
             module.gain = 0;
             module.cleared = 0;
             clear_state(which);
-            if (which != kCharacter) m.lower_left[which - 1] = 0;
         }
         const u32 frames = kFrames[which];
-        // One module clears at a time, so a start's blocks stay no heavier than this.
+        // One module waits at a time, a block for each 8,192 frames of its line, as
+        // when it cleared them: nothing is cleared now, but each effect starts when it did.
         if (module.cleared < frames && module.playing && !clearing) {
             clearing = true;
-            i32* words = line[which - 1];
-            u32 end = module.cleared + kClearChunk;
-            if (end > frames) end = frames;
-            for (u32 i = module.cleared; i < end; ++i) words[i] = 0;
-            module.cleared = end;
+            module.cleared = module.cleared + kClearChunk < frames ? module.cleared + kClearChunk : frames;
             return;
         }
         if (!module.playing || module.cleared < frames) return;
@@ -1047,6 +1186,7 @@ struct Box {
         else if (which == kMovement) movement(module.playing);
         else if (which == kDiffusion) diffusion(module.playing);
         else texture(module.playing);
+        if (which != kCharacter) settle(which - 1);
         if (fading) {
             const u32 half = 1u << 30;  // the second half of the count is the fade
             const i32 from = module.gain < half ? 0 : static_cast<i32>((module.gain - half) << 1);
@@ -1060,6 +1200,23 @@ struct Box {
                 r[i] = blend(dry_r[i], r[i], g);
             }
         }
+    }
+
+    // A line's Book after a block: what it has now written, and the falls it can
+    // no longer reach back to forgotten.
+    void settle(u32 k) {
+        Book& book = m.book[k];
+        const bool cloud = k == kDiffuseLine && m.module[kDiffusion].playing == kCloud;
+        const u32 count = cloud ? 0u - m.cloud_at : m.write[k], whole = cloud ? kCloudSteps : kLineFrames[k];
+        if (book.written < whole) book.written = count < whole ? count : whole;
+        u32 gone = 0;
+        while (gone < book.falls && count - book.at[gone] >= whole) ++gone;
+        if (!gone) return;
+        for (u32 f = gone; f < book.falls; ++f) {
+            book.at[f - gone] = book.at[f];
+            book.by[f - gone] = book.by[f];
+        }
+        book.falls -= gone;
     }
 
     // A new effect starts from nothing but its own defaults.
@@ -1081,6 +1238,7 @@ struct Box {
             count = static_cast<u32>(reinterpret_cast<i32*>(&a + 1) - a.filter_low);
         }
         for (u32 i = 0; i < count; ++i) first[i] = 0;
+        if (which != kCharacter) m.book[which - 1] = Book();
         // The values each effect starts its ramps and heads from.
         if (which == kCharacter) {
             m.ramp[0] = kHalf;
@@ -1118,52 +1276,32 @@ struct Box {
 }
 
 namespace {
+// Whether an effect writes its module's line.
+bool lined(u32 which, u32 effect) {
+    if (which == kMovement) return effect == kTwin || effect == kVibe || effect == kPitch;
+    if (which == kDiffusion) return effect != 0;
+    return effect == kCass || effect == kWorn;
+}
 // Lowers everything the box holds by `by` bits, as its working level falls: all
-// of Audio, and the lines in use, frame by frame or, for the cloud, word by word.
-// The working level fell. What's held is lowered now. Cloud's ring is too, as its
-// lines write all through it. The other lines take blocks, oldest frames first,
-// staying ahead of their write points so nothing newly written is lowered: at once,
-// 81,920 words would cost more than a whole block. Until then an old frame reads
-// louder, for a few blocks, under the louder input that caused the fall.
-void lower(Memory& m, i32* lines, u32 by) {
+// of Audio at once, and each line as it's read. Its Book notes the fall, and its
+// reads lower each frame written before it until it has all been written over:
+// lowering a whole line at once, 81,920 words, would cost more than a block.
+void lower(Memory& m, u32 by) {
     i32* held = reinterpret_cast<i32*>(&m.audio);
     for (u32 i = 0; i < sizeof(Audio) / 4; ++i) held[i] >>= by;
     for (u32 k = kMovement; k <= kTexture; ++k) {
         const Module& module = m.module[k];
-        if (!module.playing) continue;
-        i32* words = k == kMovement ? lines : k == kDiffusion ? lines + kMoveFrames : lines + kMoveFrames + kDiffuseFrames;
-        const u32 at = k - 1;
-        if (k == kDiffusion && module.playing == kCloud) {
-            const u32 end = module.cleared < 32768 ? module.cleared : 32768;
-            for (u32 i = 0; i < end; ++i) words[i] >>= by;
-        } else if (module.cleared < kFrames[k]) {
-            for (u32 i = 0; i < module.cleared; ++i) words[i] = pack(high_half(words[i]) >> by, low_half(words[i]) >> by);
-        } else if (m.lower_left[at]) {
-            m.lower_by[at] += by;  // a second fall: what's left takes both
-        } else {
-            m.lower_at[at] = m.write[at];
-            m.lower_left[at] = kFrames[k];
-            m.lower_by[at] = by;
+        Book& book = m.book[k - 1];
+        if (!lined(k, module.playing) || !book.written) continue;  // nothing written yet: nothing to lower
+        const u32 count = k == kDiffusion && module.playing == kCloud ? 0u - m.cloud_at : m.write[k - 1];
+        if (book.falls == kFalls) {
+            // Never: the level falls at most kFalls times. Were it to, the newest fall would take this one too.
+            book.by[kFalls - 1] = static_cast<opxy::u8>(book.by[kFalls - 1] + by);
+            continue;
         }
-    }
-}
-
-// A block's share of that, before the block writes its 64 frames.
-void lowering(Memory& m, i32* lines) {
-    static const u32 kChunk[3] = {2048, 4096, 2048};
-    for (u32 at = 0; at < 3; ++at) {
-        const u32 left = m.lower_left[at];
-        if (!left) continue;
-        const u32 k = at + 1;
-        i32* words = k == kMovement ? lines : k == kDiffusion ? lines + kMoveFrames : lines + kMoveFrames + kDiffuseFrames;
-        const u32 mask = kFrames[k] - 1, by = m.lower_by[at], count = left < kChunk[at] ? left : kChunk[at];
-        u32 p = m.lower_at[at];
-        for (u32 i = 0; i < count; ++i, ++p) {
-            const i32 word = words[p & mask];
-            words[p & mask] = pack(high_half(word) >> by, low_half(word) >> by);
-        }
-        m.lower_at[at] = p;
-        m.lower_left[at] = left > count + 64 ? left - count - 64 : 0;
+        book.at[book.falls] = count;
+        book.by[book.falls] = static_cast<opxy::u8>(by);
+        ++book.falls;
     }
 }
 }
@@ -1207,11 +1345,10 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
     if ((!state.heard && peak) || (state.lift && (peak >> (30 - state.lift)))) {
         u32 fit = 0;
         while (fit < state.lift && (peak << (fit + 1)) <= 0x20000000u) ++fit;
-        if (state.heard && fit < state.lift) lower(m, lines, state.lift - fit);
+        if (state.heard && fit < state.lift) lower(m, state.lift - fit);
         state.lift = fit;
         state.heard = 1;
     }
-    lowering(m, lines);
     const u32 lift = state.lift;
     for (unsigned i = 0; i < kN; ++i) {
         left[i] <<= lift;

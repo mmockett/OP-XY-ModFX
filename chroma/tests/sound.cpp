@@ -235,7 +235,7 @@ int main() {
             if (jump > kStartStep) { std::printf("FAIL module %u effect %u steps %.4f as it starts, at sample %d\n", module, effect, jump, at); ok = false; }
         }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
-    if (chroma::kBufferWords * 4 != 328300) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
+    if (chroma::kBufferWords * 4 != 328588) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");
     return ok ? 0 : 1;
 }
