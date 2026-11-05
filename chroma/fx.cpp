@@ -32,6 +32,10 @@ const u32 kLineFrames[3] = {kMoveFrames, kDiffuseFrames, kTextureFrames};
 // Cloud's reads reach at most 5,280 steps into their lines (3300 at size 1.6),
 // so after this many steps every word they can read has been written.
 const u32 kCloudSteps = 8192;
+// Cloud's reads reach at most 27,020 words into its ring (its last line's start
+// and length at size 1.6), so the ring's start is all it must clear.
+const u32 kCloudWords = 27136;
+static_assert(kDiffuseFrames / kClearChunk == 8 && kCloudWords % 8 == 0, "Cloud clears an eighth of what it uses each block it waits");
 const u32 kFadeStep = 1u << 27;  // a module's start: eight blocks to fill its line, then eight of fade, about 12 ms each
 
 i32 add(i32 a, i32 b) { return opxy::q31::add(a, b); }  // saturating
@@ -446,12 +450,13 @@ struct Box {
     template <bool Safe> __attribute__((noinline)) void twin_frames(i32 mix, const i32* step) {
         const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
         const u32 mask = kMoveFrames - 1;
+        const i32 step0 = step[0], step1 = step[1];
         u32 w = m.write[kMoveLine];
         i32 d0 = m.ramp[1], d1 = m.ramp[2];
         for (u32 i = 0; i < kN; ++i, ++w) {
             this->line[kMoveLine][w & mask] = pack(l[i], r[i]);
-            d0 += step[0];
-            d1 += step[1];
+            d0 += step0;
+            d1 += step1;
             const i32 a = line.tap_right(w, static_cast<u32>(d0), w + 1), b = line.tap_left(w, static_cast<u32>(d1), w + 1);
             l[i] = add(l[i], mul(mix, a));
             r[i] = add(r[i], mul(mix, b));
@@ -483,12 +488,13 @@ struct Box {
     template <bool Safe> __attribute__((noinline)) void vibe_frames(const i32* step) {
         const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
         const u32 mask = kMoveFrames - 1;
+        const i32 step0 = step[0], step1 = step[1];
         u32 w = m.write[kMoveLine];
         i32 d0 = m.ramp[1], d1 = m.ramp[2];
         for (u32 i = 0; i < kN; ++i, ++w) {
             this->line[kMoveLine][w & mask] = pack(l[i], r[i]);
-            d0 += step[0];
-            d1 += step[1];
+            d0 += step0;
+            d1 += step1;
             l[i] = line.tap_left(w, static_cast<u32>(d0), w + 1);
             r[i] = line.tap_right(w, static_cast<u32>(d1), w + 1);
         }
@@ -701,16 +707,18 @@ struct Box {
             if (t.length[k] > reach) reach = t.length[k];
         if (t.length[4] + 70 > reach) reach = t.length[4] + 70;
         if (t.length[8] + 70 > reach) reach = t.length[8] + 70;
-        // The steps run so far, and this block's first one.
-        if (reach >= clean(m.book[kDiffuseLine], 1 - m.cloud_at, kCloudSteps)) cloud_steps<true>(amount, t);
+        // The steps run so far, and this block's first one. What the ring holds
+        // was cleared while Cloud waited to start (run): only a fall needs its Book.
+        if (reach >= clean(m.book[kDiffuseLine], 1 - m.cloud_at, 0)) cloud_steps<true>(amount, t);
         else cloud_steps<false>(amount, t);
     }
     template <bool Safe> __attribute__((noinline)) void cloud_steps(i32 amount, const Tank& t) {
-        const Ring<Safe> ring{line[kDiffuseLine], m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kCloudSteps};
+        const Ring<Safe> ring{line[kDiffuseLine], m.book[kDiffuseLine], true};
         i32* words = line[kDiffuseLine];
         const u32 mask = 32767;
         static const u32 kFirst[12] = {0, 170, 300, 760, 1100, 1970, 7300, 9450, 13900, 15100, 20110, 23270};
-        const u32* length = t.length;
+        u32 length[12];
+        for (u32 k = 0; k < 12; ++k) length[k] = t.length[k];
         const i32 decay = t.decay, damp = t.damp, wet_level = t.wet_level, sway0 = t.sway0, sway1 = t.sway1;
         const i32 gain_in = 751619277;  // 0.35
         Audio& a = m.audio;
@@ -723,10 +731,16 @@ struct Box {
         const i32 k3 = 1503238553;                   // 0.7: the loops' first all-pass
         const i32 k4 = 1073741824;                   // 0.5: their second
         const i32 mix = amount;
-        for (u32 i = 0; i < kN; ++i) {
+        // Two frames at a time, so the loop doesn't branch: the first halfway between
+        // the last two steps' outputs, the second a step of the tank.
+        for (u32 i = 0; i < kN; i += 2) {
             pass0 = add(pass0, l[i] >> 1);
             pass1 = add(pass1, r[i] >> 1);
-            if (i & 1) {
+            l[i] = blend(l[i], add(last0 >> 1, now0 >> 1), mix);
+            r[i] = blend(r[i], add(last1 >> 1, now1 >> 1), mix);
+            pass0 = add(pass0, l[i + 1] >> 1);
+            pass1 = add(pass1, r[i + 1] >> 1);
+            {
                 --at;
                 const u32 count = 0u - at;  // the steps run, this one included
                 // Input all-passes, each side's own.
@@ -786,9 +800,8 @@ struct Box {
                 now0 = add(now0, now0 >> 1);
                 now1 = add(now1, now1 >> 1);
             }
-            const i32 wet0 = i & 1 ? now0 : add(last0 >> 1, now0 >> 1), wet1 = i & 1 ? now1 : add(last1 >> 1, now1 >> 1);
-            l[i] = blend(l[i], wet0, mix);
-            r[i] = blend(r[i], wet1, mix);
+            l[i + 1] = blend(l[i + 1], now0, mix);
+            r[i + 1] = blend(r[i + 1], now1, mix);
         }
         a.cloud_pass[0] = pass0;
         a.cloud_pass[1] = pass1;
@@ -1076,13 +1089,14 @@ struct Box {
         const Reader<Safe> line{this->line[kTextureLine], kTextureFrames - 1, m.book[kTextureLine], m.book[kTextureLine].written >= kTextureFrames};
         const u32 mask = kTextureFrames - 1;
         u32 w = m.write[kTextureLine];
+        const i32 step0 = step[0], step1 = step[1], step2 = step[2], step3 = step[3];
         i32 d0 = m.ramp[8], d1 = m.ramp[9], g0 = m.ramp[6], g1 = m.ramp[7];
         for (u32 i = 0; i < kN; ++i, ++w) {
             this->line[kTextureLine][w & mask] = pack(l[i], r[i]);
-            d0 += step[0];
-            d1 += step[1];
-            g0 += step[2];
-            g1 += step[3];
+            d0 += step0;
+            d1 += step1;
+            g0 += step2;
+            g1 += step3;
             l[i] = mul(line.tap_left(w, static_cast<u32>(d0), w + 1), g0);
             r[i] = mul(line.tap_right(w, static_cast<u32>(d1), w + 1), g1);
         }
@@ -1172,6 +1186,13 @@ struct Box {
         // when it cleared them: nothing is cleared now, but each effect starts when it did.
         if (module.cleared < frames && module.playing && !clearing) {
             clearing = true;
+            if (which == kDiffusion && module.playing == kCloud) {
+                // All but Cloud read only what they've written (their Book says
+                // what that is). Cloud's lines reach all through its ring from the
+                // first step, so it clears the part they use, an eighth a block.
+                i32* words = line[kDiffuseLine] + module.cleared / kClearChunk * (kCloudWords / 8);
+                for (u32 i = 0; i < kCloudWords / 8; ++i) words[i] = 0;
+            }
             module.cleared = module.cleared + kClearChunk < frames ? module.cleared + kClearChunk : frames;
             return;
         }
@@ -1287,7 +1308,7 @@ bool lined(u32 which, u32 effect) {
 // of Audio at once, and each line as it's read. Its Book notes the fall, and its
 // reads lower each frame written before it until it has all been written over:
 // lowering a whole line at once, 81,920 words, would cost more than a block.
-void lower(Memory& m, u32 by) {
+__attribute__((noinline)) void lower(Memory& m, u32 by) {
     i32* held = reinterpret_cast<i32*>(&m.audio);
     for (u32 i = 0; i < sizeof(Audio) / 4; ++i) held[i] >>= by;
     for (u32 k = kMovement; k <= kTexture; ++k) {
