@@ -50,6 +50,12 @@ struct State {
     opxy::u32 mark_at[20];
     opxy::u8 mark_by[20];
     Kept divisions[9];               // the block's divisions, as divide() last did them
+    // The springs' steps since initialize, and the falls their lines still owe: a
+    // frame written before one is lowered by it just before it's read (fx.cpp's repay).
+    opxy::u32 spring_steps;
+    opxy::u32 owed;
+    opxy::u32 owed_at[4];             // the step count at each, oldest first
+    opxy::u8 owed_by[4];
 };
 void initialize(State& state);
 void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channel right,
