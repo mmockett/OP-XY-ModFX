@@ -438,11 +438,18 @@ const u32 kLift = 20;
 // Lowers everything the box holds by `by` bits, as its working level falls:
 // the echo's line, the springs' lines and chirps, and every filter's memory.
 void lower(State& s, i32* words, u32 by) {
-    // The echo's line is lowered as it's read (Box::tap); the rest, small, at once.
-    s.mark_at[s.marks] = s.echo_total;
-    s.mark_by[s.marks] = static_cast<opxy::u8>(by);
-    ++s.marks;
-    for (u32 i = kEchoLine; i < kBufferWords; ++i) words[i] >>= by;
+    // The echo's line is lowered as it's read (Box::tap): before it has written
+    // anything, there is nothing to mark. The rest, small, at once; on the springs'
+    // first pass, only what their lines have written.
+    if (s.echo_total) {
+        s.mark_at[s.marks] = s.echo_total;
+        s.mark_by[s.marks] = static_cast<opxy::u8>(by);
+        ++s.marks;
+    }
+    const u32 written = s.ready == 1 ? s.spring[0].write : kSpringLine;
+    for (u32 k = 0; k < kSprings; ++k)
+        for (u32 i = 0; i < written; ++i) words[kEchoLine + k * kSpringLine + i] >>= by;
+    for (u32 i = kEchoLine + kSprings * kSpringLine; i < kBufferWords; ++i) words[i] >>= by;
     i32* held[] = {&s.echo_dark, &s.echo_low, &s.phase_back, &s.tone_low, &s.tank_in, &s.tank_out, &s.tank_last};
     for (i32* value : held) *value >>= by;
     for (u32 i = 0; i < 4; ++i) {
@@ -486,10 +493,22 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     i32* const springs = buffer.words + kEchoLine;
     i32* const chirps = springs + kSprings * kSpringLine;
     if (!state.ready) {
-        // The springs ring from their own memory: start it silent, once.
-        for (u32 i = 0; i < kSprings * kSpringLine + kChirpWords; ++i) springs[i] = 0;
+        // The springs ring from their own memory: start it silent, once. Their
+        // chirps at once; their lines as they first reach them, below.
+        for (u32 i = 0; i < kChirpWords; ++i) chirps[i] = 0;
         state.ready = 1;
         for (u32 i = 0; i < 8; ++i) state.smooth[i] = control(parameters[i]);
+    }
+    if (state.ready == 1) {
+        // On its first pass each spring reads, for its first kSpringDelay steps,
+        // words it hasn't yet written, from kSpringDelay before its line's end on:
+        // clear the ones this block can reach (it steps at most 16 times), so a
+        // start costs no more than a block's work. The three step together.
+        const u32 at = state.spring[0].write;
+        if (at >= kSpringDelay[kSprings - 1]) state.ready = 2;
+        for (u32 k = 0; k < kSprings && state.ready == 1; ++k)
+            for (u32 j = at; j < at + opxy::block_frames / 4 && j < kSpringDelay[k]; ++j)
+                springs[k * kSpringLine + kSpringLine - kSpringDelay[k] + j] = 0;
     }
     for (u32 i = 0; i < 8; ++i) state.smooth[i] = glide(state.smooth[i], control(parameters[i]));
     const i32* c = state.smooth;

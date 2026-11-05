@@ -27,7 +27,7 @@ struct Kept {
 };
 
 struct State {
-    opxy::u32 ready;                  // the springs' memory cleared since initialize
+    opxy::u32 ready;                  // since initialize: 1 while the springs' lines are on their first pass, 2 after
     opxy::u32 echo_write, echo_written;
     opxy::i32 echo_delay;             // gliding, Q8 samples
     opxy::i32 echo_dark, echo_low;    // the loop's low-pass and high-pass
