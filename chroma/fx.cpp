@@ -437,12 +437,13 @@ struct Box {
         const i32 target[2] = {base + (slow0 >> 22) * depth / 8, base + (base >> 2) + (base >> 4) + (slow1 >> 22) * depth / 8};
         const i32 step[2] = {(target[0] - m.ramp[1]) >> 6, (target[1] - m.ramp[2]) >> 6};
         const i32 mix = mul(amount, 1610612736);  // up to 0.75
+        // Each block's frames run out of line, so their loop has the registers to itself.
         if (careful(kMoveLine, m.ramp + 1, step, 2, m.write[kMoveLine] + 1, false)) twin_frames<true>(mix, step);
         else twin_frames<false>(mix, step);
         m.ramp[1] = target[0];
         m.ramp[2] = target[1];
     }
-    template <bool Safe> void twin_frames(i32 mix, const i32* step) {
+    template <bool Safe> __attribute__((noinline)) void twin_frames(i32 mix, const i32* step) {
         const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
         const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
@@ -479,7 +480,7 @@ struct Box {
         m.ramp[1] = target[0];
         m.ramp[2] = target[1];
     }
-    template <bool Safe> void vibe_frames(const i32* step) {
+    template <bool Safe> __attribute__((noinline)) void vibe_frames(const i32* step) {
         const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
         const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
@@ -587,7 +588,7 @@ struct Box {
         if (reach >= clean(m.book[kMoveLine], m.write[kMoveLine] + 1, kMoveFrames)) pitch_frames<true>(amount, inc0, inc1, keep, round);
         else pitch_frames<false>(amount, inc0, inc1, keep, round);
     }
-    template <bool Safe> void pitch_frames(i32 mix, i32 inc0, i32 inc1, u32 keep, i32 round) {
+    template <bool Safe> __attribute__((noinline)) void pitch_frames(i32 mix, i32 inc0, i32 inc1, u32 keep, i32 round) {
         const Reader<Safe> line{this->line[kMoveLine], kMoveFrames - 1, m.book[kMoveLine], m.book[kMoveLine].written >= kMoveFrames};
         const u32 mask = kMoveFrames - 1;
         u32 w = m.write[kMoveLine];
@@ -640,7 +641,7 @@ struct Box {
         m.ramp[3] = end0;
         m.ramp[4] = end1;
     }
-    template <bool Safe> void echo_frames(i32 wet, const i32* step, i32 dark, i32 low_cut, i32 grit, const Gain& feedback) {
+    template <bool Safe> __attribute__((noinline)) void echo_frames(i32 wet, const i32* step, i32 dark, i32 low_cut, i32 grit, const Gain& feedback) {
         const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
         const u32 mask = kDiffuseFrames - 1;
         Audio& a = m.audio;
@@ -704,7 +705,7 @@ struct Box {
         if (reach >= clean(m.book[kDiffuseLine], 1 - m.cloud_at, kCloudSteps)) cloud_steps<true>(amount, t);
         else cloud_steps<false>(amount, t);
     }
-    template <bool Safe> void cloud_steps(i32 amount, const Tank& t) {
+    template <bool Safe> __attribute__((noinline)) void cloud_steps(i32 amount, const Tank& t) {
         const Ring<Safe> ring{line[kDiffuseLine], m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kCloudSteps};
         i32* words = line[kDiffuseLine];
         const u32 mask = 32767;
@@ -827,7 +828,7 @@ struct Box {
         if ((static_cast<u32>(far) >> 8) + 1 >= clean(m.book[kDiffuseLine], m.write[kDiffuseLine], kDiffuseFrames)) slice_frames<true>(wet, frames, inc, drift, feedback);
         else slice_frames<false>(wet, frames, inc, drift, feedback);
     }
-    template <bool Safe> void slice_frames(i32 wet, u32 frames, u32 inc, i32 drift, const Gain& feedback) {
+    template <bool Safe> __attribute__((noinline)) void slice_frames(i32 wet, u32 frames, u32 inc, i32 drift, const Gain& feedback) {
         const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
         const u32 mask = kDiffuseFrames - 1;
         u32 w = m.write[kDiffuseLine];
@@ -889,7 +890,7 @@ struct Box {
         if ((static_cast<u32>(far) >> 8) + 1 >= clean(m.book[kDiffuseLine], m.write[kDiffuseLine] + 1, kDiffuseFrames)) back_frames<true>(amount, inc, run);
         else back_frames<false>(amount, inc, run);
     }
-    template <bool Safe> void back_frames(i32 amount, u32 inc, i32 run) {
+    template <bool Safe> __attribute__((noinline)) void back_frames(i32 amount, u32 inc, i32 run) {
         const Reader<Safe> line{this->line[kDiffuseLine], kDiffuseFrames - 1, m.book[kDiffuseLine], m.book[kDiffuseLine].written >= kDiffuseFrames};
         const u32 mask = kDiffuseFrames - 1;
         Gain feedback;
@@ -1013,7 +1014,7 @@ struct Box {
         m.ramp[8] = target0;
         m.ramp[9] = target1;
     }
-    template <bool Safe> void cass_frames(const i32* step, const Gain& drive, i32 loss, i32 hiss) {
+    template <bool Safe> __attribute__((noinline)) void cass_frames(const i32* step, const Gain& drive, i32 loss, i32 hiss) {
         const Reader<Safe> line{this->line[kTextureLine], kTextureFrames - 1, m.book[kTextureLine], m.book[kTextureLine].written >= kTextureFrames};
         const u32 mask = kTextureFrames - 1;
         const i32 bump = 30379526;  // 100 Hz
@@ -1071,7 +1072,7 @@ struct Box {
         if (careful(kTextureLine, m.ramp + 8, step, 2, m.write[kTextureLine] + 1, false)) worn_frames<true>(step);
         else worn_frames<false>(step);
     }
-    template <bool Safe> void worn_frames(const i32* step) {
+    template <bool Safe> __attribute__((noinline)) void worn_frames(const i32* step) {
         const Reader<Safe> line{this->line[kTextureLine], kTextureFrames - 1, m.book[kTextureLine], m.book[kTextureLine].written >= kTextureFrames};
         const u32 mask = kTextureFrames - 1;
         u32 w = m.write[kTextureLine];
