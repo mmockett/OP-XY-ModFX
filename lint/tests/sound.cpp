@@ -138,6 +138,33 @@ int main() {
         if (level[1] <= level[0]) { std::puts("FAIL a sustained tone falls as Spring rises: the tank wrapped"); ok = false; }
         if (step[1] > 0.1) { std::printf("FAIL a sustained tone steps through the tank: %f\n", step[1]); ok = false; }
     }
-    if (ok) std::puts("PASS every routing bounded and sounding; the tank rings and decays; Madness sustains; a tone stays clean");
+    // Dust and tape 2 add grit, not loudness: at the named presets' dust and tape 2
+    // (echo, spring and phase out), plucked notes far below full scale, as a send
+    // hands them over, come back within a few dB of what went in.
+    {
+        const opxy::i32 tapes[6][2] = {{536870912, 0}, {214748365, 0}, {858993459, 429496730},
+                                       {322122547, 0}, {644245094, 644245094}, {1825361101, 1288490189}};
+        for (unsigned n = 0; n < 6; ++n) {
+            lint::State state;
+            lint::initialize(state);
+            const opxy::i32 words[12] = {tapes[n][0], 0, 0, 0, tapes[n][1], kHalf, kHalf, kHalf, 0, 0, 0, 0};
+            double in = 0, out = 0;
+            for (unsigned b = 0; b < 2000; ++b) {
+                opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    const unsigned t = (b * 64 + i) % 11025;  // a note every quarter second
+                    const double v = 0.05 * std::exp(-static_cast<double>(t) / 3000.0) * std::sin(2 * 3.14159265358979 * 110 * t / 44100);
+                    left[i] = right[i] = static_cast<opxy::i32>(v * 2147483647.0);
+                    if (b >= 200) in += v * v;
+                }
+                lint::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, left, right, words);
+                for (unsigned i = 0; i < opxy::block_frames; ++i)
+                    if (b >= 200) out += (left[i] / 2147483648.0) * (left[i] / 2147483648.0);
+            }
+            const double db = 10 * std::log10(out / in);
+            if (db > 3 || db < -6) { std::printf("FAIL tapes %u change the level by %.1f dB\n", n, db); ok = false; }
+        }
+    }
+    if (ok) std::puts("PASS every routing bounded and sounding; the tank rings and decays; Madness sustains; a tone stays clean; the tapes keep the level");
     return ok ? 0 : 1;
 }
