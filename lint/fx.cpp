@@ -624,7 +624,8 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
         if (size > peak) peak = size;
     }
     u32 fit = 0;
-    while (fit < state.lift && (peak << (fit + 1)) <= 0x20000000u) ++fit;
+    // peak << (fit + 1) <= 2^29, without the shift, which wraps a full-scale peak (2^31) to 0.
+    while (fit < state.lift && peak <= (0x10000000u >> fit)) ++fit;
     if (fit < state.lift) {
         lower(state, buffer.words, state.lift - fit);
         state.lift = fit;
