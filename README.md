@@ -106,8 +106,8 @@ OP-XY.
 four sections as modules in the chosen order, joined by one patch cable from in to
 out. Each control moves a part of its module. [`lint/README.md`](lint/README.md) says how.
 
-**CPU,** measured on an OP-XY at v1.8.0: 5.40% of the block budget at its default
-settings.
+**CPU,** measured on an OP-XY at v1.9.1: 5.30% of the block budget at its default
+settings, and 9.76% in its worst single block.
 
 Put Lint on a send with **Shift** and **M1** on FX I or II. At full send a
 track goes wholly through the box, as it would through the hardware inline;
@@ -150,10 +150,11 @@ header shows:
 | Mosaic | warm, twin, slice, tilt | 20, 40, 60, -10 | 0, 33ms, .19s, 45 |
 | Static | fuzz, trem, cloud, radio | 20, 40, 45, 30 | -10, 0.8hz, 70, 20 |
 
-**CPU,** measured on an OP-XY at v1.7.0: 7.31% of the block budget on the default
-effects, and 10.91% on howl, swirl, cloud and cass with every control at full. That
-heaviest setting is enough that a busy project may drop audio, though no one has
-heard it do so yet.
+**CPU,** measured on an OP-XY at v1.9.1: 7.23% of the block budget on the default
+effects, and 11.45% in its worst single block, down from 17.88% at v1.9.0. At
+v1.7.0, howl, swirl, cloud and cass with every control at full measured 10.91% on
+average. That heaviest setting is enough that a busy project may drop audio, though
+no one has heard it do so yet.
 
 ## Status: experimental
 
@@ -161,8 +162,10 @@ Lint and Chroma are live in the [open-xy.com](https://open-xy.com) builder
 ([Lint](https://open-xy.com/#preview/machines/lint),
 [Chroma](https://open-xy.com/#preview/machines/chroma)), which installs the
 version the Open-XY catalog pins: Lint `v1.8.0` and Chroma `v1.7.0`, older
-than this repository's latest tag, `v1.9.0`. Omnifilter is a draft in the
-catalog, at `v1.9.0`, and not yet in the builder; build it from source.
+than this repository's latest tag, `v1.9.1`. Their entries are moving to v1.9.1,
+where neither wraps at a full-scale send any more and Chroma's worst block is
+lower. Omnifilter is a draft in the catalog, at `v1.9.0`, and not yet in the
+builder; build it from source.
 
 Each machine builds against the SDK's `staging` branch: Omnifilter needs
 machines on aux tracks (SDK 1.9), Lint and Chroma effect pages, shift rows and
