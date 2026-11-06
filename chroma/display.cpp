@@ -10,8 +10,11 @@ namespace chroma {
 // light fans out with Diffusion's Amount, in Diffusion's own pattern, and Drift
 // bends the rays; upper rays are left, lower right. The rays leave from the
 // prism's far face and follow it as it rocks. Time slides the screen along the
-// rail, and Texture marks it. Turned controls ease in about 0.15 s; only the
-// rocking and the rays' waver move an idle screen.
+// rail, and Texture marks it. Each module's small parts wear its encoder's grey:
+// the prism's stops and weight 4B4B4B, the halos and the carriage's block
+// 969696, texture's marks CDCDCD; the lamp is outline, and the light belongs to
+// no encoder. Turned controls ease in about 0.15 s; only the rocking and the
+// rays' waver move an idle screen.
 using opxy::i32;
 using opxy::u32;
 using namespace opxy::draw;
@@ -298,8 +301,6 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     // --- Texture's screen, along the rail with Time. ---
     const i32 screen_x = px(kScreenNear) + (kScreenFar - kScreenNear) * (v[kTime] >> 5);  // Q10 pixels
     for (u32 k = 0; k < kScreenParts; ++k) place(frame, kNodeScreen + k, screen_x, px(kPrismY), unit, 0, keep);
-    text(frame, kTextLeft, screen_x + px(8), px(kPrismY - kScreenH + 17), unit, "L");
-    text(frame, kTextRight, screen_x + px(8), px(kPrismY + kScreenH - 10), unit, "R");
     const i32 ta = v[kTextureAmount];
     // Blades: tilt closes one from above or the other from below, low and high one each, press both.
     bool blade_a = false, blade_b = false;

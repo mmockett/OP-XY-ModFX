@@ -88,6 +88,13 @@ face and follows it, fanning out with Diffuse in that effect's own pattern, with
 dust adrift in it: upper rays left, lower right. Time slides the ground-glass screen
 along the rail, and Texture marks it.
 
+Each module's small parts wear its encoder's grey, left to right as the modules
+stand: the lantern, its flame and the plate are outline, encoder 1's hollow; the
+prism's stops and its metronome's weight are 4B4B4B (encoder 2: amount and rate);
+the halos and the block on the screen's carriage, which Time slides, are 969696
+(encoder 3); and Texture's marks on the screen are CDCDCD (encoder 4). The prism and
+its rays are the light, which belongs to no encoder.
+
 [docs/visual-directions.md](docs/visual-directions.md) records the three directions
 drawn and why this one was chosen.
 
