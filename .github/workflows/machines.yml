@@ -6,30 +6,25 @@ on:
 permissions:
   contents: read
 jobs:
-  # Each machine against the SDK branch with what it needs until that merges:
-  # Omnifilter against aux modules (etcetc000/open-xy#221), Lint against
-  # effect pages and screens (etcetc000/open-xy#230). Each checks its records,
-  # browser preview, drawing checks and host tests. The native compile needs
-  # the pinned Blackfin tools, which this Linux runner doesn't have.
+  # Each machine against etcetc000/open-xy staging, which has everything the
+  # three need (aux modules #221, effect pages and screens #230). Each checks
+  # its records, browser preview, drawing checks and host tests. The native
+  # compile needs the pinned Blackfin tools, which this Linux runner doesn't
+  # have.
   machines:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - machine: omnifilter
-            sdk: sdk/aux-modules
-          - machine: lint
-            sdk: sdk/effect-screens
-          - machine: chroma
-            sdk: sdk/effect-screens
+        machine: [omnifilter, lint, chroma]
     steps:
       - uses: actions/checkout@v4
         with:
           path: macro
       - uses: actions/checkout@v4
         with:
-          repository: mmockett/open-xy
-          ref: ${{ matrix.sdk }}
+          repository: etcetc000/open-xy
+          ref: staging
           path: open-xy
       - uses: actions/setup-python@v5
         with:
