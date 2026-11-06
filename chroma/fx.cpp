@@ -1366,7 +1366,8 @@ void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport
     }
     if ((!state.heard && peak) || (state.lift && (peak >> (30 - state.lift)))) {
         u32 fit = 0;
-        while (fit < state.lift && (peak << (fit + 1)) <= 0x20000000u) ++fit;
+        // peak << (fit + 1) <= 2^29, without the shift, which wraps a full-scale peak (2^31) to 0.
+        while (fit < state.lift && peak <= (0x10000000u >> fit)) ++fit;
         if (state.heard && fit < state.lift) lower(m, state.lift - fit);
         state.lift = fit;
         state.heard = 1;

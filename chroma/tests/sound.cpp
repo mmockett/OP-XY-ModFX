@@ -129,6 +129,43 @@ int main() {
         }
         if (peak > 0.51) { std::printf("FAIL the level's fall: peak %f\n", peak); ok = false; }
     }
+    // A clipped send reaching exactly -1.0, from the first block and after a quiet one: the
+    // working level falls all the way, and it sounds like a send just under full scale.
+    for (unsigned quiet = 0; quiet < 2; ++quiet) {
+        double rms[2] = {0, 0}, peak = 0;
+        opxy::u32 lift[2] = {0, 0};
+        for (unsigned full = 0; full < 2; ++full) {
+            chroma::State state = chroma::State();
+            chroma::initialize(state);
+            const opxy::Transport transport = {1200, 0, true};
+            const opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, 0, enum_word(1, 6), 0};
+            opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+            double power = 0;
+            for (unsigned b = 0; b < 600; ++b) {
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    // Clipped only below, and in every block: +0.6 against -1.0, or against -0.95.
+                    const bool up = (b * 64 + i) % 40 < 20;
+                    opxy::i32 in = up ? 1288490189 : full ? static_cast<opxy::i32>(0x80000000u) : -2040109465;
+                    if (quiet && b < 200) in = up ? 2147483 : -2147483;  // -60 dB first
+                    left[i] = right[i] = in;
+                }
+                chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+                if (b < 300) continue;
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    const double a = left[i] / 2147483648.0, c = right[i] / 2147483648.0;
+                    if (std::fabs(a) > peak) peak = std::fabs(a);
+                    if (std::fabs(c) > peak) peak = std::fabs(c);
+                    power += (a * a + c * c) / 2;
+                }
+            }
+            rms[full] = std::sqrt(power / (300 * 64));
+            lift[full] = state.lift;
+        }
+        if (lift[1] != 0 || peak > 0.51 || rms[1] != rms[1] || rms[1] < rms[0] * 0.5 || rms[1] > rms[0] * 2) {
+            std::printf("FAIL a full-scale send%s: working shift %u, peak %f, rms %f against %f just under\n", quiet ? " after a quiet one" : "", lift[1], peak, rms[1], rms[0]);
+            ok = false;
+        }
+    }
     // A wet signal swinging against a hot input: a blend reaches it, with no dry left over.
     if (std::abs(chroma::blend(1717986918, -1073741824, 0x7fffffff) + 1073741824) > 4) { std::puts("FAIL a full blend leaves dry signal"); ok = false; }
     // A hot sweep through Howl, high in its range: it must not burst into high frequencies.
