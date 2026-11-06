@@ -35,14 +35,24 @@ ID = "lint"
 FONT = 'font-family="UniversNextPro-Light"'
 FAINT, DIM, MID, LIGHT, BRIGHT = "#505050", "#6e6e6e", "#8c8c8c", "#b4b4b4", "#ebebeb"
 BODY, FLOOR = "#141414", "#000000"   # static dark fills: the tray, and the bays sunk in it
+# The stock look's grey code: a part's grey says which encoder it belongs to, encoder 1
+# hollow (191919 with a CDCDCD hairline), then 4B4B4B, 969696 and CDCDCD. Each section is
+# one encoder's column on every row (page 1, page 2, Shift), so its nameplate wears that
+# grey and the plate moves with the order; tape 2's head is encoder 1's, the echo's loop
+# cable encoder 3's (loop) and LFO 2's mark encoder 4's (wobble).
+G1, G2, G3, G4 = "#191919", "#4b4b4b", "#969696", "#cdcdcd"
+CODE = (G1, G2, G3, G4)
 SUBJECT, STRUCTURE, DETAIL, ENGRAVED = 1, 0.8, 0.6, 0.5   # line weights, by role
 
 # The bays, in screen pixels.
 # One step, GAP, spaces everything: the box's sides from the bays and tape 2's
 # column, the bays from each other and from the box's top, and the loop's lane
 # sits midway between the bays and the box's foot.
-BAY_W, BAY_H, TOP, GAP, LEFT = 92, 136, 52, 12, 19   # below the two-page header
-BOX_TOP, BOX_BOTTOM = TOP - GAP, 216
+# The tray starts 19 px under the header (y 38), the air the stock look asks for;
+# the bays are laid out shorter to keep everything inside the frame at full size.
+BAY_W, BAY_H, TOP, GAP, LEFT = 92, 127, 66, 12, 19   # below the two-page header
+TOP_GAP = 9                 # the tray's wall above the bays
+BOX_TOP, BOX_BOTTOM = TOP - TOP_GAP, 218
 JACK_Y = TOP + 18           # each bay's input on its left edge, output on its right
 LANE = (TOP + BAY_H + BOX_BOTTOM) // 2   # the loop cable runs along the bottom, under the bays
 BOTTOM = TOP + BAY_H        # the bays' lower edge, where a loop cable plugs in
@@ -55,29 +65,28 @@ RIBBON = 0.8                # a line's width, drawn as a thin closed outline
 # Bay contents, in each bay's own pixels (x from its left edge, y on screen).
 # Every module sits on the same screwed plate, so they line up in any order, and
 # the two rails and the echo's motor share one row.
-PLATE = (4, TOP + 16, BAY_W - 4, TOP + 116)   # x0, y0, x1, y1 in the bay
+PLATE = (4, TOP + 15, BAY_W - 4, TOP + 107)   # x0, y0, x1, y1 in the bay
 PLAQUE = (18, BOTTOM - 16, BAY_W - 18, BOTTOM - 4)   # the riveted nameplate under it, centred, the same in every bay
 PORT_X, PORT_Y = BAY_W - 10, BOTTOM - 10      # the loop's port beside the plaque, where its cable plugs in
 MARK_BOX = (BAY_W - 28, TOP + 2, BAY_W - 8, TOP + 14)   # LFO 2's window, top right, whether or not it shows
-RAIL_Y = TOP + 104
-DUST_CY = TOP + 48          # the tape head's top
-PHASE_CY = TOP + 52         # the lamp's centre
+RAIL_Y = TOP + 97
+DUST_CY = TOP + 44          # the tape head's top
+PHASE_CY = TOP + 50         # the lamp's centre
 LAMP_X, CELL_X = 27, 68
 RATE_X, RATE_W, RATE_Y = 16, 60, RAIL_Y   # LFO 1's rail in the lamp's can
 WEAR_X, WEAR_W, WEAR_Y = -22, 44, RAIL_Y - DUST_CY   # the dust gauge on the head's plate, about DUST_CY
-ECHO_CY, ECHO_RX, ECHO_RY = TOP + 60, 32, 32
+ECHO_CY, ECHO_RX, ECHO_RY = TOP + 57, 32, 32
 HEAD_R = ECHO_RX + 5        # the heads' centres, flush on the drum
 REC_DEGREES = -165        # the record head, upper left of the loop
 TIME_START, TIME_SPAN = 35, 170   # the playback head's arc: degrees past the record head, and across time
-SPRING_Y = (TOP + 36, TOP + 66, TOP + 96)
+SPRING_Y = (TOP + 34, TOP + 62, TOP + 90)
 SPRING_HALF = 26            # each spring's half length
 SPRING_POINTS = 32          # along one edge of its ribbon
 SPECKS = ((-30, -19), (-17, -24), (-4, -18), (9, -25), (21, -19), (32, -24), (-24, -26), (3, -24))
 
-NAME_WIDTHS = (19.6, 27.03, 21.99, 28.04)   # at 10 px
-# Header-free labels, measured in Univers Next Pro Light (OP-XY-Dev tools/caption_width.py).
+# The nameplates' names at 10 px, measured in Univers Next Pro Light (OP-XY-Dev tools/caption_width.py).
+NAME_WIDTHS = (19.6, 27.03, 21.99, 28.04)
 NAMES = ("dust", "phase", "echo", "spring")
-LOOP_WIDTH, ECHO_LOOP_WIDTH, TAPE2_WIDTH, OUT_WIDTH = 15.66, 35.5, 22.51, 11.76   # at 8 px
 
 # Palette: strokes, then the lamp's glow fills from dark to bright.
 GLOWS = ["#%02x%02x%02x" % (g, g, g) for g in (0x14, 0x30, 0x4c, 0x68, 0x88, 0xa8, 0xc8, 0xe8)]
@@ -85,8 +94,7 @@ PALETTE = [("#000000", BRIGHT), ("#000000", LIGHT), ("#000000", MID), ("#000000"
 
 # Text slots: the two-page header's sixteen first (opxy/page_header.hpp), then Lint's own.
 HEADER_TEXTS = 16
-TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["letter_d", "letter_p", "letter_e", "letter_s", "name_d", "name_p", "name_e", "name_s",
-         "loop_label", "echo_loop", "tape2_label"]
+TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["letter_d", "letter_p", "letter_e", "letter_s", "name_d", "name_p", "name_e", "name_s"]
 
 
 def num(v, places=2):
@@ -206,7 +214,8 @@ def circle(r, x=0, y=0, steps=12):
 def tape_head():
     """The head's shield, its crown at the origin under the tape: domed where the
     tape runs over it, on a flat foot."""
-    return [[(-22, 50)] + arc(0, 180, 360, 14, 0, 20, 22, 23) + [(22, 50)]]
+    foot = WEAR_Y - 6
+    return [[(-22, foot)] + arc(0, 180, 360, 14, 0, 20, 22, 23) + [(22, foot)]]
 
 
 def tape(dust):
@@ -373,7 +382,7 @@ def bypass(i):
     """The cable over bay i, which is patched into the echo's loop: from its
     input jack to its output, arching over it."""
     a, b = (bay_x(i), JACK_Y), (bay_x(i) + BAY_W, JACK_Y)
-    return [ribbon(bezier(a, (a[0] + 1, TOP - 17), (b[0] - 1, TOP - 17), b, 14), 1.4)]
+    return [ribbon(bezier(a, (a[0] + 1, TOP - 15), (b[0] - 1, TOP - 15), b, 14), 1.4)]
 
 
 def round_the_jack(a, b, jack):
@@ -431,14 +440,15 @@ NODES = (["spring_0", "spring_1", "spring_2", "tape", "head"] + [f"speck_{i}" fo
          [f"dust_{i}" for i in range(len(dust_kit()))] + ["sine", "triangle", "square"] +
          [f"jumper_{i}" for i in range(5)] + [f"bypass_{i}" for i in range(4)] +
          [f"cable_{e}_{t}" for e in range(4) for t in range(5) if t != e] + ["tape2", "tape2_screw_0", "tape2_screw_1"] +
-         [f"bar_{i}" for i in range(8)])
+         [f"bar_{i}" for i in range(8)] + [f"plaque_{s}" for s in "dpes"] + [f"rivet_{s}_{k}" for s in "dpes" for k in range(2)])
 
 
 def chassis():
     """The fixed tray, back to front: (points, fill, stroke, weight). The tray
     with its corner screws, IN and OUT's bushes and the louvres along its foot;
     the bays sunk into it, each with its module's plate and screws; the jacks on their
-    edges with their holes; and tape 2's rods, foot and scale."""
+    edges with their holes; and tape 2's rods, foot and scale. The riveted nameplates
+    are nodes, which move with the order (plaque())."""
     x0, x1 = LEFT - GAP, TAPE2_X + 13 + GAP
     shapes = [(rounded(x0, BOX_TOP, x1, BOX_BOTTOM, 7), BODY, DIM, STRUCTURE)]
     for x in (x0 + 6, x1 - 6):
@@ -455,10 +465,6 @@ def chassis():
         x0, y0, x1, y1 = PLATE
         shapes.append((rounded(x + x0, y0, x + x1, y1, 5), "none", LIGHT, STRUCTURE))
         shapes.append((rounded(x + x0 + 2.5, y0 + 2.5, x + x1 - 2.5, y1 - 2.5, 3, 2), "none", FAINT, ENGRAVED))
-        px0, py0, px1, py1 = PLAQUE
-        shapes.append((rounded(x + px0, py0, x + px1, py1, 1.5, 2), "#242424", MID, DETAIL))
-        for rx in (x + px0 + 4, x + px1 - 4):
-            shapes.append((circle(1.1, rx, (py0 + py1) / 2, 8), "none", MID, ENGRAVED))
         shapes.append((circle(3, x + PORT_X, PORT_Y, 10), "#000000", LIGHT, STRUCTURE))
         shapes.append((circle(1.2, x + PORT_X, PORT_Y, 6), "none", DIM, ENGRAVED))
         mx0, my0, mx1, my1 = MARK_BOX
@@ -477,6 +483,18 @@ def chassis():
     ticks = [((TAPE2_X + 15, y0 + TAPE2_TRAVEL * i / 8), (TAPE2_X + 18, y0 + TAPE2_TRAVEL * i / 8)) for i in range(9)]
     shapes.append((rack(ticks, 0.4, 0.8, 3), "none", MID, ENGRAVED))
     return shapes
+
+
+def plaque():
+    """A riveted nameplate, about its centre."""
+    px0, py0, px1, py1 = PLAQUE
+    w, h = (px1 - px0) / 2, (py1 - py0) / 2
+    return rounded(-w, -h, w, h, 1.5, 2)
+
+
+def rivet_x(k):
+    """A nameplate's rivet's place, from the bay's left edge."""
+    return (PLAQUE[0] + 4, PLAQUE[2] - 4)[k]
 
 
 def header_block():
@@ -505,10 +523,17 @@ def fragment():
     lines = [f'<g id="{ID}_panel">'] + header_block()
     for points, fill, stroke, weight in chassis():
         lines.append(f'  <path d="{outline(points)}" fill="{fill}" stroke="{stroke}" stroke-width="{weight}"/>')
-    # IN and OUT between the box's sides and the bays, above the cable's rise.
-    for label, x in (("in", LEFT - GAP + 2), ("out", TAPE2_X + 13 + GAP - 2 - OUT_WIDTH)):
-        lines.append(f'  <text {FONT} font-size="8" fill="{MID}" transform="matrix(1 0 0 1 {num(x)} {JACK_Y - 9})">{label}</text>')
     at = lambda x, y: f'transform="matrix(1 0 0 1 {num(x)} {num(y)})"'
+    # The nameplates, each in its section's grey, riveted dark on the light ones.
+    index = {name: i for i, name in enumerate(NODES)}
+    plaque_y = (PLAQUE[1] + PLAQUE[3]) / 2
+    for k, s in enumerate("dpes"):
+        grey = CODE[k]
+        lines.append(f'  <path id="{ID}_node_{index["plaque_" + s]}" d="{outline(plaque())}" {at(bay_x(k) + (PLAQUE[0] + PLAQUE[2]) / 2, plaque_y)} '
+                     f'fill="{grey}" stroke="{G4 if grey == G1 else grey}" stroke-width="0.6"/>')
+        for r in range(2):
+            lines.append(f'  <path id="{ID}_node_{index[f"rivet_{s}_{r}"]}" d="{outline(circle(1.1, 0, 0, 8))}" {at(bay_x(k) + rivet_x(r), plaque_y)} '
+                         f'fill="none" stroke="{"#000000" if grey in (G3, G4) else MID}" stroke-width="{ENGRAVED}"/>')
     centre = bay_x(0) + BAY_W / 2
     head_at = at(TAPE2_X, TAPE2_Y[0] + TAPE2_TRAVEL)
     bay_group = lambda name, parts, where: {f"{name}_{k}": ([points], grey, where, weight) for k, (points, grey, weight) in enumerate(parts)}
@@ -528,12 +553,12 @@ def fragment():
         "record": (head_block(), LIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
         "play": (head_block(), BRIGHT, at(bay_x(2) + BAY_W / 2, ECHO_CY)),
         **bay_group("tank", tank(), at(bay_x(3), 0)),
-        "sine": (glyph("sine"), LIGHT, at(640, 320)),
-        "triangle": (glyph("triangle"), LIGHT, at(640, 320)),
-        "square": (glyph("square"), LIGHT, at(640, 320)),
-        "tape2": (tape2_head(), DIM, head_at),
-        "tape2_screw_0": ([tape2_screw()], DIM, at(TAPE2_X - 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
-        "tape2_screw_1": ([tape2_screw()], DIM, at(TAPE2_X + 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
+        "sine": (glyph("sine"), G4, at(640, 320)),
+        "triangle": (glyph("triangle"), G4, at(640, 320)),
+        "square": (glyph("square"), G4, at(640, 320)),
+        "tape2": (tape2_head(), G4, head_at),
+        "tape2_screw_0": ([tape2_screw()], G4, at(TAPE2_X - 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
+        "tape2_screw_1": ([tape2_screw()], G4, at(TAPE2_X + 10, TAPE2_Y[0] + TAPE2_TRAVEL + TAPE2_H - 2)),
     }
     # The springs and the tape, the reshaping outlines.
     for k in range(3):
@@ -558,24 +583,22 @@ def fragment():
             lines.append(f'  <path d="{coarse(jumper(int(name[7:])))}" fill="none" stroke="{BRIGHT}" stroke-width="1" id="{node}"/>')
         elif name.startswith("bypass_"):
             lines.append(f'  <path id="{node}" d="{coarse(bypass(int(name[7:])))}" {at(640, 320)} fill="none" stroke="{BRIGHT}" stroke-width="1"/>')
-        elif name.startswith("bar_"):
+        elif name.startswith(("bar_", "plaque_", "rivet_")):
             continue
         elif name.startswith("cable_"):
             e, t = map(int, name[6:].split("_"))
-            lines.append(f'  <path id="{node}" d="{coarse(cable(e, t))}" {at(640, 320)} fill="none" stroke="{BRIGHT}" stroke-width="1"/>')
+            lines.append(f'  <path id="{node}" d="{coarse(cable(e, t))}" {at(640, 320)} fill="none" stroke="{G3}" stroke-width="1"/>')
         else:
             drawn, stroke, where, *weight = shapes[name]
             lines.append(f'  <path id="{node}" d="{path(drawn)}" {where} fill="none" stroke="{stroke}" stroke-width="{weight[0] if weight else 1}"/>')
-    # Text slots: the bays' letters and names, and the loop's labels.
+    # Text slots: the bays' letters and names.
     for k, name in enumerate(NAMES):
         x = bay_x(k)
         lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + k}" {FONT} font-size="9" fill="{DIM}" {at(x + 7, TOP + 13)}>{"DPES"[k]}</text>')
     centre_x, baseline = (PLAQUE[0] + PLAQUE[2]) / 2, PLAQUE[3] - 3
     for k, name in enumerate(NAMES):
-        lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + k}" {FONT} font-size="10" fill="{BRIGHT}" {at(bay_x(k) + centre_x - NAME_WIDTHS[k] / 2, baseline)}>{name}</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 8}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>loop</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 9}" {FONT} font-size="8" fill="{LIGHT}" {at(640, 320)}>echo loop</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 10}" {FONT} font-size="8" fill="{DIM}" {at(TAPE2_X - TAPE2_WIDTH / 2, TAPE2_Y[0] + TAPE2_TRAVEL + 30)}>tape 2</text>')
+        ink = "#000000" if CODE[k] in (G3, G4) else G4   # light names on the dark plates, black on the light
+        lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 4 + k}" {FONT} font-size="10" fill="{ink}" {at(bay_x(k) + centre_x - NAME_WIDTHS[k] / 2, baseline)}>{name}</text>')
     for i, (fill, stroke) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
     lines.append("</g>")
@@ -600,8 +623,10 @@ const opxy::u32 kNodes = {len(NODES)}, kTexts = {len(TEXTS)}, kPalette = {len(PA
 enum Node {{ {", ".join(f"kNode{''.join(w.title() for w in n.split('_'))} = {i}" for i, n in enumerate(NODES) if not n.startswith(("cable_", "speck_", "repeat_", "jumper_", "bypass_", "bar_")))} }};
 const opxy::u32 kLampParts = {len(lamp())}, kEchoParts = {len(echo_kit())}, kTankParts = {len(tank())}, kDustParts = {len(dust_kit())};
 const opxy::u32 kNodeSpecks = {index["speck_0"]}, kNodeRepeats = {index["repeat_0"]}, kNodeJumpers = {index["jumper_0"]}, kNodeBypasses = {index["bypass_0"]}, kNodeBars = {index["bar_0"]};
-// Text slots: the two-page header's 0..15, then the bays' letters and names and the loop's labels.
-enum Text {{ kLetter = 16, kName = 20, kLoopLabel = 24, kEchoLoop = 25, kTape2Label = 26 }};
+// Each section's nameplate (D, P, E, S), and its two rivets.
+const opxy::u32 kNodePlaques = {index["plaque_d"]}, kNodeRivets = {index["rivet_d_0"]};
+// Text slots: the two-page header's 0..15, then the bays' letters and names.
+enum Text {{ kLetter = 16, kName = 20 }};
 // Palette: strokes bright, light, mid and dim, then the lamp's eight glows.
 enum Shade {{ kBright = 0, kLight = 1, kMid = 2, kDim = 3, kGlows = 4 }};
 const opxy::i32 kBayW = {BAY_W}, kTop = {TOP}, kGap = {GAP}, kLeft = {LEFT}, kBottom = {BOTTOM}, kLane = {LANE};
@@ -616,8 +641,8 @@ const opxy::i32 kWearX = {WEAR_X}, kWearW = {WEAR_W}, kWearY = {WEAR_Y};
 const opxy::i32 kSpecks[8][2] = {{{specks}}};
 const opxy::i32 kNameWidth[4] = {{{row(q(w) for w in NAME_WIDTHS)}}};
 const opxy::i32 kPlaqueCentre = {(PLAQUE[0] + PLAQUE[2]) // 2}, kPlaqueBase = {PLAQUE[3] - 3}, kPlaqueY = {(PLAQUE[1] + PLAQUE[3]) // 2};
-const opxy::i32 kPortX = {PORT_X}, kMarkX = {(MARK_BOX[0] + MARK_BOX[2]) // 2 - 7}, kMarkY = {(MARK_BOX[1] + MARK_BOX[3]) // 2}, kLoopEnd = {MARK_BOX[0] - 4};
-const opxy::i32 kLoopWidth = {q(LOOP_WIDTH)}, kEchoLoopWidth = {q(ECHO_LOOP_WIDTH)}, kTape2Width = {q(TAPE2_WIDTH)};
+const opxy::i32 kRivetX[2] = {{{rivet_x(0)}, {rivet_x(1)}}};
+const opxy::i32 kMarkX = {(MARK_BOX[0] + MARK_BOX[2]) // 2 - 7}, kMarkY = {(MARK_BOX[1] + MARK_BOX[3]) // 2};
 // The loop cable from the echo at position e to position t, or tape 2 (t 4); -1 for none.
 const opxy::i32 kCable[4][5] = {{{", ".join("{" + row(c) + "}" for c in cables)}}};
 // The tape's crest over the head, Q10 of its 10-pixel height, at each of its 32 points.

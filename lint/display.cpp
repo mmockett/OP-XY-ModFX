@@ -12,7 +12,11 @@ namespace lint {
 // patched into the echo's loop leaves the cable for one under the bays, and LFO
 // 2's mark sits on what it wobbles, swinging the springs when it is theirs.
 // Rate slides a mark along a rail in the lamp's box, and tape 2's head rises
-// to the cable with its level, brightening as it does.
+// to the cable with its level.
+// Each section's riveted nameplate wears its encoder's grey, dust's hollow, then
+// phase, echo and spring darker to lighter, and moves with the order; tape 2's
+// head is encoder 1's hollow outline, the echo's loop cable encoder 3's grey and
+// LFO 2's mark encoder 4's, so no captions are needed.
 // Held Shift enlarges the bays' letters, which the order names. A turned
 // control eases to its new value in about 0.15 s; only the LFOs move an idle screen.
 using opxy::i32;
@@ -168,11 +172,13 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
     }
     page_header(state.header, input, frame, kTitles[input.shift ? 1 + page : 0], values, kNodeBars);
 
-    // Letters and names, which move with the order.
+    // Letters, nameplates and names, which move with the order.
     for (u32 s = 0; s < 4; ++s) {
         const i32 x = bay(at[s]);
         text(frame, kLetter + s, px(x + 7), px(kTop + 13), input.shift ? unit * 4 / 3 : unit, kLetters[s]);
         text(frame, kName + s, px(x + kPlaqueCentre) - kNameWidth[s] / 2, px(kPlaqueBase), unit, kNames[s]);
+        place(frame, kNodePlaques + s, px(x + kPlaqueCentre), px(kPlaqueY), unit, 0, keep);
+        for (u32 r = 0; r < 2; ++r) place(frame, kNodeRivets + 2 * s + r, px(x + kRivetX[r]), px(kPlaqueY), unit, 0, keep);
     }
 
     // Dust: the tape's wrinkles, and a speck for each eighth of the control.
@@ -279,30 +285,14 @@ void display(DisplayState& state, const Input& input, Frame& frame) {
             if (node == cable) place(frame, static_cast<u32>(node), 0, 0, unit, 0, keep);
             else hide(frame, static_cast<u32>(node));
         }
-    if (cable >= 0) {
-        const i32 from = bay(at[kE]) + kPortX, to = target < 4 ? bay(target) + kPortX : kTape2X;
-        // Between the risers when it fits, else just outside the left one.
-        const i32 span = to > from ? to - from : from - to, left = to > from ? from : to;
-        text(frame, kEchoLoop, span > 48 ? px(from + to) / 2 - kEchoLoopWidth / 2 : px(left - 6) - kEchoLoopWidth, px(kLane - 4), unit,
-             "echo loop");
-    } else {
-        text(frame, kEchoLoop, px(hidden_x), px(hidden_y), unit, "echo loop");
-    }
-    if (skipped >= 0)
-        text(frame, kLoopLabel, px(bay(skipped) + kLoopEnd) - kLoopWidth, px(kTop + 13), unit, "loop");
-    else
-        text(frame, kLoopLabel, px(hidden_x), px(hidden_y), unit, "loop");
 
     // Tape 2: its head under the cable before OUT, rising to it with the level, or
     // down in the echo's loop, where it runs at half when its control is down.
-    // Brighter as it drives harder.
     const bool looped = loop == kLoopTape;
     const i32 level = looped && v[kTape2Level] <= 328 ? 16384 : v[kTape2Level];
-    const u32 lit = level <= 328 ? kDim : kMid - static_cast<u32>(clamp(level * 3 >> 15, 0, 2));
     const i32 head_y = looped ? px(kTape2Y[1]) : px(kTape2Y[0]) + share(px(kTape2Travel), 32767 - level);
-    place(frame, kNodeTape2, px(kTape2X), head_y, unit, lit, stroke);
+    place(frame, kNodeTape2, px(kTape2X), head_y, unit, 0, keep);
     for (i32 k = 0; k < 2; ++k)
-        place(frame, kNodeTape2Screw0 + static_cast<u32>(k), px(kTape2X - 10 + 20 * k), head_y + px(kTape2H - 2), unit, lit, stroke);
-    text(frame, kTape2Label, px(kTape2X) - kTape2Width / 2, looped ? px(kTape2Y[1] - 5) : px(kTape2Y[0] + kTape2Travel + 30), unit, "tape 2");
+        place(frame, kNodeTape2Screw0 + static_cast<u32>(k), px(kTape2X - 10 + 20 * k), head_y + px(kTape2H - 2), unit, 0, keep);
 }
 }
