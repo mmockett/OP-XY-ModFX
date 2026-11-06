@@ -435,14 +435,56 @@ namespace {
 // The most the input is lifted, 2^20 (120 dB): enough for the quietest send.
 const u32 kLift = 20;
 
+// A spring's frame written at step `written` still owes these bits.
+u32 owing(const State& s, u32 written) {
+    u32 by = 0;
+    for (u32 f = 0; f < s.owed; ++f)
+        if (s.owed_at[f] - written - 1 < kSpringLine) by += s.owed_by[f];  // written before it, and still to be read
+    return by;
+}
+// Each spring reads the frame it wrote kSpringDelay steps before, once. Before a
+// block in which the springs step, lower the frames it will read by the falls
+// they owe (the whole lines at once would be 1,536 words), from `from` steps on.
+void repay(State& s, i32* springs, u32 from, u32 to) {
+    for (u32 k = 0; k < kSprings; ++k)
+        for (u32 step = from; step != to; ++step) {
+            if (s.ready == 1 && step < kSpringDelay[k]) continue;  // a word never written, read as 0
+            const u32 written = step - kSpringDelay[k], by = owing(s, written);
+            if (by) springs[k * kSpringLine + (written & (kSpringLine - 1))] >>= by;
+        }
+}
 // Lowers everything the box holds by `by` bits, as its working level falls:
 // the echo's line, the springs' lines and chirps, and every filter's memory.
 void lower(State& s, i32* words, u32 by) {
-    // The echo's line is lowered as it's read (Box::tap); the rest, small, at once.
-    s.mark_at[s.marks] = s.echo_total;
-    s.mark_by[s.marks] = static_cast<opxy::u8>(by);
-    ++s.marks;
-    for (u32 i = kEchoLine; i < kBufferWords; ++i) words[i] >>= by;
+    // The echo's line is lowered as it's read (Box::tap), and the springs' lines
+    // just before (repay): before they have written anything, there is nothing to
+    // mark. The rest, small, at once.
+    if (s.echo_total) {
+        s.mark_at[s.marks] = s.echo_total;
+        s.mark_by[s.marks] = static_cast<opxy::u8>(by);
+        ++s.marks;
+    }
+    if (s.spring_steps) {
+        if (s.owed == 4) {
+            // Five falls within a spring's length: the oldest is lowered now, all
+            // that it is still owed, and forgotten.
+            const u32 by0 = s.owed_by[0], at0 = s.owed_at[0];
+            for (u32 k = 0; k < kSprings; ++k)
+                for (u32 step = s.spring_steps; step - at0 < kSpringDelay[k]; ++step) {
+                    if (s.ready == 1 && step < kSpringDelay[k]) continue;
+                    words[kEchoLine + k * kSpringLine + ((step - kSpringDelay[k]) & (kSpringLine - 1))] >>= by0;
+                }
+            for (u32 f = 1; f < 4; ++f) {
+                s.owed_at[f - 1] = s.owed_at[f];
+                s.owed_by[f - 1] = s.owed_by[f];
+            }
+            s.owed = 3;
+        }
+        s.owed_at[s.owed] = s.spring_steps;
+        s.owed_by[s.owed] = static_cast<opxy::u8>(by);
+        ++s.owed;
+    }
+    for (u32 i = kEchoLine + kSprings * kSpringLine; i < kBufferWords; ++i) words[i] >>= by;
     i32* held[] = {&s.echo_dark, &s.echo_low, &s.phase_back, &s.tone_low, &s.tank_in, &s.tank_out, &s.tank_last};
     for (i32* value : held) *value >>= by;
     for (u32 i = 0; i < 4; ++i) {
@@ -486,10 +528,22 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     i32* const springs = buffer.words + kEchoLine;
     i32* const chirps = springs + kSprings * kSpringLine;
     if (!state.ready) {
-        // The springs ring from their own memory: start it silent, once.
-        for (u32 i = 0; i < kSprings * kSpringLine + kChirpWords; ++i) springs[i] = 0;
+        // The springs ring from their own memory: start it silent, once. Their
+        // chirps at once; their lines as they first reach them, below.
+        for (u32 i = 0; i < kChirpWords; ++i) chirps[i] = 0;
         state.ready = 1;
         for (u32 i = 0; i < 8; ++i) state.smooth[i] = control(parameters[i]);
+    }
+    if (state.ready == 1) {
+        // On its first pass each spring reads, for its first kSpringDelay steps,
+        // words it hasn't yet written, from kSpringDelay before its line's end on:
+        // clear the ones this block can reach (it steps at most 16 times), so a
+        // start costs no more than a block's work. The three step together.
+        const u32 at = state.spring[0].write;
+        if (at >= kSpringDelay[kSprings - 1]) state.ready = 2;
+        for (u32 k = 0; k < kSprings && state.ready == 1; ++k)
+            for (u32 j = at; j < at + opxy::block_frames / 4 && j < kSpringDelay[k]; ++j)
+                springs[k * kSpringLine + kSpringLine - kSpringDelay[k] + j] = 0;
     }
     for (u32 i = 0; i < 8; ++i) state.smooth[i] = glide(state.smooth[i], control(parameters[i]));
     const i32* c = state.smooth;
@@ -570,7 +624,8 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
         if (size > peak) peak = size;
     }
     u32 fit = 0;
-    while (fit < state.lift && (peak << (fit + 1)) <= 0x20000000u) ++fit;
+    // peak << (fit + 1) <= 2^29, without the shift, which wraps a full-scale peak (2^31) to 0.
+    while (fit < state.lift && peak <= (0x10000000u >> fit)) ++fit;
     if (fit < state.lift) {
         lower(state, buffer.words, state.lift - fit);
         state.lift = fit;
@@ -584,6 +639,10 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
         }
     state.marks = kept;
     box.marked = kept != 0;
+    // The springs step 16 times in a block they run: in their own section, or in the echo's loop.
+    const u32 steps = state.spring_steps, end = steps + opxy::block_frames / 4;
+    const bool ringing = loop == kLoopSpring ? box.echo_on : box.spring_on;
+    if (state.owed && ringing) repay(state, springs, steps, end);
     const u32 lift = state.lift;
     // Each section runs over the whole block in turn: they run in series, and
     // the only feedback, through the echo's loop, stays inside the echo.
@@ -603,5 +662,16 @@ void process(State& state, opxy::Buffer buffer, opxy::Channel left, opxy::Channe
     }
     if (box.tape2_on) box.saturate(box.tape2, state.tape[1], x);
     shift_down(left, right, x, lift);
+    if (ringing) {
+        state.spring_steps = end;
+        // A fall is paid once every frame written before it has been read.
+        u32 paid = 0;
+        while (paid < state.owed && end - state.owed_at[paid] >= kSpringDelay[kSprings - 1]) ++paid;
+        for (u32 f = paid; f < state.owed; ++f) {
+            state.owed_at[f - paid] = state.owed_at[f];
+            state.owed_by[f - paid] = state.owed_by[f];
+        }
+        state.owed -= paid;
+    }
 }
 }

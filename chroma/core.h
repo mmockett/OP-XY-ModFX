@@ -30,10 +30,22 @@ struct Head {
     opxy::i32 left, right;   // its pan's gains
 };
 
-// One module: the effect playing, the one asked for, its fade in, and how far
-// its line has been cleared since the effect changed.
+// One module: the effect playing, the one asked for, its fade in, and how many
+// blocks it has waited since the effect changed (counted as the words a block
+// once cleared of its line, kClearChunk a block: it starts when they reach its line's length).
 struct Module {
     opxy::u32 playing, wanted, gain, cleared;
+};
+
+// What a line has written since its effect started, and the level falls it
+// still holds frames from. Nothing clears a line: a frame never written reads as
+// 0, and one written before a fall is lowered as it's read, by every fall since.
+const opxy::u32 kFalls = 20;  // the working level falls at most 20 times: it starts 20 bits up
+struct Book {
+    opxy::u32 written;          // frames written (Cloud: steps), up to the most any read reaches back
+    opxy::u32 falls;            // falls still held, oldest first
+    opxy::u32 at[kFalls];       // the write count at each one
+    opxy::u8 by[kFalls];        // and the bits it fell
 };
 
 // All that doesn't fit the 472 bytes of State.
@@ -52,8 +64,7 @@ struct Memory {
     opxy::i32 swell_gain[2];
     opxy::i32 last_time, bend;       // Time's last value, and the bend its turning puts on a slice
     opxy::u32 hold_count, drop[2];   // radio: frames left of its held sample and its dropouts
-    // Lines being lowered after the working level fell: each one's next frame, frames still to do, and by how much.
-    opxy::u32 lower_at[3], lower_left[3], lower_by[3];
+    Book book[3];                    // each line's
 };
 
 struct State {

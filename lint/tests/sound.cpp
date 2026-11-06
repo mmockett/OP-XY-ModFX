@@ -42,6 +42,36 @@ double run(lint::State& state, std::vector<opxy::i32>& memory, const opxy::i32* 
 int main() {
     std::vector<opxy::i32> memory(lint::kBufferWords, 0x5a5a5a5a);  // stock never clears it
     bool ok = true;
+    // Nothing clears the springs' lines whole, so nothing left in the buffer may
+    // reach the output: over zeros, 0x5a5a5a5a and noise, the same notes come out
+    // the same, through a crescendo that drops the working level again and again,
+    // every loop, and the springs and echo switched off and on.
+    for (unsigned loop = 0; loop < 4; ++loop) {
+        std::vector<opxy::i32> outputs[3];
+        for (unsigned fill = 0; fill < 3; ++fill) {
+            std::vector<opxy::i32> buffer(lint::kBufferWords, fill == 1 ? 0x5a5a5a5a : 0);
+            opxy::u32 noise = 12345;
+            if (fill == 2)
+                for (opxy::i32& word : buffer) word = static_cast<opxy::i32>(noise = noise * 1664525u + 1013904223u);
+            lint::State state;
+            lint::initialize(state);
+            opxy::i32 words[12] = {kHalf, kHalf, kHalf, kHalf, kHalf, kHalf, kHalf, kHalf, 0, 0, enum_word(loop, 4), 0};
+            double level = 1e-6;
+            for (unsigned b = 0; b < 400; ++b) {
+                if (b % 3 == 0 && level < 0.4) level *= 2;
+                if (b == 30) words[3] = 0;
+                if (b == 36) words[3] = kHalf;
+                if (b == 40) words[2] = 0;
+                if (b == 46) words[2] = kHalf;
+                opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+                for (unsigned i = 0; i < opxy::block_frames; ++i)
+                    left[i] = right[i] = static_cast<opxy::i32>(((b * 64 + i) % 90 < 45 ? level : -level) * 2147483647.0);
+                lint::process(state, opxy::Buffer{buffer.data(), static_cast<opxy::u32>(buffer.size())}, left, right, words);
+                outputs[fill].insert(outputs[fill].end(), left, left + opxy::block_frames);
+            }
+        }
+        if (outputs[1] != outputs[0] || outputs[2] != outputs[0]) { std::printf("FAIL loop %u: what the buffer held before reaches the output\n", loop); ok = false; }
+    }
     // Every routing, a square wave in: bounded output, never silent.
     for (unsigned order = 0; order < 6; ++order)
         for (unsigned loop = 0; loop < 4; ++loop)

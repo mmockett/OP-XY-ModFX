@@ -45,6 +45,42 @@ Result run(std::vector<opxy::i32>& memory, const opxy::i32* words, unsigned bloc
 int main() {
     std::vector<opxy::i32> memory(chroma::kBufferWords, 0x5a5a5a5a);  // stock never clears it
     bool ok = true;
+    // Nothing clears a line, so nothing left in the buffer may reach the output:
+    // over zeros, 0x5a5a5a5a and noise, the same notes come out the same, through
+    // a crescendo that drops the working level again and again, with every
+    // effect that has a line started, switched away and started again.
+    {
+        const unsigned lined[9][2] = {{1, 0}, {1, 1}, {1, 4}, {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {3, 4}};
+        for (unsigned n = 0; n < 10; ++n) {
+            std::vector<opxy::i32> outputs[3];
+            for (unsigned fill = 0; fill < 3; ++fill) {
+                std::vector<opxy::i32> buffer(chroma::kBufferWords, fill == 1 ? 0x5a5a5a5a : 0);
+                opxy::u32 noise = 12345;
+                if (fill == 2)
+                    for (opxy::i32& word : buffer) word = static_cast<opxy::i32>(noise = noise * 1664525u + 1013904223u);
+                chroma::State state = chroma::State();
+                chroma::initialize(state);
+                const opxy::Transport transport = {1200, 0, true};
+                opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf / 2, 0, 0, 0, 0};
+                const unsigned module = n < 9 ? lined[n][0] : 3, effect = n < 9 ? lined[n][1] : 5;  // the last: worn
+                words[8 + module] = enum_word(effect, chroma::kChoices[module]);
+                double level = 1e-6;
+                for (unsigned b = 0; b < 700; ++b) {
+                    if (b % 3 == 0 && level < 0.4) level *= 2;
+                    if (b == 60) words[8 + module] = enum_word(chroma::kChoices[module] - 1, chroma::kChoices[module]);
+                    if (b == 64) words[8 + module] = enum_word(effect, chroma::kChoices[module]);
+                    if (b >= 100 && b < 140) words[6] = static_cast<opxy::i32>(kWordHalf / 40 * (b - 100) + kWordHalf);  // Time turned up
+                    opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+                    for (unsigned i = 0; i < opxy::block_frames; ++i)
+                        left[i] = right[i] = static_cast<opxy::i32>(((b * 64 + i) % 90 < 45 ? level : -level) * 2147483647.0);
+                    chroma::process(state, opxy::Buffer{buffer.data(), static_cast<opxy::u32>(buffer.size())}, transport, left, right, words);
+                    outputs[fill].insert(outputs[fill].end(), left, left + opxy::block_frames);
+                    outputs[fill].insert(outputs[fill].end(), right, right + opxy::block_frames);
+                }
+            }
+            if (outputs[1] != outputs[0] || outputs[2] != outputs[0]) { std::printf("FAIL effect %u of module %u: what the buffer held before reaches the output\n", n < 9 ? lined[n][1] : 5, n < 9 ? lined[n][0] : 3); ok = false; }
+        }
+    }
     std::printf("Memory %u words; bufferBytes %u; State %u bytes\n", chroma::kMemoryWords, chroma::kBufferWords * 4, static_cast<unsigned>(sizeof(chroma::State)));
     const opxy::i32 settings[3] = {0, kWordHalf, 0x7fffffff};
     // Every effect alone at each setting, loud and very quiet: bounded, and sounding.
@@ -92,6 +128,43 @@ int main() {
             }
         }
         if (peak > 0.51) { std::printf("FAIL the level's fall: peak %f\n", peak); ok = false; }
+    }
+    // A clipped send reaching exactly -1.0, from the first block and after a quiet one: the
+    // working level falls all the way, and it sounds like a send just under full scale.
+    for (unsigned quiet = 0; quiet < 2; ++quiet) {
+        double rms[2] = {0, 0}, peak = 0;
+        opxy::u32 lift[2] = {0, 0};
+        for (unsigned full = 0; full < 2; ++full) {
+            chroma::State state = chroma::State();
+            chroma::initialize(state);
+            const opxy::Transport transport = {1200, 0, true};
+            const opxy::i32 words[12] = {kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, kWordHalf, 0, 0, enum_word(1, 6), 0};
+            opxy::i32 left[opxy::block_frames], right[opxy::block_frames];
+            double power = 0;
+            for (unsigned b = 0; b < 600; ++b) {
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    // Clipped only below, and in every block: +0.6 against -1.0, or against -0.95.
+                    const bool up = (b * 64 + i) % 40 < 20;
+                    opxy::i32 in = up ? 1288490189 : full ? static_cast<opxy::i32>(0x80000000u) : -2040109465;
+                    if (quiet && b < 200) in = up ? 2147483 : -2147483;  // -60 dB first
+                    left[i] = right[i] = in;
+                }
+                chroma::process(state, opxy::Buffer{memory.data(), static_cast<opxy::u32>(memory.size())}, transport, left, right, words);
+                if (b < 300) continue;
+                for (unsigned i = 0; i < opxy::block_frames; ++i) {
+                    const double a = left[i] / 2147483648.0, c = right[i] / 2147483648.0;
+                    if (std::fabs(a) > peak) peak = std::fabs(a);
+                    if (std::fabs(c) > peak) peak = std::fabs(c);
+                    power += (a * a + c * c) / 2;
+                }
+            }
+            rms[full] = std::sqrt(power / (300 * 64));
+            lift[full] = state.lift;
+        }
+        if (lift[1] != 0 || peak > 0.51 || rms[1] != rms[1] || rms[1] < rms[0] * 0.5 || rms[1] > rms[0] * 2) {
+            std::printf("FAIL a full-scale send%s: working shift %u, peak %f, rms %f against %f just under\n", quiet ? " after a quiet one" : "", lift[1], peak, rms[1], rms[0]);
+            ok = false;
+        }
     }
     // A wet signal swinging against a hot input: a blend reaches it, with no dry left over.
     if (std::abs(chroma::blend(1717986918, -1073741824, 0x7fffffff) + 1073741824) > 4) { std::puts("FAIL a full blend leaves dry signal"); ok = false; }
@@ -235,7 +308,7 @@ int main() {
             if (jump > kStartStep) { std::printf("FAIL module %u effect %u steps %.4f as it starts, at sample %d\n", module, effect, jump, at); ok = false; }
         }
     // An effect fails silently if its buffer is short: keep definition.json in step (bufferBytes).
-    if (chroma::kBufferWords * 4 != 328300) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
+    if (chroma::kBufferWords * 4 != 328588) { std::printf("FAIL bufferBytes is now %u\n", chroma::kBufferWords * 4); ok = false; }
     if (ok) std::puts("PASS every effect bounded and sounding at every level");
     return ok ? 0 : 1;
 }
