@@ -93,11 +93,14 @@ drawn and why this one was chosen.
 
 ## CPU and memory
 
-Measured on an OP-XY at v1.7.0 with `sdk.py profile benchmark`, in one run, with
-graphics excluded: 7.312% of the block budget on the default warm, vibe, cloud and
-tilt, and 10.91% on howl, swirl, cloud and cass with every control at full. That
-heaviest setting is enough that a busy project may drop audio, though no one has
-heard it do so yet. Drive or fuzz in place of howl wasn't measured.
+Measured on an OP-XY at v1.9.1 with `sdk.py profile benchmark`, in two runs, with
+graphics excluded: 7.23% of the block budget on average on the default warm, vibe,
+cloud and tilt, and 11.45% in its worst single block. In the same firmware v1.9.0
+measured 7.29% and 17.88%: its line effects no longer clear a whole line at once.
+At v1.7.0, in one run, howl, swirl, cloud and cass with every control at full
+measured 10.91% on average. That heaviest setting is enough that a busy project
+may drop audio, though no one has heard it do so yet. Drive or fuzz in place of
+howl wasn't measured.
 
 Chroma takes 321 KiB of a send's memory and about 46 KiB of module memory.
 

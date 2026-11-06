@@ -49,9 +49,9 @@ fade in from clean over the first quarter of their controls.
 
 ## CPU
 
-Measured on an OP-XY at v1.8.0 with `sdk.py profile benchmark`, in one run, with
-graphics excluded: 5.40% of the block budget at its default settings. No heavier
-setting was measured.
+Measured on an OP-XY at v1.9.1 with `sdk.py profile benchmark`, in two runs, with
+graphics excluded: 5.30% of the block budget on average at its default settings,
+and 9.76% in its worst single block. No heavier setting was measured.
 
 ## The screen
 
