@@ -41,12 +41,15 @@ Omnifilter.
 setting. It makes no sound, so that is all its silent voice costs; its controls
 steer the tracks from outside the audio.
 
-**The screen** is the front of a rangefinder camera, and its lens is the
-filter every track plays through. The iris has eight blades, one per track:
-- **cutoff** opens and closes the iris.
-- **resonance** sharpens the opening from a circle into an eight-pointed star.
-- **attack** turns the knurled focus ring.
-- **release** turns the engraved scale ring under the index mark.
+**The screen** is a rangefinder's lens taken apart, an exploded view drawn
+isometric: the iris plate over the focus ring over the scale ring. The lens is
+the filter every track plays through, and the iris has eight blades, one per
+track. Each part wears its encoder's grey, dark to light down the stack:
+- **cutoff** opens and closes the iris (its opening is a hollow outline).
+- **resonance** sharpens the opening from a circle into an eight-pointed star,
+  and the blades' seams bow with it (the plate is dark grey).
+- **attack** sends a mark round the knurled focus ring (mid grey) from its index.
+- **release** sends a mark round the engraved scale ring (light grey) from its index.
 
 Nothing moves unless a control does.
 
@@ -104,7 +107,8 @@ OP-XY.
 
 **The screen** is a 1970s effects chassis with its lid off, seen from above: its
 four sections as modules in the chosen order, joined by one patch cable from in to
-out. Each control moves a part of its module. [`lint/README.md`](lint/README.md) says how.
+out. Each control moves a part of its module, and each module's nameplate wears
+its encoder's grey. [`lint/README.md`](lint/README.md) says how.
 
 **CPU,** measured on an OP-XY at v1.9.1: 5.30% of the block budget at its default
 settings, and 9.76% in its worst single block.
@@ -129,7 +133,8 @@ drift; hold Shift for each module's effect
 
 **The screen** is a Victorian optical bench from the side, left to right as the
 sound goes: a magic lantern, a glass plate in a ring, a rocking prism, its light
-fanning out, and a ground-glass screen on a rail. Each control moves its own part.
+fanning out, and a ground-glass screen on a rail. Each control moves its own part,
+and each module's small parts wear its encoder's grey.
 [`chroma/README.md`](chroma/README.md) says how, and lists all 22 effects.
 
 Put Chroma on a send with **Shift** and **M1** on FX I or II. A new project starts
