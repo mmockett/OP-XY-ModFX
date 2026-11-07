@@ -59,7 +59,10 @@ and 9.76% in its worst single block. No heavier setting was measured.
 
 Under the two pages, a 1970s effects chassis with its lid off, seen from above:
 four screwed-in modules in the chosen order on one patch cable, each with its
-name on a riveted plaque. On the shift row, `lamp` is the phaser. The header captions rate in hertz, time in milliseconds
+name on a riveted plaque. Each plaque is painted in its encoder's grey, the way
+1970s gear colour-coded its sections, and moves with its module: dust's is hollow,
+then phase's, echo's and spring's darker to lighter, as the encoders run. On the
+shift row, `lamp` is the phaser. The header captions rate in hertz, time in milliseconds
 (then seconds from 0.1 s) and tone from -100 to 100.
 
 - **dust:** the tape across a tape head, its core and coil laid open, wrinkles,
@@ -73,13 +76,15 @@ name on a riveted plaque. On the shift row, `lamp` is the phaser. The header cap
 
 A section patched into the echo's loop leaves the cable, which hops over it,
 for one under the bays, plugged into a port beside each plaque, and tape 2 drops
-down to it when it's the one in the loop. Tape 2's head rises to the cable before
-OUT with its level, brightening as it drives. LFO 2's mark, in its shape, sits in
-a window at the top right of what it wobbles. Holding Shift enlarges the
-bays' letters, which the order names.
+down to it when it's the one in the loop. That loop cable is in echo's grey (loop
+is its Shift control). Tape 2's head, encoder 1's hollow outline, rises to the
+cable before the way out with its level. LFO 2's mark, in its shape and in
+spring's grey (wobble is its Shift control), sits in a window at the top right of
+what it wobbles. The grey says what captions used to, so the chassis carries none.
+Holding Shift enlarges the bays' letters, which the order names.
 
 Lint draws the SDK's two-page header (`opxy/page_header.hpp`) in text slots
-0..15 and its own labels in 16..26, so it needs the 32-slot limit an SDK 1.7
+0..15 and its own letters and names in 16..23, so it needs the 32-slot limit an SDK 1.7
 display may declare.
 
 `tools/make_panel.py` writes the artwork and `panel.h`, `tools/make_tables.py`

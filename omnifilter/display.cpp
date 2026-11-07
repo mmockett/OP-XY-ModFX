@@ -2,20 +2,29 @@
 #include "tables.h"
 
 namespace omnifilter {
-// The front of a rangefinder camera (tools/make_panel.py draws it). The lens's
-// eight-bladed iris, one blade a track, opens with cutoff and sharpens into a
-// star with resonance; the focus ring turns with attack and the scale ring
-// with release, each through 270 degrees. A turned control eases to its new
-// value in about 0.15 s; an untouched screen is still.
+// A rangefinder's lens taken apart, in an isometric exploded view
+// (tools/make_panel.py draws it): the iris plate over the focus ring over the
+// scale ring. The plate's eight-bladed iris, one blade a track, opens with
+// cutoff and sharpens into a star with resonance, its seams bowing as it does;
+// a mark travels round the focus ring from its index with attack, and one
+// round the scale ring with release. The iris is drawn in the plate's own
+// plane and projected; the rings stay put and only their marks move. A turned
+// control eases to its new value in about 0.15 s; an untouched screen is still.
 using opxy::i32;
 using opxy::u32;
 using namespace opxy::draw;
 
 inline void display_reset(DisplayState& state) { state.ready = 0; }
 
-// A point at a radius (Q10 pixels) and a clockwise angle in tenths of a degree.
+// A point at a radius (Q10 pixels) and a clockwise angle in tenths of a degree, in a layer's plane.
 inline Point polar(i32 radius, i32 tenths) {
     const Point point = {radius * sine(tenths + 900) >> 10, radius * sine(tenths) >> 10};
+    return point;
+}
+
+// A point in a layer's plane as the screen shows it, seen at 30 degrees.
+inline Point project(Point p) {
+    const Point point = {(p.x - p.y) * kIsoX >> 10, (p.x + p.y) * kIsoY >> 10};
     return point;
 }
 
@@ -29,17 +38,19 @@ inline void opening(Frame::path_type& path, i32 cutoff, i32 resonance) {
     const i32 bow = kBowRound + ((kBowStar - kBowRound) * resonance >> 15);
     for (u32 k = 0; k < 8; ++k)
         for (u32 j = 0; j < 8; ++j)
-            path.points[k * 8 + j] = polar(r * (kChord[j] + (bow * kBow[j] >> 10)) >> 10,
-                                           corner(cutoff, k) + (450 * static_cast<i32>(j) >> 3));
+            path.points[k * 8 + j] = project(polar(r * (kChord[j] + (bow * kBow[j] >> 10)) >> 10,
+                                                   corner(cutoff, k) + (450 * static_cast<i32>(j) >> 3)));
 }
 
 // Four seams between blades, every other one from `first`: each in from the
 // housing to its corner of the opening and back out a line's width beside
 // itself, then along the housing to the next.
-inline void seams(Frame::path_type& path, i32 cutoff, u32 first) {
+inline void seams(Frame::path_type& path, i32 cutoff, i32 resonance, u32 first) {
     const i32 r = opening_radius(cutoff), housing = kHousing * unit;
-    // Blades fold flatter as they retract, so an open iris shows short seams.
-    const i32 sweep = kSweep * (32767 - (cutoff * kFold >> 10)) >> 15;
+    // Blades fold flatter as they retract, so an open iris shows short seams;
+    // they bow further round as resonance sharpens the star.
+    const i32 fold = kSweep * (32767 - (cutoff * kFold >> 10)) >> 15;
+    const i32 sweep = fold * (1024 + (kBowSweep * resonance >> 15)) >> 10;
     u32 n = 0;
     for (u32 m = first; m < 8; m += 2) {
         const i32 a = corner(cutoff, m);
@@ -48,11 +59,17 @@ inline void seams(Frame::path_type& path, i32 cutoff, u32 first) {
             radius[s] = r + ((housing - r) * static_cast<i32>(s) >> 2);
             angle[s] = a + (sweep * kEase[s] >> 10);
         }
-        for (u32 s = 5; s-- > 0;) path.points[n++] = polar(radius[s], angle[s]);
-        for (u32 s = 0; s < 5; ++s) path.points[n++] = polar(radius[s], angle[s] + kRibbon[radius[s] >> 10]);
+        for (u32 s = 5; s-- > 0;) path.points[n++] = project(polar(radius[s], angle[s]));
+        for (u32 s = 0; s < 5; ++s) path.points[n++] = project(polar(radius[s], angle[s] + kRibbon[radius[s] >> 10]));
         const i32 start = angle[4] + kRibbon[kHousing], span = a + 900 + sweep - start;
-        for (i32 i = 1; i <= 6; ++i) path.points[n++] = polar(housing, start + (span * i * 146 >> 10));
+        for (i32 i = 1; i <= 6; ++i) path.points[n++] = project(polar(housing, start + (span * i * 146 >> 10)));
     }
+}
+
+// A ring's mark, round from its index at the ring's right by a control's share of half a turn.
+inline void mark(Frame& frame, u32 node, i32 radius, i32 centre_y, i32 control) {
+    const Point at = project(polar(radius * unit, kMarkFrom + (kMarkSpan * control >> 15)));
+    place(frame, node, kCentreX * unit + at.x, centre_y * unit + at.y, unit, 0, keep);
 }
 
 inline void display(DisplayState& state, const Input& input, Frame& frame) {
@@ -67,18 +84,18 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const i32 cutoff = state.shown[0], resonance = state.shown[1];
     // Keys follow what each outline shows, in 1/1024 steps, so an outline
     // redraws only when it moves.
-    const u32 open = 1 + static_cast<u32>(cutoff >> 5), sharp = static_cast<u32>(resonance >> 5);
-    if (frame.paths[0].key != open + (sharp << 10)) {
-        frame.paths[0].key = open + (sharp << 10);
+    const u32 key = 1 + static_cast<u32>(cutoff >> 5) + (static_cast<u32>(resonance >> 5) << 10);
+    if (frame.paths[0].key != key) {
+        frame.paths[0].key = key;
         opening(frame.paths[0], cutoff, resonance);
     }
     for (u32 p = 1; p < 3; ++p) {
-        if (frame.paths[p].key == open) continue;
-        frame.paths[p].key = open;
-        seams(frame.paths[p], cutoff, p - 1);
+        if (frame.paths[p].key == key) continue;
+        frame.paths[p].key = key;
+        seams(frame.paths[p], cutoff, resonance, p - 1);
     }
-    for (u32 i = 0; i < kNodes; ++i) place(frame, i, kCentreX * unit, kCentreY * unit, unit, i < 3 ? 0 : 1, stroke);
-    for (u32 i = 3; i < kScaleNode; ++i) turn(frame, i, rotation(state.shown[2] * 2700 >> 15));
-    for (u32 i = kScaleNode; i < kNodes; ++i) turn(frame, i, rotation(state.shown[3] * 2700 >> 15));
+    for (u32 i = 0; i < 3; ++i) place(frame, i, kCentreX * unit, kPlateY * unit, unit, i ? 1 : 0, stroke);
+    mark(frame, kScaleMarkNode, kScaleMark, kScaleY, state.shown[3]);
+    mark(frame, kFocusMarkNode, kFocusMark, kFocusY, state.shown[2]);
 }
 }

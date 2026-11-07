@@ -19,7 +19,7 @@
   "resources": {
     "voiceBytes":4,"voiceAlignment":4,"voiceCapacity":1,"sharedBytes":0,
     "outputPeakQ31":1073741824,
-    "display":{"stateBytes":20,"stateAlignment":4,"paths":3,"points":64,"nodes":10,"texts":0,"palette":2},
+    "display":{"stateBytes":20,"stateAlignment":4,"paths":3,"points":64,"nodes":5,"texts":0,"palette":2},
     "trackControl":{"stateBytes":4,"stateAlignment":4,"unique":true,"aux":[12],"sharedLfo":true}
   }
 }

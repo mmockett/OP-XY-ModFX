@@ -4,13 +4,12 @@
 #include <opxy/types.hpp>
 
 namespace chroma { namespace panel {
-const opxy::u32 kNodes = 84, kTexts = 18, kPalette = 8;
+const opxy::u32 kNodes = 84, kTexts = 16, kPalette = 8;
 enum Node { kNodeRayUp = 0, kNodeRayUpFar = 1, kNodeRayDown = 2, kNodeRayDownFar = 3, kNodeMaskA = 12, kNodeMaskB = 13, kNodeCard = 37, kNodeBeamTop = 38, kNodeBeamBottom = 39, kNodePrism = 40, kNodePrismSide = 41, kNodePrismGlint = 42, kNodeGhost = 43, kNodeShutter = 47, kNodeStopA = 48, kNodeStopB = 49, kNodeBob = 50, kNodeStraight = 64 };
 const opxy::u32 kNodeLines = 14, kNodeCracks = 20, kNodeStatics = 25, kNodeInners = 44, kNodeHalos = 65, kNodeMotes = 68, kNodeBars = 76;
 const opxy::u32 kNodeScreen = 4, kScreenParts = 8;
 // Where each of the lamp's five glyphs starts, and where the last one ends.
 const opxy::u32 kGlyphFirst[6] = {51, 53, 54, 57, 62, 64};
-enum Text { kTextLeft = 16, kTextRight = 17 };
 // Palette: each a stroke's grey and its width, which a node's scale multiplies.
 enum Shade { kPrismOn = 0, kPrismOff = 1, kRayNear = 2, kRayFar = 3, kBeamOn = 4, kBeamOff = 5, kMoteBright = 6, kMoteSoft = 7 };
 const opxy::i32 kAxis = 116, kRail = 196, kLampX = 56, kCardX = 130, kPrismX = 214, kPrismY = 118, kPrismR = 42;

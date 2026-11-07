@@ -33,6 +33,13 @@ BOB_LOW, BOB_TRAVEL = RAIL - 15, 16  # the metronome's weight, slow to fast
 
 # Static parts have a dark body, so that nearer parts hide what's behind them.
 BODY, COLLAR = "#141414", "#242424"
+# The stock look's grey code: each module's small parts in its encoder's grey, left to
+# right as the modules stand. The lamp, flame and card are already outline, encoder 1's
+# hollow; the prism's stops and its metronome's weight are encoder 2's (amount, rate);
+# the halos and the screen's carriage block encoder 3's (amount, time); texture's marks
+# on the screen encoder 4's. The prism and the rays, the light, belong to no encoder.
+G2, G3, G4 = "#4b4b4b", "#969696", "#cdcdcd"
+G2_EDGE = "#7d7d7d"   # a light rim, so the dark solids read on black
 # A palette entry lends its stroke's width too, and the node's scale then multiplies it: rays are drawn at scale 2.
 PALETTE = [("#000000", BRIGHT, 1.2), ("#000000", DIM, 1.2), ("#000000", BRIGHT, 0.35), ("#000000", DIM, 0.35),
            ("#000000", BRIGHT, 0.6), ("#000000", DIM, 0.6), ("#000000", LIGHT, 0.6), ("#000000", MID, 0.6)]
@@ -45,7 +52,7 @@ NODES = (["ray_up", "ray_up_far", "ray_down", "ray_down_far"] + [f"screen_{p}" f
          [f"glyph_{g}_{i}" for g, n in GLYPHS.items() for i in range(n)] + ["straight"] + [f"halo_{i}" for i in range(3)] + [f"mote_{i}" for i in range(8)] +
          [f"bar_{i}" for i in range(8)])
 HEADER_TEXTS = 16
-TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)] + ["left", "right"]
+TEXTS = [f"header_{i}" for i in range(HEADER_TEXTS)]
 
 
 def num(v):
@@ -216,7 +223,7 @@ def screen_parts():
             "slab": ([(-3, -h + 1.2), (0, -h), (0, h), (-3, h - 1.2)], LIGHT, 0.8, "none"),
             "post": (box(c - 1.2, h - 3.6, c + 1.2, down - 8), LIGHT, 0.7, "none"),
             "rider": ([(-1, down + 3), (-1, down - 5), (2, down - 8), (w - 2, down - 8), (w - 1, down - 5), (w - 1, down + 3), (c + 2, down + 3), (c, down + 6), (c - 2, down + 3)], LIGHT, 0.8, COLLAR),
-            "knob": (circle(2.4, 12, c, down - 3), LIGHT, 0.6, "#000000"),
+            "knob": (rounded(c - 6, down - 5.5, c + 6, down - 0.5, 1, 2), G3, 0.6, G3),
             "glint_a": (ribbon([(w - 8, -h + 14), (w - 12, -h + 28)], 0.5), DIM, 0.4, "none"),
             "glint_b": (ribbon([(w - 5, -h + 18), (w - 8, -h + 29)], 0.5), DIM, 0.4, "none")}
 
@@ -380,17 +387,17 @@ def fragment():
         lines.append(f'  <path id="{ID}_node_{index[name]}" d="{check(rays_placeholder())}" {at(300, PRISM_Y)} fill="none" stroke="{BRIGHT}" stroke-width="0.35"/>')
     node("straight", straight(), MID)
     for k in range(3):
-        node(f"halo_{k}", halo(), DIM)
+        node(f"halo_{k}", halo(), G3)
     for part, (shape, stroke, w, fill) in screen_parts().items():
         node(f"screen_{part}", shape, stroke, w, fill)
-    node("mask_a", mask(), LIGHT)
-    node("mask_b", mask(), LIGHT)
+    node("mask_a", mask(), G4)
+    node("mask_b", mask(), G4)
     for k in range(6):
-        node(f"line_{k}", tape_line(), LIGHT)
+        node(f"line_{k}", tape_line(), G4)
     for k in range(5):
-        node(f"crack_{k}", crack(k), LIGHT)
+        node(f"crack_{k}", crack(k), G4)
     for k in range(12):
-        node(f"static_{k}", dash(), LIGHT, 0.6, LIGHT)
+        node(f"static_{k}", dash(), G4, 0.6, G4)
     # The glass, in front of the stem behind it.
     node("prism_side", prism_side(), MID, 0.7)
     node("prism", inner(PRISM_R), BRIGHT, 1.2)
@@ -400,13 +407,11 @@ def fragment():
         node(f"inner_{k}", inner(r), MID)
     static(prism_pivot())
     node("shutter", shutter(), BRIGHT)
-    node("stop_a", stop(), LIGHT, 0.6, LIGHT)
-    node("stop_b", stop(), LIGHT, 0.6, LIGHT)
-    node("bob", bob(), BRIGHT, 1, "#000000")
+    node("stop_a", stop(), G2_EDGE, 0.6, G2)
+    node("stop_b", stop(), G2_EDGE, 0.6, G2)
+    node("bob", bob(), G2_EDGE, 1, G2)
     for k in range(8):
         node(f"mote_{k}", mote(), MID)
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS}" {FONT} font-size="8" fill="{DIM}" {at(640, 320)}>L</text>')
-    lines.append(f'  <text id="{ID}_text_{HEADER_TEXTS + 1}" {FONT} font-size="8" fill="{DIM}" {at(640, 320)}>R</text>')
     for i, (fill, stroke, width) in enumerate(PALETTE):
         lines.append(f'  <circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>')
     lines.append("</g>")
@@ -435,7 +440,6 @@ const opxy::u32 kNodeLines = {index["line_0"]}, kNodeCracks = {index["crack_0"]}
 const opxy::u32 kNodeScreen = {index["screen_frame"]}, kScreenParts = {len(SCREEN_PARTS)};
 // Where each of the lamp's five glyphs starts, and where the last one ends.
 const opxy::u32 kGlyphFirst[6] = {{{firsts}}};
-enum Text {{ kTextLeft = {HEADER_TEXTS}, kTextRight = {HEADER_TEXTS + 1} }};
 // Palette: each a stroke's grey and its width, which a node's scale multiplies.
 enum Shade {{ kPrismOn = 0, kPrismOff = 1, kRayNear = 2, kRayFar = 3, kBeamOn = 4, kBeamOff = 5, kMoteBright = 6, kMoteSoft = 7 }};
 const opxy::i32 kAxis = {AXIS}, kRail = {RAIL}, kLampX = {LAMP_X}, kCardX = {CARD_X}, kPrismX = {PRISM_X}, kPrismY = {PRISM_Y}, kPrismR = {PRISM_R};
