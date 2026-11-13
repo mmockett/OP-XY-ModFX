@@ -170,6 +170,23 @@ struct Saturation {
         t.dc_out = centred;
         return add(x, mul(wet, sub(centred, x)));
     }
+    // The same in series, level-matched: the diodes' output is trimmed so it is
+    // as loud as what went in, and `in` and `out` gather both sizes for the
+    // next trim. Turning dust or tape 2 up then adds grit, not loudness, at
+    // whatever level the music sits (the makeup alone matches a quarter-scale
+    // peak, which music at the working level rarely reaches).
+    i32 run_matched(i32 x, Tape& t, i32 trim, u32& in, u32& out) const {
+        t.bump = add(t.bump, twice(mul(kBump, (x >> 1) - (t.bump >> 1))));
+        const i32 y = makeup.apply(shape(drive.apply(add(x, mul(t.bump, kBumpGain)))));
+        t.loss = add(t.loss, twice(mul(loss, (y >> 1) - (t.loss >> 1))));
+        const i32 centred = add(sub(t.loss, t.dc_in), mul(t.dc_out, 2136746229));  // 0.995
+        t.dc_in = t.loss;
+        t.dc_out = centred;
+        in += static_cast<u32>(x < 0 ? -(x >> 6) : x >> 6);
+        out += static_cast<u32>(centred < 0 ? -(centred >> 6) : centred >> 6);
+        const i32 even = twice(mul(trim, centred));
+        return add(x, mul(wet, sub(even, x)));
+    }
 };
 
 // The phaser's and the tank's memory, held in locals while a block runs.
@@ -297,7 +314,20 @@ struct Box {
     __attribute__((noinline)) void saturate(const Saturation& sat, Tape& tape, i32* x) const {
         const Saturation t = sat;
         Tape held = tape;
-        for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = t.run(x[i], held);
+        const i32 trim = held.trim ? held.trim : 1073741824;
+        u32 in = 0, out = 0;
+        for (unsigned i = 0; i < opxy::block_frames; ++i) x[i] = t.run_matched(x[i], held, trim, in, out);
+        // Each size glides over about 50 ms; the trim follows their ratio, 1/16 to 2,
+        // held while the diodes are near silent.
+        held.level_in += (static_cast<i32>(in >> 1) - held.level_in) >> 5;
+        held.level_out += (static_cast<i32>(out >> 1) - held.level_out) >> 5;
+        const i32 below = held.level_out >> 17;
+        if (below >= 16) {
+            i32 ratio = (held.level_in >> 3) / below;  // Q14
+            if (ratio < 1024) ratio = 1024;
+            if (ratio > 32767) ratio = 32767;
+            held.trim = ratio << 16;
+        }
         tape = held;
     }
     __attribute__((noinline)) void phaser_block(i32* x) const {
@@ -497,6 +527,8 @@ void lower(State& s, i32* words, u32 by) {
         s.tape[t].loss >>= by;
         s.tape[t].dc_in >>= by;
         s.tape[t].dc_out >>= by;
+        s.tape[t].level_in >>= by;
+        s.tape[t].level_out >>= by;
     }
 }
 }

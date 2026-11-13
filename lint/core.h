@@ -15,9 +15,11 @@ struct Spring {
 };
 
 // A tape saturation's filters: its head bump's low-pass, its high-frequency
-// loss and its DC blocker.
+// loss and its DC blocker; then its level match: the mean size of what goes in
+// and of what the diodes give back, and the trim (Q30) that evens them.
 struct Tape {
     opxy::i32 bump, loss, dc_in, dc_out;
+    opxy::i32 level_in, level_out, trim;
 };
 
 // A division a block would otherwise repeat while the controls rest: what it
