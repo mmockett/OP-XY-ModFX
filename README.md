@@ -166,11 +166,11 @@ no one has heard it do so yet.
 Lint and Chroma are live in the [open-xy.com](https://open-xy.com) builder
 ([Lint](https://open-xy.com/#preview/machines/lint),
 [Chroma](https://open-xy.com/#preview/machines/chroma)), which installs the
-version the Open-XY catalog pins: Lint `v1.8.0` and Chroma `v1.7.0`, older
-than this repository's latest tag, `v1.9.1`. Their entries are moving to v1.9.1,
-where neither wraps at a full-scale send any more and Chroma's worst block is
-lower. Omnifilter is a draft in the catalog, at `v1.9.0`, and not yet in the
-builder; build it from source.
+version the Open-XY catalog pins, which can be older than this repository's
+latest tag, `v1.9.3`. Lint's entry is moving to v1.9.3, where its dust and
+tape 2 sections are level-matched, so a send's amount reads as a mix.
+Omnifilter is a draft in the catalog, at `v1.9.0`, and not yet in the builder;
+build it from source.
 
 Each machine builds against the SDK's `staging` branch: Omnifilter needs
 machines on aux tracks (SDK 1.9), Lint and Chroma effect pages, shift rows and
